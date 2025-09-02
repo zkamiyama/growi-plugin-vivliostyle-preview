@@ -175,17 +175,23 @@ function post(html: string, css?: string | null){
   if(lastPageWidthPx){
     try {
       const pageW = Math.round(lastPageWidthPx);
+      // 固定ページ幅: ビュー領域が狭くなっても縮小スケールせず横スクロールさせる
       f.style.width = pageW + 'px';
-      f.style.maxWidth = '100%';
+      f.style.minWidth = pageW + 'px';
+      f.style.maxWidth = pageW + 'px'; // 意図的: 親幅に合わせて縮まない
+      f.style.flex = '0 0 auto';       // flex 収縮抑止
+      (f.style as any).flexShrink = '0';
       f.style.boxShadow = '0 0 6px rgba(0,0,0,.35)';
       f.style.background = '#fff';
+      f.style.display = 'block';
+      f.style.margin = '0 auto'; // 広い場合は中央
       if(vivlioPanel){
-        vivlioPanel.style.display='flex';
-        vivlioPanel.style.justifyContent='center';
-        vivlioPanel.style.alignItems='flex-start';
+        // flex レイアウトだと子要素が縮小され得るので block + overflow で固定幅スクロール
+        vivlioPanel.style.display='block';
         vivlioPanel.style.overflow='auto';
         vivlioPanel.style.background='#5a5a5a';
         vivlioPanel.style.padding='16px 24px';
+        vivlioPanel.style.boxSizing='border-box';
       }
     } catch{}
   }
