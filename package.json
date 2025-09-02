@@ -17,11 +17,13 @@
     "@types/unist": "^3.0.3",
     "@vivliostyle/viewer": "^2.34.1",
     "hastscript": "^9.0.1",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
     "react-innertext": "^1.1.5",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.0.0"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",

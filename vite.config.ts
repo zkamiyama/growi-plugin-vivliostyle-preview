@@ -8,6 +8,7 @@ export default defineConfig({
     manifest: true,
     rollupOptions: {
       input: ['/client-entry.tsx'],
+  external: ['react', 'react-dom']
     },
   },
 });

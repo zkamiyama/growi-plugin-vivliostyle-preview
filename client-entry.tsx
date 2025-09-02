@@ -4,6 +4,8 @@
 // queue => viewer script 注入 => viewer.viewer 出現ポーリング => render の順序を保証。
 
 // (renamed copy note) 元ファイル内容。build が参照していない可能性が高い。
+// TEMP: will refactor; import auxiliary minimal plugin (renders non-paginated HTML via growiFacade when available)
+import './src/plugin.ts';
 import MarkdownIt from 'markdown-it';
 // @ts-ignore
 import markdownItRuby from 'markdown-it-ruby';
@@ -132,7 +134,7 @@ function ensureIframe(): HTMLIFrameElement {
   window.addEventListener('message',e=>{ const d=e.data; if(!d||d.type!=='HTML_FULL') return; pending=d; if(booted){ apply(d); } });
   function pollReady(){ let c=0; const iv=setInterval(()=>{ c++; const g=(window).VivliostyleViewer||(window).vivliostyle; if(g && !booted){ booted=true; if(pending) apply(pending); pollPages(); } if(c>1000){ clearInterval(iv); if(!booted) log('viewer global not found'); } },20); }
   function pollPages(){ let c=0; const iv=setInterval(()=>{ c++; const pc=document.querySelectorAll('[data-vivliostyle-page-container]').length; const st=document.body.getAttribute('data-vivliostyle-viewer-status'); if(pc>0||st){ clearInterval(iv); log('ready pages='+pc); if(pc>0){ try{ const fb=document.getElementById('fallbackHtml'); if(fb) fb.style.display='none'; }catch{} parent.postMessage({type:'VIVLIO_RENDER_DONE', pages:pc},'*'); } else { parent.postMessage({type:'VIVLIO_RENDER_DONE', note:'noPagesYet'},'*'); } } else if(c>300){ clearInterval(iv); log('timeout'); parent.postMessage({type:'VIVLIO_RENDER_DONE', error:'timeout'},'*'); } },160); }
-  const s1=document.createElement('script'); s1.src='${'"+viewerUrl+"'}'; s1.onload=()=>{ log('viewer loaded'); pollReady(); }; s1.onerror=()=>log('viewer load error'); document.head.appendChild(s1);\n})();`;
+  const s1=document.createElement('script'); s1.type='text/javascript'; s1.src='${viewerUrl}'; s1.onload=()=>{ log('viewer loaded'); pollReady(); }; s1.onerror=()=>log('viewer load error'); document.head.appendChild(s1);\n})();`;
   const escCtrl = control.replace(/<\/script>/gi,'<\\/script>');
   iframe.srcdoc = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"/>${styleBundle}<style>html,body{margin:0;height:100%;}#fallbackHtml{position:absolute;inset:0;overflow:auto;font:14px system-ui;display:none;background:#fff;padding:12px;}#vivliostyle-menu-bar{display:none!important;}#vivliostyle-viewer-viewport{top:0!important;background:#fff;}</style></head><body><div id=\"vivliostyle-viewer\"></div><div id=\"vivliostyle-viewer-viewport\" data-vivliostyle-viewer-viewport></div><div id=\"vivliostyle-menu-bar\"></div><div id=\"vivliostyle-message-dialog\"></div><div id=\"fallbackHtml\"></div><script>${escCtrl}</script></body></html>`;
   if (vivlioPanel) { vivlioPanel.innerHTML=''; vivlioPanel.appendChild(iframe); } else document.body.appendChild(iframe);
