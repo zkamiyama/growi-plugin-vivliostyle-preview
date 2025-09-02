@@ -1,5 +1,4 @@
 import React from 'react';
-
 import config from './package.json';
 import { helloGROWI, remarkPlugin, rehypePlugin } from './src/Hello';
 import { Options, Func, ViewOptions } from './types/utils';
@@ -17,41 +16,39 @@ declare const growiFacade : {
 };
 
 const addPlugin = (options: ViewOptions) => {
-  const { a } = options.components;
-  // replace
-  options.components.a = helloGROWI(a);
-  options.remarkPlugins.push(remarkPlugin as any);
-  options.rehypePlugins.push(rehypePlugin as any);
+  try {
+    const { a } = options.components;
+    options.components.a = helloGROWI(a);
+    options.remarkPlugins.push(remarkPlugin as any);
+    options.rehypePlugins.push(rehypePlugin as any);
+  } catch (e) {
+    // ignore
+  }
   return options;
 };
 
 const activate = (): void => {
-  if (growiFacade == null || growiFacade.markdownRenderer == null) {
-    return;
-  }
+  if (growiFacade == null || growiFacade.markdownRenderer == null) return;
   const { optionsGenerators } = growiFacade.markdownRenderer;
+
   const originalCustomViewOptions = optionsGenerators.customGenerateViewOptions;
-  optionsGenerators.customGenerateViewOptions = (...args) => {
+  optionsGenerators.customGenerateViewOptions = (...args: [string, Options, Func]) => {
     const options = originalCustomViewOptions ? originalCustomViewOptions(...args) : optionsGenerators.generateViewOptions(...args);
     return addPlugin(options);
   };
 
-  // For preview
   const originalGeneratePreviewOptions = optionsGenerators.customGeneratePreviewOptions;
-  optionsGenerators.customGeneratePreviewOptions = (...args) => {
+  optionsGenerators.customGeneratePreviewOptions = (...args: [string, Options, Func]) => {
     const options = originalGeneratePreviewOptions ? originalGeneratePreviewOptions(...args) : optionsGenerators.generatePreviewOptions(...args);
     return addPlugin(options);
   };
 };
 
-const deactivate = (): void => {
-};
+const deactivate = (): void => {};
 
-// register activate
 if ((window as any).pluginActivators == null) {
   (window as any).pluginActivators = {};
 }
-(window as any).pluginActivators[config.name] = {
-  activate,
-  deactivate,
-};
+(window as any).pluginActivators[config.name] = { activate, deactivate };
+
+export {};
