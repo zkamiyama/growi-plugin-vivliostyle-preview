@@ -2,10 +2,11 @@ GitHub Copilot
 
 ポリシー
 - 常に GitHub 上 (origin main) の内容を正とする。
+- **tsx/css 等のソース変更後は必ず `npm run build` を実行し、生成された `dist/` ディレクトリもコミットに含めてから push しないと GROWI 上の動作は変わらない。**
 - ローカル作業後は必ず pull/rebase で整合を確認してから push。
 - *.md を現在は .gitignore で無視しているため、仕様や決定事項は追跡したい場合拡張子を .mdx などに変更するか ignore を調整する。
 - Vivliostyle プレビューは紙面 (ページ) 幅で固定し、画面が狭い場合は横スクロール (縮小スケール禁止)。
-- ページ幅推定: ユーザー CSS の @page size から取得。未指定時は A4 幅を既定。
+- ページ幅推定: ユーザー CSS の @page size から取得。未指定時は A5 幅を既定。
 
 メモ
 - 縮小が発生した場合、iframe 親チェーンの flex 収縮 / max-width / transform / zoom を確認し、min-width と overflow-x:auto で防止。
