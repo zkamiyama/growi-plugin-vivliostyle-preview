@@ -165,6 +165,10 @@ function buildFullDoc(html: string, css?: string|null){
   const defaultBody = `body { font: 11pt/1.5 serif; widows:2; orphans:2; }`;
   userCss = `${defaultPage}\n${defaultBody}\n` + userCss;
   }
+  // (暫定) vivliostyle が連続スクロールになるケース診断用: 強制ページ化ヘルパークラス追加
+  // NOTE: 仕様外になる恐れがあるため後で除去予定。
+  userCss += `\n/* diag: enforce paged layout */\nhtml, body { overflow: visible !important; }\n`;
+  userCss += `\n/* diag: explicit break hints */\nsection, h1, h2, h3, h4, h5, h6 { break-after: avoid-page; }\n`;
   try{ lastPageWidthPx = estimatePageWidthPx(userCss) || lastPageWidthPx; }catch{}
   const full = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'+userCss+'</style></head><body>'+html+'</body></html>';
   return full;
@@ -195,6 +199,8 @@ function post(html: string, css?: string | null){
   const f=ensureIframe();
   if(!f.contentWindow) return;
   lastPostedSrc = lastSrc;
+  // --- 追加計測: Markdown -> HTML 長さ, CSS 長さ, 全文長さ ---
+  try { console.debug('[vivlio:diag] post start',{ mdLen: (lastSrc||'').length, htmlLen: html.length, cssLen: css? css.length: 0 }); } catch {}
   // ページ幅推定があれば iframe 幅固定 + 中央寄せ
   if(lastPageWidthPx){
     try {
@@ -240,6 +246,7 @@ function post(html: string, css?: string | null){
     } catch{}
   }
   const full = buildFullDoc(html, css);
+  try { (window as any).__VIVLIO_LAST_FULL_LEN__ = full.length; } catch {}
   // 1st phase: まだ viewer Ready でなければ fallbackHtml 埋め込みを命令 (即時表示)
   try { (f as any).contentWindow.__VIV_LAST_FULL_HTML__ = full; } catch {}
   // vivlioReady になるまでは progressive=true で iframe 内 fallback 埋め込みを可視化
@@ -563,6 +570,7 @@ function activate(){
   (window as any).__VIVLIO_PREVIEW_ACTIVE__=true;
   (window as any).__VIVLIO_PREVIEW__={ scheduleRender, registerExtraButton };
   window.addEventListener('message',e=>{ if(e.data?.type==='VIVLIO_READY'){ vivlioReady=true; immediateRender(); } });
+  window.addEventListener('message',e=>{ if(e.data?.type==='VIVLIO_RENDER_DONE'){ try{ console.debug('[vivlio:diag] RENDER_DONE pages=', e.data.pages, 'note=', e.data.note, 'err=', e.data.error); }catch{} } });
   // spinner removed: no VIVLIO_RENDER_DONE visual handling needed
   function tryAttach(){ return attachAllEditorListeners(); }
   attachPollId = window.setInterval(()=>{
