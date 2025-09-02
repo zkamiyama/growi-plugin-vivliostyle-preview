@@ -55,6 +55,8 @@ let resizeObs: ResizeObserver | null = null;
 let spinnerEl: HTMLElement | null = null;
 let spinnerHideTimer: number | null = null;
 let keyForceListenerAdded = false;
+let spinnerShowTimer: number | null = null; // 遅延表示タイマー
+let lastPostedSrc: string | null = null;    // 直近 post 済み Markdown ソース (重複 skip)
 
 function renderMarkdownWithEmbeddedCss(src: string){
   if (!src || typeof src !== 'string') {
@@ -179,7 +181,17 @@ function mmToPx(mm:number){ return mm/25.4*96; }
 function post(html: string, css?: string | null){
   const f=ensureIframe();
   if(!f.contentWindow) return;
-  if(spinnerEl){ spinnerEl.style.opacity='1'; if(spinnerHideTimer){ clearTimeout(spinnerHideTimer); spinnerHideTimer=null; } }
+  // spinner 遅延表示 (120ms) & fail-safe 5s
+  if(spinnerShowTimer){ clearTimeout(spinnerShowTimer); spinnerShowTimer=null; }
+  if(spinnerEl){
+    if(spinnerHideTimer){ clearTimeout(spinnerHideTimer); spinnerHideTimer=null; }
+    spinnerEl.style.display='none';
+    spinnerEl.style.opacity='0';
+    spinnerShowTimer = window.setTimeout(()=>{ try{ if(spinnerEl){ spinnerEl.style.display='block'; requestAnimationFrame(()=>{ if(spinnerEl) spinnerEl.style.opacity='1'; }); } }catch{} },120);
+    const failSafeTimer = window.setTimeout(()=>{ try{ if(spinnerEl){ spinnerEl.style.opacity='0'; spinnerEl.style.display='none'; } }catch{} },5000);
+    detachFns.push(()=>clearTimeout(failSafeTimer));
+  }
+  lastPostedSrc = lastSrc;
   // ページ幅推定があれば iframe 幅固定 + 中央寄せ
   if(lastPageWidthPx){
     try {
@@ -200,7 +212,7 @@ function post(html: string, css?: string | null){
         vivlioPanel.style.textAlign='center';
         if(!spinnerEl){
           spinnerEl=document.createElement('div');
-          Object.assign(spinnerEl.style,{position:'absolute',top:'8px',right:'8px',width:'18px',height:'18px',border:'3px solid #999',borderTopColor:'#2b6cb0',borderRadius:'50%',animation:'vivlio-spin .8s linear infinite',opacity:'0',transition:'opacity .25s',zIndex:'50'});
+          Object.assign(spinnerEl.style,{position:'absolute',top:'8px',right:'8px',width:'18px',height:'18px',border:'3px solid #999',borderTopColor:'#2b6cb0',borderRadius:'50%',animation:'vivlio-spin .8s linear infinite',opacity:'0',transition:'opacity .18s',zIndex:'50',display:'none'});
           vivlioPanel.appendChild(spinnerEl);
         }
       }
@@ -222,9 +234,10 @@ function immediateRender(){
 }
 
 function scheduleRender(src: string){
+  if(src===lastPostedSrc) return; // 重複不要
   lastSrc = src;
   if (debounceTimer) window.clearTimeout(debounceTimer);
-  debounceTimer = window.setTimeout(()=>{ const {html, css}=renderMarkdownWithEmbeddedCss(lastSrc); post(html, css); }, 250);
+  debounceTimer = window.setTimeout(()=>{ const {html, css}=renderMarkdownWithEmbeddedCss(lastSrc); post(html, css); }, 120);
 }
 
 function attachAllEditorListeners(): boolean {
@@ -503,7 +516,7 @@ function activate(){
   (window as any).__VIVLIO_PREVIEW_ACTIVE__=true;
   (window as any).__VIVLIO_PREVIEW__={ scheduleRender, registerExtraButton };
   window.addEventListener('message',e=>{ if(e.data?.type==='VIVLIO_READY'){ vivlioReady=true; immediateRender(); } });
-  window.addEventListener('message',e=>{ if(e.data?.type==='VIVLIO_RENDER_DONE'){ try{ if(spinnerEl){ spinnerEl.style.opacity='0'; if(spinnerHideTimer) clearTimeout(spinnerHideTimer); spinnerHideTimer=window.setTimeout(()=>{ try{ if(spinnerEl) spinnerEl.style.display='none'; }catch{} },400); } }catch{} } });
+  window.addEventListener('message',e=>{ if(e.data?.type==='VIVLIO_RENDER_DONE'){ try{ if(spinnerShowTimer){ clearTimeout(spinnerShowTimer); spinnerShowTimer=null; } if(spinnerEl){ spinnerEl.style.opacity='0'; if(spinnerHideTimer) clearTimeout(spinnerHideTimer); spinnerHideTimer=window.setTimeout(()=>{ try{ if(spinnerEl) spinnerEl.style.display='none'; }catch{} },220); } }catch{} } });
   function tryAttach(){ return attachAllEditorListeners(); }
   attachPollId = window.setInterval(()=>{
     try { initVivlioToggle(); } catch {}
