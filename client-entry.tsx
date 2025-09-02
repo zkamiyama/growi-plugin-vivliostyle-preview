@@ -105,8 +105,13 @@ function ensureIframe(): HTMLIFrameElement {
 }
 
 function buildFullDoc(html: string, css?: string|null){
-  const userCss = css ? css : '';
-  return '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'+userCss+'</style></head><body>'+html+'</body></html>';
+  let userCss = css ? css : '';
+  // デフォルト組版 CSS (ユーザー未指定時) - @page が存在しないなら基本サイズ付与
+  if(!/@page\b/.test(userCss)){
+    userCss = '@page { size: A4; margin: 20mm; }\n' + 'body{ font:12pt/1.5 serif; }\n' + userCss;
+  }
+  const full = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'+userCss+'</style></head><body>'+html+'</body></html>';
+  return full;
 }
 
 function post(html: string, css?: string | null){
@@ -114,6 +119,7 @@ function post(html: string, css?: string | null){
   if(!f.contentWindow) return;
   const full = buildFullDoc(html, css);
   // 1st phase: まだ viewer Ready でなければ fallbackHtml 埋め込みを命令 (即時表示)
+  try { (f as any).contentWindow.__VIV_LAST_FULL_HTML__ = full; } catch {}
   f.contentWindow.postMessage({type:'HTML_FULL', html, css, full, progressive: true}, '*');
 }
 
