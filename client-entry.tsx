@@ -132,17 +132,27 @@ function ensurePreviewBodies() {
 
 // 単純化: View/Edit ボタンを直接探してその直後に挿入
 function findViewEditButton(): HTMLButtonElement | null {
+  // data-testid 優先 (GROWI 最新 UI)
+  const editById = document.querySelector('[data-testid="editor-button"]') as HTMLButtonElement | null;
+  const viewById = document.querySelector('[data-testid="view-button"]') as HTMLButtonElement | null;
+  let target: HTMLElement | null = editById || viewById;
+
   const btns = Array.from(document.querySelectorAll('button, a.btn')) as HTMLElement[];
-  // Edit を優先、次に View を探す
-  let target = btns.find(b => /^Edit$/i.test((b.textContent||'').trim()));
   if (!target) {
-    target = btns.find(b => /^View$/i.test((b.textContent||'').trim()));
+    // icon span のテキスト (play_arrow / edit_square 等) が前に付くため末尾一致で判定
+    target = btns.find(b => /Edit$/i.test((b.textContent||'').replace(/\s+/g,' ').trim())) ||
+             btns.find(b => /View$/i.test((b.textContent||'').replace(/\s+/g,' ').trim())) || null;
   }
-  if (findControlAttempts < 20) {
+
+  if (findControlAttempts < 30) {
     findControlAttempts++;
     try {
-      const allBtnTexts = btns.slice(0, 10).map(b => (b.textContent||'').trim()).join(' | ');
-      console.debug(LOG_PREFIX, 'findViewEditButton attempt', findControlAttempts, 'found:', !!target, 'all buttons:', allBtnTexts);
+      const sampled = btns.slice(0, 12).map(b => {
+        const raw=(b.textContent||'').replace(/\s+/g,' ').trim();
+        const tail = raw.slice(-20);
+        return tail;
+      }).join(' | ');
+      console.debug(LOG_PREFIX, 'findViewEditButton attempt', findControlAttempts, 'targetFound:', !!target, 'sample tails:', sampled);
     } catch {}
   }
   return target as HTMLButtonElement | null;
