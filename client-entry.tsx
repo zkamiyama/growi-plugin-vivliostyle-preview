@@ -49,6 +49,7 @@ let attachPollId: number | null = null;
 const detachFns: Array<() => void> = [];
 let findControlAttempts = 0;
 const LOG_PREFIX = '[vivlio:min]';
+let extButtonGroup: HTMLElement | null = null; // 追加ボタン用グループ
 
 function renderMarkdownWithEmbeddedCss(src: string){
   try {
@@ -192,12 +193,26 @@ function initVivlioToggle() {
   toggleBtn.setAttribute('data-bs-toggle','button');
   toggleBtn.onclick = () => setMode(currentMode === 'vivlio' ? 'markdown' : 'vivlio');
   
-  // 直後に挿入
-  if (targetBtn.nextSibling) {
-    targetBtn.parentNode?.insertBefore(toggleBtn, targetBtn.nextSibling);
-  } else {
-    targetBtn.parentNode?.appendChild(toggleBtn);
+  // 専用グループ (将来拡張用) を View/Edit グループの直後に配置
+  const groupRoot = targetBtn.closest('.btn-group') || targetBtn.parentElement;
+  if (!extButtonGroup || !extButtonGroup.isConnected) {
+    extButtonGroup = document.querySelector('.vivlio-ext-btn-group') as HTMLElement | null;
+    if (!extButtonGroup) {
+      extButtonGroup = document.createElement('div');
+      extButtonGroup.className = 'btn-group vivlio-ext-btn-group';
+      Object.assign(extButtonGroup.style, {
+        marginLeft: '8px',
+        display: 'inline-flex',
+        gap: '4px',
+        verticalAlign: 'middle'
+      });
+      if (groupRoot) groupRoot.insertAdjacentElement('afterend', extButtonGroup); else targetBtn.parentNode?.appendChild(extButtonGroup);
+    }
   }
+
+  // グループ内へ配置 (マージンはグループ側 gap を利用するので 0)
+  toggleBtn.style.marginLeft = '0';
+  extButtonGroup!.appendChild(toggleBtn);
   
   // スタイル調整
   tuneToggleStyle(toggleBtn, targetBtn);
@@ -214,10 +229,24 @@ function tuneToggleStyle(btn: HTMLButtonElement, referenceBtn: HTMLElement){
     
     // 参照ボタンからスタイルコピー
     const cs = getComputedStyle(referenceBtn);
-    btn.style.padding = cs.padding;
+    // 横幅調整: 文字が詰まるので左右 +2px 余白を追加
+    const padParts = cs.padding.split(/\s+/); // t r b l
+    if (padParts.length >= 2) {
+      const t = padParts[0];
+      const r = padParts[1];
+      const b = padParts[2] || padParts[0];
+      const l = padParts[3] || padParts[1];
+      function addPx(v:string){ const m=v.match(/([\d.]+)(px)?/); if(!m) return v; return (parseFloat(m[1])+2)+'px'; }
+      btn.style.padding = `${t} ${addPx(r)} ${b} ${addPx(l)}`;
+    } else {
+      btn.style.padding = cs.padding;
+    }
     btn.style.fontSize = cs.fontSize;
     btn.style.lineHeight = cs.lineHeight;
-    btn.style.height = cs.height;
+    // 高さ固定は避けオーバーフロー防止: minHeight を参照高さに
+    btn.style.minHeight = cs.height;
+    btn.style.height = 'auto';
+    btn.style.overflow = 'visible';
     
     console.debug(LOG_PREFIX, 'copied styles - padding:', cs.padding, 'fontSize:', cs.fontSize, 'height:', cs.height);
     
@@ -242,6 +271,25 @@ function tuneToggleStyle(btn: HTMLButtonElement, referenceBtn: HTMLElement){
     btn.style.lineHeight = '1.5';
     btn.style.height = 'auto';
   }
+}
+
+// 公開 API: 追加ボタンを extButtonGroup に登録
+function registerExtraButton(opts: { id?: string; label: string; onClick: () => void; title?: string; className?: string; }) {
+  if (!toggleInitialized) { try { initVivlioToggle(); } catch {} }
+  if (!extButtonGroup) return null;
+  const id = opts.id || 'vivlio-extra-' + Math.random().toString(36).slice(2,8);
+  if (extButtonGroup.querySelector(`#${id}`)) return extButtonGroup.querySelector(`#${id}`);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = id;
+  btn.className = opts.className || 'btn btn-sm btn-outline-secondary';
+  btn.textContent = opts.label;
+  if (opts.title) btn.title = opts.title;
+  btn.addEventListener('click', e => { try { opts.onClick(); } catch(err){ console.warn(LOG_PREFIX,'extra button error', err);} });
+  extButtonGroup.appendChild(btn);
+  // トグルと同じスタイル調整 (参照に既存 toggle か View/Edit のどちらか)
+  if (toggleBtn) tuneToggleStyle(btn as HTMLButtonElement, toggleBtn);
+  return btn;
 }
 
 function updateToggleActive() {
@@ -278,7 +326,7 @@ function tryReadEditorText(): string | null {
 function activate(){
   if((window as any).__VIVLIO_PREVIEW_ACTIVE__) return;
   (window as any).__VIVLIO_PREVIEW_ACTIVE__=true;
-  (window as any).__VIVLIO_PREVIEW__={ scheduleRender };
+  (window as any).__VIVLIO_PREVIEW__={ scheduleRender, registerExtraButton };
   window.addEventListener('message',e=>{ if(e.data?.type==='VIVLIO_READY'){ vivlioReady=true; if(lastSrc){ const {html,css}=renderMarkdownWithEmbeddedCss(lastSrc); post(html,css);} }});
   function tryAttach(){ const cmHost=document.querySelector('.CodeMirror'); if(cmHost && (cmHost as any).CodeMirror){ const cm=(cmHost as any).CodeMirror; const h=()=>{ try{ scheduleRender(cm.getValue()); }catch{} }; cm.on('change',h); detachFns.push(()=>{ try{ cm.off('change',h);}catch{} }); try{ scheduleRender(cm.getValue()); }catch{} return true;} return false; }
   attachPollId = window.setInterval(()=>{
