@@ -17,5 +17,6 @@
     "jsx": "react-jsx"
   },
   "include": ["src", "client-entry.tsx"],
+  "exclude": ["src/entry.ts", "src/markdown.ts", "src/PreviewTabs.tsx", "src/viewerHost.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
