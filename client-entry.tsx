@@ -123,10 +123,26 @@ function ensurePreviewBodies() {
   if (!originalPreviewBody) return false;
   // Vivlio パネル未生成なら作成して隣に配置
   if (!vivlioPanel || !vivlioPanel.isConnected) {
+    // オーバーレイ方式: レイアウト崩しによるエディタスクロール移動を避ける
+    // container or originalPreviewBody の親を position:relative にし、vivlioPanel を absolute で重ねる
+    const host = originalPreviewBody.parentElement || container;
+    if (host && getComputedStyle(host).position === 'static') {
+      host.style.position = 'relative';
+    }
     vivlioPanel = document.createElement('div');
     vivlioPanel.className = 'vivlio-panel';
-    Object.assign(vivlioPanel.style, { width:'100%', height:'100%', overflow:'hidden', display:'none' });
-    originalPreviewBody.after(vivlioPanel);
+    Object.assign(vivlioPanel.style, {
+      position:'absolute',
+      inset:'0',
+      width:'100%',
+      height:'100%',
+      overflow:'hidden',
+      display:'block', // 常に block (visibility で制御)
+      visibility:'hidden',
+      background:'#fff'
+    });
+    host.appendChild(vivlioPanel);
+    // original は display を弄らず visibility で切替 (高さ維持)
   }
   return true;
 }
@@ -299,8 +315,21 @@ function updateToggleActive() {
     toggleBtn.classList.toggle('btn-outline-secondary', currentMode !== 'vivlio');
   }
   if (originalPreviewBody && vivlioPanel) {
-    originalPreviewBody.style.display = currentMode === 'markdown' ? '' : 'none';
-    vivlioPanel.style.display = currentMode === 'vivlio' ? 'block' : 'none';
+    // レイアウト高さを保つため display をいじらず visibility 切替
+    if (currentMode === 'markdown') {
+      originalPreviewBody.style.visibility = 'visible';
+      vivlioPanel.style.visibility = 'hidden';
+      vivlioPanel.style.pointerEvents = 'none';
+    } else {
+      originalPreviewBody.style.visibility = 'hidden';
+      vivlioPanel.style.visibility = 'visible';
+      vivlioPanel.style.pointerEvents = 'auto';
+      // サイズ同期 (もし markdown 側が自動伸縮ならその高さを iframe 親に反映)
+      try {
+        const h = originalPreviewBody.getBoundingClientRect().height;
+        if (h) vivlioPanel.style.minHeight = h + 'px';
+      } catch {}
+    }
   }
 }
 
