@@ -892,6 +892,22 @@
     "@types/babel__core" "^7.20.5"
     react-refresh "^0.14.2"
 
+"@vivliostyle/core@^2.34.1":
+  version "2.34.1"
+  resolved "https://registry.npmjs.org/@vivliostyle/core/-/core-2.34.1.tgz"
+  integrity sha512-dRs6a8c7IKzHMpJYZQaLZQ9GnzoCKRpjDOHzdfO2joGcPZCHY3WVFNFNHla/mdsKadSNuJesABW1POXwUBqj3Q==
+  dependencies:
+    fast-diff "^1.2.0"
+
+"@vivliostyle/viewer@^2.34.1":
+  version "2.34.1"
+  resolved "https://registry.npmjs.org/@vivliostyle/viewer/-/viewer-2.34.1.tgz"
+  integrity sha512-tTEEmcKNE+o9ilxhaa3i92aWyZIpE8Y39W2zqQbJkq6CziuFbNq3Af7vIKRnwhPDmMFbVBL/9ta6R+EI27VjQA==
+  dependencies:
+    "@vivliostyle/core" "^2.34.1"
+    i18next-ko "^3.0.1"
+    knockout "^3.5.0"
+
 acorn-jsx@^5.3.2:
   version "5.3.2"
   resolved "https://registry.npmjs.org/acorn-jsx/-/acorn-jsx-5.3.2.tgz"
@@ -2072,6 +2088,11 @@ fast-deep-equal@^3.1.1, fast-deep-equal@^3.1.3:
   resolved "https://registry.npmjs.org/fast-deep-equal/-/fast-deep-equal-3.1.3.tgz"
   integrity sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==
 
+fast-diff@^1.2.0:
+  version "1.3.0"
+  resolved "https://registry.npmjs.org/fast-diff/-/fast-diff-1.3.0.tgz"
+  integrity sha512-VxPP4NqbUjj6MaAOafWeUn2cXWLcCtljklUtZf0Ind4XQ+QPtmA0b18zZy0jIQx+ExRVCR/ZQpBmik5lXshNsw==
+
 fast-glob@^3.2.9, fast-glob@^3.3.1:
   version "3.3.2"
   resolved "https://registry.npmjs.org/fast-glob/-/fast-glob-3.3.2.tgz"
@@ -2416,6 +2437,18 @@ human-signals@^2.1.0:
   version "2.1.0"
   resolved "https://registry.npmjs.org/human-signals/-/human-signals-2.1.0.tgz"
   integrity sha512-B4FFZ6q/T2jhhksgkbEW3HBvWIfDW85snkQgawt07S7J5QXTk6BkNV+0yAeZrM5QpMAdYlocGoljn0sJ/WQkFw==
+
+i18next-ko@^3.0.1:
+  version "3.0.1"
+  resolved "https://registry.npmjs.org/i18next-ko/-/i18next-ko-3.0.1.tgz"
+  integrity sha512-Z0HMTiJHU1zP+Lgp8H8iZYmOZHrUVu6LaAWAmm5cMuP4y/VFAghEfs9kDuQ86+S+g45TCKzX76MqyNGemlJuMA==
+  dependencies:
+    i18next "^3.4.3"
+
+i18next@^3.4.3:
+  version "3.5.2"
+  resolved "https://registry.npmjs.org/i18next/-/i18next-3.5.2.tgz"
+  integrity sha512-42eGG1b56O5NR01Gudod1R3LzPugN6tZ3ZmYtAqOJSmx4V3vD07hLtkkFrv/qu1mRecW1woezyXFZBFnNAgRXw==
 
 ignore@^5.2.0:
   version "5.2.0"
@@ -3175,6 +3208,11 @@ kleur@^3.0.3:
   version "3.0.3"
   resolved "https://registry.npmjs.org/kleur/-/kleur-3.0.3.tgz"
   integrity sha512-eTIzlVOSUR+JxdDFepEYcBMtZ9Qqdef+rnzWdRZuMbOywu5tO2w2N7rqjoANZ5k9vywhL6Br1VRjUIgTQx4E8w==
+
+knockout@^3.5.0:
+  version "3.5.1"
+  resolved "https://registry.npmjs.org/knockout/-/knockout-3.5.1.tgz"
+  integrity sha512-wRJ9I4az0QcsH7A4v4l0enUpkS++MBx0BnL/68KaLzJg7x1qmbjSlwEoCNol7KTYZ+pmtI7Eh2J0Nu6/2Z5J/Q==
 
 language-subtag-registry@^0.3.20:
   version "0.3.23"
