@@ -24,13 +24,13 @@ import cssSelMenu from '@vivliostyle/viewer/lib/css/ui.text-selection-menu.css?r
 import config from './package.json';
 
 // build script が置換するパターンを維持
-export const BUILD_ID = 'LOCAL_PLACEHOLDER';
+export const BUILD_ID = 'BUILD_2025_0903_1742';
 console.log('[vivlio:min] BUILD_ID', BUILD_ID);
 // MARKER: simplified-impl test (should appear in dist if this file is used)
-console.log('[vivlio:min] __MARKER_SIMPLE_IMPL__');
+console.log('[vivlio:min] __MARKER_ROBUST_IMPL__');
 // Second marker
-console.log('[vivlio:min] __MARKER_SIMPLE_IMPL_2__');
-(globalThis as any).__SIMPLE_IMPL_ACTIVE__ = true;
+console.log('[vivlio:min] __MARKER_ROBUST_IMPL_2__');
+(globalThis as any).__ROBUST_IMPL_ACTIVE__ = true;
 
 const md = new MarkdownIt({ html: true, linkify: true }).use(markdownItRuby);
 const EMBED_CSS_LANGS = ['vivlio-css','vivliostyle','css:vivlio','css-vivlio'];
@@ -53,21 +53,49 @@ let extButtonGroup: HTMLElement | null = null; // 追加ボタン用グループ
 let lastPageWidthPx: number | null = null; // 推定ページ幅 (px)
 
 function renderMarkdownWithEmbeddedCss(src: string){
+  if (!src || typeof src !== 'string') {
+    console.warn('[vivlio:min] invalid markdown input:', typeof src);
+    return { html: '', css: null };
+  }
+  
   try {
-  const tokens = md.parse(src, {});
-  // debug (disabled for build stability)
-  // (debug token summary removed)
+    const tokens = md.parse(src, {});
+    if (!Array.isArray(tokens)) {
+      console.warn('[vivlio:min] unexpected tokens type:', typeof tokens);
+      return { html: md.render(src), css: null };
+    }
+    
     let css: string | null = null;
-    for (let i=0;i<tokens.length;i++){
+    // CSS fenced block 検索とトークン除去 (堅牢化)
+    for (let i = tokens.length - 1; i >= 0; i--) {
       const t = tokens[i];
-      if (t.type==='fence' && t.info){
-        const lang = t.info.trim().split(/\s+/)[0].toLowerCase();
-        if (EMBED_CSS_LANGS.includes(lang)) { css=(t.content||'').trim(); tokens.splice(i,1); break; }
+      if (t && t.type === 'fence' && t.info) {
+        const lang = String(t.info).trim().split(/\s+/)[0].toLowerCase();
+        if (EMBED_CSS_LANGS.includes(lang)) { 
+          css = String(t.content || '').trim(); 
+          tokens.splice(i, 1); 
+          break; 
+        }
       }
     }
+    
     const html = md.renderer.render(tokens, md.options, {});
+    if (typeof html !== 'string') {
+      console.warn('[vivlio:min] unexpected html type:', typeof html);
+      return { html: String(html || ''), css };
+    }
+    
     return { html, css };
-  } catch(e){ console.warn('[vivlio:min] markdown parse error', e); return { html: md.render(src), css: null }; }
+  } catch(e) { 
+    console.warn('[vivlio:min] markdown parse error', e); 
+    // フォールバック: 元文字列をそのまま render
+    try {
+      return { html: md.render(src), css: null };
+    } catch(e2) {
+      console.error('[vivlio:min] fallback render also failed', e2);
+      return { html: `<pre>${src}</pre>`, css: null };
+    }
+  }
 }
 
 function ensureIframe(): HTMLIFrameElement {
@@ -265,27 +293,35 @@ function initVivlioToggle() {
   toggleBtn = document.createElement('button');
   toggleBtn.type = 'button';
   toggleBtn.className = 'btn btn-sm btn-outline-secondary vivlio-toggle-btn';
-  toggleBtn.style.marginLeft = '6px';
-  toggleBtn.style.flex = '0 0 auto';
-  toggleBtn.style.whiteSpace = 'nowrap';
   toggleBtn.textContent = 'Vivliostyle';
   toggleBtn.setAttribute('data-bs-toggle','button');
   toggleBtn.onclick = () => setMode(currentMode === 'vivlio' ? 'markdown' : 'vivlio');
-  // 文字はみ出し対策: 最低幅 & display:flex
-  toggleBtn.style.display='inline-flex';
-  toggleBtn.style.alignItems='center';
-  toggleBtn.style.minWidth='86px';
-  toggleBtn.style.overflow='visible';
-  toggleBtn.style.wordBreak='keep-all';
+  
+  // 文字はみ出し対策: 確実なスタイル設定
+  Object.assign(toggleBtn.style, {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: '90px',
+    maxWidth: '120px',
+    padding: '4px 12px',
+    fontSize: '13px',
+    lineHeight: '1.2',
+    whiteSpace: 'nowrap',
+    overflow: 'visible',
+    wordBreak: 'keep-all',
+    textOverflow: 'clip',
+    marginLeft: '6px',
+    flex: '0 0 auto'
+  });
   
   // 直接同一グループ内 (または親コンテナ) に挿入して表示崩れを最小化
   const parent = targetBtn.parentElement || document.body;
   parent.insertBefore(toggleBtn, targetBtn.nextSibling);
-  toggleBtn.style.marginLeft = '6px';
 
   // (A4 擬似トグル削除)
   
-  // スタイル調整
+  // スタイル調整 (軽微調整のみ、基本スタイルは上で設定済み)
   tuneToggleStyle(toggleBtn, targetBtn);
   
   toggleInitialized = true;
@@ -298,49 +334,35 @@ function tuneToggleStyle(btn: HTMLButtonElement, referenceBtn: HTMLElement){
   try {
     console.debug(LOG_PREFIX, 'tuning toggle style from reference:', referenceBtn.textContent?.trim());
     
-    // 参照ボタンからスタイルコピー
+    // 参照ボタンからスタイルコピー (軽微調整のみ)
     const cs = getComputedStyle(referenceBtn);
-    // 横幅調整: 文字が詰まるので左右 +2px 余白を追加
-    const padParts = cs.padding.split(/\s+/); // t r b l
-    if (padParts.length >= 2) {
-      const t = padParts[0];
-      const r = padParts[1];
-      const b = padParts[2] || padParts[0];
-      const l = padParts[3] || padParts[1];
-      function addPx(v:string){ const m=v.match(/([\d.]+)(px)?/); if(!m) return v; return (parseFloat(m[1])+2)+'px'; }
-      btn.style.padding = `${t} ${addPx(r)} ${b} ${addPx(l)}`;
-    } else {
-      btn.style.padding = cs.padding;
+    
+    // 高さのみ参照 (幅や padding は上で確実に設定済み)
+    if (cs.height && cs.height !== 'auto') {
+      btn.style.minHeight = cs.height;
     }
-    btn.style.fontSize = cs.fontSize;
-    btn.style.lineHeight = cs.lineHeight;
-    // 高さ固定は避けオーバーフロー防止: minHeight を参照高さに
-    btn.style.minHeight = cs.height;
-    btn.style.height = 'auto';
-    btn.style.overflow = 'visible';
     
-    console.debug(LOG_PREFIX, 'copied styles - padding:', cs.padding, 'fontSize:', cs.fontSize, 'height:', cs.height);
+    // フォントサイズ調整
+    if (cs.fontSize) {
+      btn.style.fontSize = cs.fontSize;
+    }
     
-    // 親コンテナのflex調整
+    console.debug(LOG_PREFIX, 'applied minimal style adjustments - fontSize:', cs.fontSize, 'height:', cs.height);
+    
+    // 親コンテナのflex調整 (必要な場合のみ)
     const parent = btn.parentElement;
     if (parent) {
-      // flex-column なら row に変更
       const parentCs = getComputedStyle(parent);
       if (parentCs.flexDirection === 'column') {
         console.debug(LOG_PREFIX, 'converting parent from flex-column to flex-row');
-        parent.style.display = 'flex';
         parent.style.flexDirection = 'row';
-        parent.style.flexWrap = 'nowrap';
+        parent.style.flexWrap = 'wrap';
         parent.style.alignItems = 'center';
+        parent.style.gap = '6px';
       }
     }
-  } catch (error) {
-    console.warn(LOG_PREFIX, 'style tuning failed:', error);
-    // フォールバック: デフォルトスタイル
-    btn.style.padding = '0.375rem 0.75rem';
-    btn.style.fontSize = '0.875rem';
-    btn.style.lineHeight = '1.5';
-    btn.style.height = 'auto';
+  } catch(e) {
+    console.warn(LOG_PREFIX, 'tuneToggleStyle error:', e);
   }
 }
 
