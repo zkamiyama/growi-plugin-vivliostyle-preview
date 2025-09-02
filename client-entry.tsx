@@ -51,7 +51,7 @@ let findControlAttempts = 0;
 const LOG_PREFIX = '[vivlio:min]';
 let extButtonGroup: HTMLElement | null = null; // 追加ボタン用グループ
 let lastPageWidthPx: number | null = null; // 推定ページ幅 (px)
-let vivlioModeNeedsRender = false;
+let resizeObs: ResizeObserver | null = null;
 
 function renderMarkdownWithEmbeddedCss(src: string){
   if (!src || typeof src !== 'string') {
@@ -118,7 +118,7 @@ function ensureIframe(): HTMLIFrameElement {
 
   // 制御用スクリプト本体（以前の巨大インライン IIFE をこちらへ移動）。
   // 文字化け/制御文字による about:srcdoc SyntaxError を避けるため base64 文字列として埋め込み、起動時に Blob 経由で読み込む。
-  const controlScript = `/* vivliostyle control script */\n(function(){\n  const status=document.getElementById('vs-status');\n  const logEl=document.getElementById('log');\n  const fallbackEl=document.getElementById('fallbackHtml');\n  function setStatus(s){ try{ console.log('[vivlio:status]', s); }catch{} }\n  function log(m){ try{ if(logEl){ logEl.style.display='block'; logEl.textContent += m+'\\n'; if(logEl.textContent.length>12000) logEl.textContent = logEl.textContent.slice(-10000);} }catch{} }\n  let pending=null; let ready=false; let lastUrl=null; let forcedCSSApplied=false;\n  function applyAntiScale(pageW){ try { if(forcedCSSApplied) return; const st=document.createElement('style'); st.textContent='html,body{margin:0 !important;padding:0 !important;} #vivliostyle-viewer-viewport, .vs-page-root, .vivliostyle-viewer-page-box{transform:none !important; zoom:1 !important;} #vivliostyle-viewer-viewport{width:'+ (pageW? pageW+'px':'auto') +'; margin:0 auto; box-sizing:border-box;}'; document.head.appendChild(st); forcedCSSApplied=true; log('anti-scale css applied w='+pageW); }catch(e){ log('anti-scale fail '+e);} }\n  window.addEventListener('message',e=>{ const d=e.data; if(!d||d.type!=='HTML_FULL') return; if(d.pageWidth) applyAntiScale(d.pageWidth); if(!ready){ if(d.progressive){ try{ fallback(d.full || d.html || ''); setStatus('progressive'); }catch(err){ log('progressive fail '+err); } } pending=d; log('queue msg htmlLen='+(d.full?d.full.length:(d.html?d.html.length:0))); log('html head preview:'+(d.full||d.html||'').slice(0,160).replace(/\\s+/g,' ')); } else { render(d); } });\n  function hasPages(){ try{ return !!(window.VivliostyleViewer&&window.VivliostyleViewer.viewer&&window.VivliostyleViewer.viewer.pageManager&&window.VivliostyleViewer.viewer.pageManager.pages&&window.VivliostyleViewer.viewer.pageManager.pages.length); }catch{return false;} }\n  function diagPages(){ try{ if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer){ const vv=window.VivliostyleViewer.viewer; log('diag pages='+(vv.pageManager?.pages? vv.pageManager.pages.length : 'NA')+' doc='+(!!vv.document)); } }catch(err){ log('diag err '+err); } }\n  function render(d){ try{ const htmlDoc = d.full || '<!DOCTYPE html><html><head><meta charset=\\"utf-8\\"></head><body>'+(d.html||'')+'</body></html>'; log('render start htmlLen='+htmlDoc.length); if(lastUrl) try{URL.revokeObjectURL(lastUrl);}catch{}; const blob=new Blob([htmlDoc],{type:'text/html'}); const url=URL.createObjectURL(blob); lastUrl=url; location.hash='#src='+encodeURIComponent(url); try{ if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer&&window.VivliostyleViewer.viewer.load){ const vv=window.VivliostyleViewer.viewer; log('call viewer.load('+url+')'); let ret; try{ ret=vv.load(url); }catch(er){ log('direct load throw '+er); } if(ret && typeof ret.then==='function'){ ret.then(()=>{ const pc = vv.pageManager?.pages?.length; log('viewer.load resolved pages='+pc); applyAntiScale(d.pageWidth||null); }).catch(e=>{ log('viewer.load rejected '+e); }); } } else { log('viewer.load not available'); } }catch(ex){ log('viewer.load fail '+ex); } setStatus(pending?'render+flush':'render'); try{ if(fallbackEl){ fallbackEl.style.transition='opacity .25s'; fallbackEl.style.opacity='0'; setTimeout(()=>{ fallbackEl.style.display='none'; },300);} }catch{} setTimeout(diagPages,500); setTimeout(()=>{ diagPages(); if(!hasPages()){ log('no pages after 1500ms -> restore fallback'); try{ fallbackEl.style.display='block'; fallbackEl.style.opacity='1'; setStatus('fallback-restore'); }catch{} } },1500); setTimeout(diagPages,3000); }catch(ex){ log('render err '+ex); fallback(d.full || d.html || ''); }}\n  function fallback(htmlDoc){ try{ if(fallbackEl){ fallbackEl.innerHTML=htmlDoc; fallbackEl.style.display='block'; setStatus('fallback'); } }catch(err){ log('fallback err '+err); } }\n  function poll(){ let c=0; const iv=setInterval(()=>{ c++; if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer){ clearInterval(iv); ready=true; setStatus('ready'); log('viewer detected keys='+Object.keys(window.VivliostyleViewer.viewer||{}).join(',')); diagPages(); parent.postMessage({type:'VIVLIO_READY'},'*'); if(pending){ const d=pending; pending=null; render(d);} } else if(c>200){ clearInterval(iv); setStatus('timeout'); log('viewer timeout'); } },100); }\n  function injectViewer(){ setStatus('inject'); let raw; try{ raw = atob('${viewerB64}'); }catch(e){ setStatus('b64-decode-error'); log('b64 decode error '+e); return; } const blob=new Blob([raw],{type:'text/javascript'}); const u=URL.createObjectURL(blob); const s=document.createElement('script'); s.src=u; s.onload=()=>{ URL.revokeObjectURL(u); setStatus('script'); poll(); }; s.onerror=e=>{ setStatus('err'); log('script err'); }; document.head.appendChild(s);}\n  try { injectViewer(); } catch(er){ log('injectViewer throw '+er); }\n})();\n`;
+  const controlScript = `/* vivliostyle control script */\n(function(){\n  const status=document.getElementById('vs-status');\n  const logEl=document.getElementById('log');\n  const fallbackEl=document.getElementById('fallbackHtml');\n  function setStatus(s){ try{ console.log('[vivlio:status]', s); }catch{} }\n  function log(m){ try{ if(logEl){ logEl.style.display='block'; logEl.textContent += m+'\\n'; if(logEl.textContent.length>12000) logEl.textContent = logEl.textContent.slice(-10000);} }catch{} }\n  let pending=null; let ready=false; let lastUrl=null;\n  window.addEventListener('message',e=>{ const d=e.data; if(!d||d.type!=='HTML_FULL') return; if(!ready){ if(d.progressive){ try{ fallback(d.full || d.html || ''); setStatus('progressive'); }catch(err){ log('progressive fail '+err); } } pending=d; log('queue msg htmlLen='+(d.full?d.full.length:(d.html?d.html.length:0))); log('html head preview:'+(d.full||d.html||'').slice(0,160).replace(/\\s+/g,' ')); } else { render(d); } });\n  function hasPages(){ try{ return !!(window.VivliostyleViewer&&window.VivliostyleViewer.viewer&&window.VivliostyleViewer.viewer.pageManager&&window.VivliostyleViewer.viewer.pageManager.pages&&window.VivliostyleViewer.viewer.pageManager.pages.length); }catch{return false;} }\n  function diagPages(){ try{ if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer){ const vv=window.VivliostyleViewer.viewer; log('diag pages='+(vv.pageManager?.pages? vv.pageManager.pages.length : 'NA')+' doc='+(!!vv.document)); } }catch(err){ log('diag err '+err); } }\n  function render(d){ try{ const htmlDoc = d.full || '<!DOCTYPE html><html><head><meta charset=\\"utf-8\\"></head><body>'+(d.html||'')+'</body></html>'; log('render start htmlLen='+htmlDoc.length); if(lastUrl) try{URL.revokeObjectURL(lastUrl);}catch{}; const blob=new Blob([htmlDoc],{type:'text/html'}); const url=URL.createObjectURL(blob); lastUrl=url; location.hash='#src='+encodeURIComponent(url); try{ if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer&&window.VivliostyleViewer.viewer.load){ const vv=window.VivliostyleViewer.viewer; log('call viewer.load('+url+')'); let ret; try{ ret=vv.load(url); }catch(er){ log('direct load throw '+er); } if(ret && typeof ret.then==='function'){ ret.then(()=>{ const pc = vv.pageManager?.pages?.length; log('viewer.load resolved pages='+pc); }).catch(e=>{ log('viewer.load rejected '+e); }); } } else { log('viewer.load not available'); } }catch(ex){ log('viewer.load fail '+ex); } setStatus(pending?'render+flush':'render'); try{ if(fallbackEl){ fallbackEl.style.transition='opacity .25s'; fallbackEl.style.opacity='0'; setTimeout(()=>{ fallbackEl.style.display='none'; },300);} }catch{} setTimeout(diagPages,500); setTimeout(()=>{ diagPages(); if(!hasPages()){ log('no pages after 1500ms -> restore fallback'); try{ fallbackEl.style.display='block'; fallbackEl.style.opacity='1'; setStatus('fallback-restore'); }catch{} } },1500); setTimeout(diagPages,3000); }catch(ex){ log('render err '+ex); fallback(d.full || d.html || ''); }}\n  function fallback(htmlDoc){ try{ if(fallbackEl){ fallbackEl.innerHTML=htmlDoc; fallbackEl.style.display='block'; setStatus('fallback'); } }catch(err){ log('fallback err '+err); } }\n  function poll(){ let c=0; const iv=setInterval(()=>{ c++; if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer){ clearInterval(iv); ready=true; setStatus('ready'); log('viewer detected keys='+Object.keys(window.VivliostyleViewer.viewer||{}).join(',')); diagPages(); parent.postMessage({type:'VIVLIO_READY'},'*'); if(pending){ const d=pending; pending=null; render(d);} } else if(c>200){ clearInterval(iv); setStatus('timeout'); log('viewer timeout'); } },100); }\n  function injectViewer(){ setStatus('inject'); let raw; try{ raw = atob('${viewerB64}'); }catch(e){ setStatus('b64-decode-error'); log('b64 decode error '+e); return; } const blob=new Blob([raw],{type:'text/javascript'}); const u=URL.createObjectURL(blob); const s=document.createElement('script'); s.src=u; s.onload=()=>{ URL.revokeObjectURL(u); setStatus('script'); poll(); }; s.onerror=e=>{ setStatus('err'); log('script err'); }; document.head.appendChild(s);}\n  try { injectViewer(); } catch(er){ log('injectViewer throw '+er); }\n})();\n`;
   // base64 化（UTF-8）
   const controlB64 = (()=>{ const enc = new TextEncoder().encode(controlScript); let bin=''; enc.forEach(b=> bin+=String.fromCharCode(b)); return btoa(bin); })();
   iframe.srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"/>${styleBundle}<style>
@@ -172,48 +172,34 @@ function estimatePageWidthPx(css: string): number | null {
 function unitToPx(v:number, u:string){ switch(u){ case 'mm': return mmToPx(v); case 'cm': return mmToPx(v*10); case 'in': return v*96; default: return v; } }
 function mmToPx(mm:number){ return mm/25.4*96; }
 
-function updatePageFrameSizing(){
-  if(!iframe) return;
-  if(!lastPageWidthPx) return;
-  try {
-    const pageW = Math.round(lastPageWidthPx);
-    iframe.style.width = pageW + 'px';
-    iframe.style.minWidth = pageW + 'px';
-    iframe.style.maxWidth = pageW + 'px';
-    iframe.style.boxShadow = '0 0 6px rgba(0,0,0,.3)';
-    iframe.style.background = '#fff';
-    iframe.style.display = 'block';
-    iframe.style.margin = '0 auto';
-    if(vivlioPanel){
-      vivlioPanel.style.display='block';
-      vivlioPanel.style.overflow='auto';
-      vivlioPanel.style.background='#5a5a5a';
-      vivlioPanel.style.padding='12px 16px';
-      vivlioPanel.style.textAlign='center';
-    }
-  }catch{}
-}
-
-let resizeObs: ResizeObserver | null = null;
-function ensureAntiShrinkObserver(){
-  if(resizeObs || !vivlioPanel) return;
-  try {
-    resizeObs = new ResizeObserver(()=>{ updatePageFrameSizing(); });
-    resizeObs.observe(vivlioPanel);
-  }catch{}
-}
-
 function post(html: string, css?: string | null){
   const f=ensureIframe();
   if(!f.contentWindow) return;
-  // 先に full を構築して lastPageWidthPx を確定させる
+  // ページ幅推定があれば iframe 幅固定 + 中央寄せ
+  if(lastPageWidthPx){
+    try {
+      const pageW = Math.round(lastPageWidthPx);
+      // 初期実装に近い: パネル中央固定 (横幅不足ならスクロールではなく余白削減を避けるため auto overflow)
+      f.style.width = pageW + 'px';
+      f.style.minWidth = pageW + 'px';
+      f.style.maxWidth = pageW + 'px';
+      f.style.boxShadow = '0 0 6px rgba(0,0,0,.3)';
+      f.style.background = '#fff';
+      f.style.display = 'block';
+      f.style.margin = '0 auto';
+      if(vivlioPanel){
+        vivlioPanel.style.display='block';
+        vivlioPanel.style.overflow='auto'; // 横スクロール許容
+        vivlioPanel.style.background='#5a5a5a';
+        vivlioPanel.style.padding='12px 16px';
+        vivlioPanel.style.textAlign='center';
+      }
+    } catch{}
+  }
   const full = buildFullDoc(html, css);
-  // 直後に幅適用 (初回クリック時にも反映される)
-  updatePageFrameSizing();
-  ensureAntiShrinkObserver();
   // 1st phase: まだ viewer Ready でなければ fallbackHtml 埋め込みを命令 (即時表示)
   try { (f as any).contentWindow.__VIV_LAST_FULL_HTML__ = full; } catch {}
-  f.contentWindow.postMessage({type:'HTML_FULL', html, css, full, progressive: true, pageWidth: lastPageWidthPx||null}, '*');
+  f.contentWindow.postMessage({type:'HTML_FULL', html, css, full, progressive: !vivlioReady}, '*');
 }
 
 function scheduleRender(src: string){
@@ -447,25 +433,37 @@ function updateToggleActive() {
 }
 
 function setMode(m:'markdown'|'vivlio') {
-  if (m === currentMode && m === 'vivlio' && !vivlioModeNeedsRender) return;
+  if (m === currentMode) return;
   currentMode = m;
   if (m === 'vivlio') {
     ensurePreviewBodies();
     ensureIframe();
     if (!lastSrc) { const t = tryReadEditorText(); if (t) lastSrc = t; }
-    if (vivlioReady) {
-      console.debug(LOG_PREFIX, 'setMode: vivlio is ready, rendering immediately.');
-      const srcNow = lastSrc || '# Vivliostyle Preview';
-      const { html, css } = renderMarkdownWithEmbeddedCss(srcNow);
-      post(html, css);
-      vivlioModeNeedsRender = false;
-    } else {
-      console.debug(LOG_PREFIX, 'setMode: vivlio not ready, will render on VIVLIO_READY event.');
-      vivlioModeNeedsRender = true;
+    // 初回: ソース確定後ただちにCSS解析 -> ページ幅推定 -> 即描画 (debounce待たない)
+    try {
+      const firstSrc = lastSrc || '# Vivliostyle Preview';
+      const parsed = renderMarkdownWithEmbeddedCss(firstSrc);
+      const full = buildFullDoc(parsed.html, parsed.css);
+      // buildFullDoc 内で lastPageWidthPx 更新済み。その後 post で固定幅適用。
+      post(parsed.html, parsed.css);
+    } catch { scheduleRender(lastSrc || '# Vivliostyle Preview'); }
+    // ResizeObserver で親幅変動時に再適用 (一度だけセット)
+    if(!resizeObs && vivlioPanel){
+      try {
+        resizeObs = new ResizeObserver(()=>{
+          if(lastSrc && currentMode==='vivlio'){
+            // 幅再適用のみ: CSS再解析不要 (幅は lastPageWidthPx 保持)
+            post(renderMarkdownWithEmbeddedCss(lastSrc).html, null);
+          }
+        });
+        resizeObs.observe(vivlioPanel);
+      } catch{}
     }
   }
   updateToggleActive();
-}function tryReadEditorText(): string | null {
+}
+
+function tryReadEditorText(): string | null {
   try { const cmHost=document.querySelector('.CodeMirror'); if(cmHost && (cmHost as any).CodeMirror) return (cmHost as any).CodeMirror.getValue(); } catch{}
   try { const ta=document.querySelector('textarea'); if(ta) return (ta as HTMLTextAreaElement).value; } catch{}
   try { const cm6=document.querySelector('.cm-content[contenteditable="true"]'); if(cm6) return cm6.textContent||''; } catch{}
@@ -476,19 +474,7 @@ function activate(){
   if((window as any).__VIVLIO_PREVIEW_ACTIVE__) return;
   (window as any).__VIVLIO_PREVIEW_ACTIVE__=true;
   (window as any).__VIVLIO_PREVIEW__={ scheduleRender, registerExtraButton };
-  window.addEventListener('message',e=>{
-    if(e.data?.type==='VIVLIO_READY'){
-      console.debug(LOG_PREFIX, 'VIVLIO_READY received.');
-      vivlioReady=true;
-      if (currentMode === 'vivlio' && vivlioModeNeedsRender) {
-        console.debug(LOG_PREFIX, 'VIVLIO_READY: Triggering deferred render.');
-        const srcNow = lastSrc || '# Vivliostyle Preview';
-        const { html, css } = renderMarkdownWithEmbeddedCss(srcNow);
-        post(html, css);
-        vivlioModeNeedsRender = false;
-      }
-    }
-  });
+  window.addEventListener('message',e=>{ if(e.data?.type==='VIVLIO_READY'){ vivlioReady=true; if(lastSrc){ const {html,css}=renderMarkdownWithEmbeddedCss(lastSrc); post(html,css);} } });
   function tryAttach(){ const cmHost=document.querySelector('.CodeMirror'); if(cmHost && (cmHost as any).CodeMirror){ const cm=(cmHost as any).CodeMirror; const h=()=>{ try{ scheduleRender(cm.getValue()); }catch{} }; cm.on('change',h); detachFns.push(()=>{ try{ cm.off('change',h);}catch{} }); try{ scheduleRender(cm.getValue()); }catch{} return true;} return false; }
   attachPollId = window.setInterval(()=>{
     try { initVivlioToggle(); } catch {}
