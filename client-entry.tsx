@@ -17,12 +17,30 @@ declare const growiFacade : {
 };
 
 const DBG = '[VIVLIO]';
+
+// Heuristics to find the main preview component
+const isLikelyPreviewComponent = (key: string, component: any): boolean => {
+  if (typeof component !== 'function') {
+    return false;
+  }
+  // Prioritize components with typical names
+  if (['Page', 'Content', 'Preview', 'Body'].includes(key)) {
+    return true;
+  }
+  // Fallback for components that seem to be containers (judging by name)
+  if (key.match(/^[A-Z]/) && !['a', 'p', 'h1', 'h2', 'h3', 'h4', 'code', 'table'].includes(key)) {
+    return true;
+  }
+  return false;
+};
+
 const addPlugin = (options: ViewOptions) => {
   try {
     if (!options || !options.components) {
       console.debug(DBG, 'options/components missing, skip');
       return options;
     }
+
     // a タグ加工
     if (options.components.a) {
       console.debug(DBG, 'wrap <a> component');
@@ -30,22 +48,22 @@ const addPlugin = (options: ViewOptions) => {
     } else {
       console.debug(DBG, 'no <a> component found');
     }
-    const previewKeys = ['preview', 'page', 'body', 'content'];
+
     let wrapped = false;
-    for (const key of previewKeys) {
-      const comp = (options.components as any)[key];
-      console.debug(DBG, 'check key', key, '=>', typeof comp);
-      if (typeof comp === 'function') {
-        (options.components as any)[key] = withVivlioTabs(comp);
-        console.info(DBG, 'wrapped preview component at key', key);
-        wrapped = true;
-        break;
-      }
+    const componentKeys = Object.keys(options.components);
+    // Find and wrap the most likely preview component
+    const targetKey = componentKeys.find(key => isLikelyPreviewComponent(key, (options.components as any)[key]));
+
+    if (targetKey) {
+      const comp = (options.components as any)[targetKey];
+      (options.components as any)[targetKey] = withVivlioTabs(comp);
+      console.info(DBG, `Wrapped component at key: '${targetKey}'`);
+      wrapped = true;
     }
+
     if (!wrapped) {
-      const keys = Object.keys(options.components);
-      console.warn(DBG, 'no preview component key matched; components keys=', keys);
-      (window as any).__VIVLIO_COMPONENT_KEYS__ = keys;
+      console.warn(DBG, 'No suitable preview component found to wrap. Available component keys:', componentKeys);
+      (window as any).__VIVLIO_COMPONENT_KEYS__ = componentKeys;
       // DOM fallback (遅延して既存 .page-content をタブ化)
       if (!(window as any).__VIVLIO_FALLBACK_SCHEDULED__) {
         (window as any).__VIVLIO_FALLBACK_SCHEDULED__ = true;
@@ -83,6 +101,7 @@ const addPlugin = (options: ViewOptions) => {
         }, 0);
       }
     }
+
     if (options.remarkPlugins) {
       options.remarkPlugins.push(remarkPlugin as any);
     }
