@@ -36,3 +36,4 @@ yarn-error.log*
 
 # project: exclude markdown files per user request (won't track any *.md going forward)
 *.md
+!AGENTS.md

@@ -239,6 +239,21 @@ function ensurePreviewBodies() {
       background:'#fff'
     });
     host.appendChild(vivlioPanel);
+    // 縮小抑止: 祖先側に最低幅と横スクロールを付与 (推定前は A4 幅 ≈ 795px)
+    try {
+      const approxA4 = Math.round(mmToPx(210));
+      host.style.minWidth = approxA4 + 'px';
+      host.style.overflowX = 'auto';
+      const gp = host.parentElement;
+      if (gp) {
+        (gp as HTMLElement).style.overflowX = 'auto';
+        const gpCS = getComputedStyle(gp);
+        if (['flex','inline-flex'].includes(gpCS.display)) {
+          (gp as HTMLElement).style.flex = '0 0 auto';
+          (gp as HTMLElement).style.minWidth = approxA4 + 'px';
+        }
+      }
+    } catch {}
     // original は display を弄らず visibility で切替 (高さ維持)
   }
   return true;
