@@ -50,8 +50,6 @@ const detachFns: Array<() => void> = [];
 let findControlAttempts = 0;
 const LOG_PREFIX = '[vivlio:min]';
 let extButtonGroup: HTMLElement | null = null; // 追加ボタン用グループ
-let fitA4 = false; // A4 表示モード (簡易)
-const AUTO_DISABLE_PSEUDO_A4 = true; // ページネーション成立後に擬似 A4 を自動解除
 
 function renderMarkdownWithEmbeddedCss(src: string){
   try {
@@ -90,7 +88,7 @@ function ensureIframe(): HTMLIFrameElement {
 
   // 制御用スクリプト本体（以前の巨大インライン IIFE をこちらへ移動）。
   // 文字化け/制御文字による about:srcdoc SyntaxError を避けるため base64 文字列として埋め込み、起動時に Blob 経由で読み込む。
-  const controlScript = `/* vivliostyle control script */\n(function(){\n  const status=document.getElementById('vs-status');\n  const logEl=document.getElementById('log');\n  const fallbackEl=document.getElementById('fallbackHtml');\n  function setStatus(s){ try{ console.log('[vivlio:status]', s); }catch{} }\n  function log(m){ try{ if(logEl){ logEl.style.display='block'; logEl.textContent += m+'\\n'; if(logEl.textContent.length>12000) logEl.textContent = logEl.textContent.slice(-10000);} }catch{} }\n  let pending=null; let ready=false; let lastUrl=null;\n  window.addEventListener('message',e=>{ const d=e.data; if(d && d.type==='A4_TOGGLE'){ try{ document.documentElement.classList.toggle('vivlio-fit-a4', !!d.on); }catch(err){ log('a4 toggle err '+err);} return; } if(!d||d.type!=='HTML_FULL') return; if(!ready){ if(d.progressive){ try{ fallback(d.full || d.html || ''); setStatus('progressive'); }catch(err){ log('progressive fail '+err); } } pending=d; log('queue msg htmlLen='+(d.full?d.full.length:(d.html?d.html.length:0))); log('html head preview:'+(d.full||d.html||'').slice(0,160).replace(/\\s+/g,' ')); } else { render(d); } });\n  function hasPages(){ try{ return !!(window.VivliostyleViewer&&window.VivliostyleViewer.viewer&&window.VivliostyleViewer.viewer.pageManager&&window.VivliostyleViewer.viewer.pageManager.pages&&window.VivliostyleViewer.viewer.pageManager.pages.length); }catch{return false;} }\n  function diagPages(){ try{ if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer){ const vv=window.VivliostyleViewer.viewer; log('diag pages='+(vv.pageManager?.pages? vv.pageManager.pages.length : 'NA')+' doc='+(!!vv.document)); } }catch(err){ log('diag err '+err); } }\n  function render(d){ try{ const htmlDoc = d.full || '<!DOCTYPE html><html><head><meta charset=\\"utf-8\\"></head><body>'+(d.html||'')+'</body></html>'; log('render start htmlLen='+htmlDoc.length); if(lastUrl) try{URL.revokeObjectURL(lastUrl);}catch{}; const blob=new Blob([htmlDoc],{type:'text/html'}); const url=URL.createObjectURL(blob); lastUrl=url; location.hash='#src='+encodeURIComponent(url); try{ if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer&&window.VivliostyleViewer.viewer.load){ const vv=window.VivliostyleViewer.viewer; log('call viewer.load('+url+')'); let ret; try{ ret=vv.load(url); }catch(er){ log('direct load throw '+er); } if(ret && typeof ret.then==='function'){ ret.then(()=>{ const pc = vv.pageManager?.pages?.length; log('viewer.load resolved pages='+pc); try{ parent.postMessage({type:'VIVLIO_PAGES', pages: pc}, '*'); }catch(e){} }).catch(e=>{ log('viewer.load rejected '+e); }); } } else { log('viewer.load not available'); } }catch(ex){ log('viewer.load fail '+ex); } setStatus(pending?'render+flush':'render'); try{ if(fallbackEl){ fallbackEl.style.transition='opacity .25s'; fallbackEl.style.opacity='0'; setTimeout(()=>{ fallbackEl.style.display='none'; },300);} }catch{} setTimeout(diagPages,500); setTimeout(()=>{ diagPages(); if(!hasPages()){ log('no pages after 1500ms -> restore fallback'); try{ fallbackEl.style.display='block'; fallbackEl.style.opacity='1'; setStatus('fallback-restore'); }catch{} } },1500); setTimeout(diagPages,3000); }catch(ex){ log('render err '+ex); fallback(d.full || d.html || ''); }}\n  function fallback(htmlDoc){ try{ if(fallbackEl){ fallbackEl.innerHTML=htmlDoc; fallbackEl.style.display='block'; setStatus('fallback'); } }catch(err){ log('fallback err '+err); } }\n  function poll(){ let c=0; const iv=setInterval(()=>{ c++; if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer){ clearInterval(iv); ready=true; setStatus('ready'); log('viewer detected keys='+Object.keys(window.VivliostyleViewer.viewer||{}).join(',')); diagPages(); parent.postMessage({type:'VIVLIO_READY'},'*'); if(pending){ const d=pending; pending=null; render(d);} } else if(c>200){ clearInterval(iv); setStatus('timeout'); log('viewer timeout'); } },100); }\n  function injectViewer(){ setStatus('inject'); let raw; try{ raw = atob('${viewerB64}'); }catch(e){ setStatus('b64-decode-error'); log('b64 decode error '+e); return; } const blob=new Blob([raw],{type:'text/javascript'}); const u=URL.createObjectURL(blob); const s=document.createElement('script'); s.src=u; s.onload=()=>{ URL.revokeObjectURL(u); setStatus('script'); poll(); }; s.onerror=e=>{ setStatus('err'); log('script err'); }; document.head.appendChild(s);}\n  try { injectViewer(); } catch(er){ log('injectViewer throw '+er); }\n})();\n`;
+  const controlScript = `/* vivliostyle control script */\n(function(){\n  const status=document.getElementById('vs-status');\n  const logEl=document.getElementById('log');\n  const fallbackEl=document.getElementById('fallbackHtml');\n  function setStatus(s){ try{ console.log('[vivlio:status]', s); }catch{} }\n  function log(m){ try{ if(logEl){ logEl.style.display='block'; logEl.textContent += m+'\\n'; if(logEl.textContent.length>12000) logEl.textContent = logEl.textContent.slice(-10000);} }catch{} }\n  let pending=null; let ready=false; let lastUrl=null;\n  window.addEventListener('message',e=>{ const d=e.data; if(!d||d.type!=='HTML_FULL') return; if(!ready){ if(d.progressive){ try{ fallback(d.full || d.html || ''); setStatus('progressive'); }catch(err){ log('progressive fail '+err); } } pending=d; log('queue msg htmlLen='+(d.full?d.full.length:(d.html?d.html.length:0))); log('html head preview:'+(d.full||d.html||'').slice(0,160).replace(/\\s+/g,' ')); } else { render(d); } });\n  function hasPages(){ try{ return !!(window.VivliostyleViewer&&window.VivliostyleViewer.viewer&&window.VivliostyleViewer.viewer.pageManager&&window.VivliostyleViewer.viewer.pageManager.pages&&window.VivliostyleViewer.viewer.pageManager.pages.length); }catch{return false;} }\n  function diagPages(){ try{ if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer){ const vv=window.VivliostyleViewer.viewer; log('diag pages='+(vv.pageManager?.pages? vv.pageManager.pages.length : 'NA')+' doc='+(!!vv.document)); } }catch(err){ log('diag err '+err); } }\n  function render(d){ try{ const htmlDoc = d.full || '<!DOCTYPE html><html><head><meta charset=\\"utf-8\\"></head><body>'+(d.html||'')+'</body></html>'; log('render start htmlLen='+htmlDoc.length); if(lastUrl) try{URL.revokeObjectURL(lastUrl);}catch{}; const blob=new Blob([htmlDoc],{type:'text/html'}); const url=URL.createObjectURL(blob); lastUrl=url; location.hash='#src='+encodeURIComponent(url); try{ if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer&&window.VivliostyleViewer.viewer.load){ const vv=window.VivliostyleViewer.viewer; log('call viewer.load('+url+')'); let ret; try{ ret=vv.load(url); }catch(er){ log('direct load throw '+er); } if(ret && typeof ret.then==='function'){ ret.then(()=>{ const pc = vv.pageManager?.pages?.length; log('viewer.load resolved pages='+pc); }).catch(e=>{ log('viewer.load rejected '+e); }); } } else { log('viewer.load not available'); } }catch(ex){ log('viewer.load fail '+ex); } setStatus(pending?'render+flush':'render'); try{ if(fallbackEl){ fallbackEl.style.transition='opacity .25s'; fallbackEl.style.opacity='0'; setTimeout(()=>{ fallbackEl.style.display='none'; },300);} }catch{} setTimeout(diagPages,500); setTimeout(()=>{ diagPages(); if(!hasPages()){ log('no pages after 1500ms -> restore fallback'); try{ fallbackEl.style.display='block'; fallbackEl.style.opacity='1'; setStatus('fallback-restore'); }catch{} } },1500); setTimeout(diagPages,3000); }catch(ex){ log('render err '+ex); fallback(d.full || d.html || ''); }}\n  function fallback(htmlDoc){ try{ if(fallbackEl){ fallbackEl.innerHTML=htmlDoc; fallbackEl.style.display='block'; setStatus('fallback'); } }catch(err){ log('fallback err '+err); } }\n  function poll(){ let c=0; const iv=setInterval(()=>{ c++; if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer){ clearInterval(iv); ready=true; setStatus('ready'); log('viewer detected keys='+Object.keys(window.VivliostyleViewer.viewer||{}).join(',')); diagPages(); parent.postMessage({type:'VIVLIO_READY'},'*'); if(pending){ const d=pending; pending=null; render(d);} } else if(c>200){ clearInterval(iv); setStatus('timeout'); log('viewer timeout'); } },100); }\n  function injectViewer(){ setStatus('inject'); let raw; try{ raw = atob('${viewerB64}'); }catch(e){ setStatus('b64-decode-error'); log('b64 decode error '+e); return; } const blob=new Blob([raw],{type:'text/javascript'}); const u=URL.createObjectURL(blob); const s=document.createElement('script'); s.src=u; s.onload=()=>{ URL.revokeObjectURL(u); setStatus('script'); poll(); }; s.onerror=e=>{ setStatus('err'); log('script err'); }; document.head.appendChild(s);}\n  try { injectViewer(); } catch(er){ log('injectViewer throw '+er); }\n})();\n`;
   // base64 化（UTF-8）
   const controlB64 = (()=>{ const enc = new TextEncoder().encode(controlScript); let bin=''; enc.forEach(b=> bin+=String.fromCharCode(b)); return btoa(bin); })();
   iframe.srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"/>${styleBundle}<style>
@@ -103,9 +101,7 @@ function ensureIframe(): HTMLIFrameElement {
   #vivliostyle-menu-bar{display:none !important;height:0 !important;overflow:hidden !important;padding:0 !important;margin:0 !important;border:none !important;}
   /* Ensure viewport spans full height when menu removed */
   #vivliostyle-viewer-viewport{top:0 !important;background:#fff;}
-  /* A4 擬似フィット (viewer がまだ pages を生成できていない段階では継続的テキストを擬似ページ枠に入れる) */
-  html.vivlio-fit-a4 body{display:flex;justify-content:center;background:#888;}
-  html.vivlio-fit-a4 body > *:first-child{max-width:210mm;box-sizing:border-box;width:210mm;margin:0 auto;background:#fff;padding:20mm;box-shadow:0 0 4px rgba(0,0,0,.3);} 
+  /* (removed) pseudo A4 fit no longer used */
   </style></head><body><div id="vivliostyle-viewer-viewport" data-vivliostyle-viewer-viewport></div><div id="vivliostyle-menu-bar"></div><div id="vivliostyle-message-dialog"></div><div id="vs-status">boot</div><pre id="log"></pre><div id="fallbackHtml"></div><script>(function(){try{var b='${controlB64}';var raw=atob(b);var blob=new Blob([raw],{type:'text/javascript'});var u=URL.createObjectURL(blob);var s=document.createElement('script');s.src=u;s.onload=function(){setTimeout(()=>URL.revokeObjectURL(u),2000);/* 再確認で viewport top を 0 に固定 */try{var vp=document.getElementById('vivliostyle-viewer-viewport'); if(vp) vp.style.top='0';}catch(e){} };s.onerror=function(){console.error('[vivlio:min] control load error');};document.head.appendChild(s);}catch(e){console.error('[vivlio:min] control bootstrap error',e);} })();</script></body></html>`;
   if (vivlioPanel) { vivlioPanel.innerHTML=''; vivlioPanel.appendChild(iframe); } else document.body.appendChild(iframe);
   return iframe;
@@ -238,29 +234,9 @@ function initVivlioToggle() {
   // 直接同一グループ内 (または親コンテナ) に挿入して表示崩れを最小化
   const parent = targetBtn.parentElement || document.body;
   parent.insertBefore(toggleBtn, targetBtn.nextSibling);
-  // 追加ボタン用のインライン span グループ (btn-group 継承しない: 幅圧縮や overflow を避ける)
-  if (!extButtonGroup || !extButtonGroup.isConnected) {
-    extButtonGroup = document.createElement('span');
-    extButtonGroup.className = 'vivlio-ext-btn-group';
-    Object.assign(extButtonGroup.style, { display:'inline-flex', gap:'4px', marginLeft:'4px', alignItems:'center' });
-    parent.insertBefore(extButtonGroup, toggleBtn.nextSibling);
-  }
-  toggleBtn.style.marginLeft = '0';
-  // (既に parent に置いたので extButtonGroup へは入れない)
+  toggleBtn.style.marginLeft = '6px';
 
-  // A4 トグルボタン (簡易: iframe 内 root にクラスを付与して width 210mm 擬似表示)
-  const a4Btn = document.createElement('button');
-  a4Btn.type = 'button';
-  a4Btn.className = 'btn btn-sm btn-outline-secondary';
-  a4Btn.textContent = 'A4';
-  a4Btn.title = 'A4 幅擬似プレビュー (表示のみ)';
-  a4Btn.style.opacity = '0.6';
-  a4Btn.addEventListener('click', () => {
-    fitA4 = !fitA4;
-    try { if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'A4_TOGGLE', on: fitA4 }, '*'); } catch {}
-    a4Btn.style.opacity = fitA4 ? '1' : '0.6';
-  });
-  extButtonGroup!.appendChild(a4Btn);
+  // (A4 擬似トグル削除)
   
   // スタイル調整
   tuneToggleStyle(toggleBtn, targetBtn);
@@ -388,18 +364,7 @@ function activate(){
   if((window as any).__VIVLIO_PREVIEW_ACTIVE__) return;
   (window as any).__VIVLIO_PREVIEW_ACTIVE__=true;
   (window as any).__VIVLIO_PREVIEW__={ scheduleRender, registerExtraButton };
-  window.addEventListener('message',e=>{ 
-    if(e.data?.type==='VIVLIO_READY'){ 
-      vivlioReady=true; 
-      if(lastSrc){ const {html,css}=renderMarkdownWithEmbeddedCss(lastSrc); post(html,css);} 
-    } else if(e.data?.type==='VIVLIO_PAGES'){ 
-      if(AUTO_DISABLE_PSEUDO_A4 && fitA4 && e.data.pages>0){ 
-        // 自動解除: 本来のページボックスが生成されたので擬似 A4 を外す
-        fitA4=false; 
-        try{ if(iframe?.contentWindow) iframe.contentWindow.postMessage({type:'A4_TOGGLE', on:false}, '*'); }catch{}
-      }
-    }
-  });
+  window.addEventListener('message',e=>{ if(e.data?.type==='VIVLIO_READY'){ vivlioReady=true; if(lastSrc){ const {html,css}=renderMarkdownWithEmbeddedCss(lastSrc); post(html,css);} } });
   function tryAttach(){ const cmHost=document.querySelector('.CodeMirror'); if(cmHost && (cmHost as any).CodeMirror){ const cm=(cmHost as any).CodeMirror; const h=()=>{ try{ scheduleRender(cm.getValue()); }catch{} }; cm.on('change',h); detachFns.push(()=>{ try{ cm.off('change',h);}catch{} }); try{ scheduleRender(cm.getValue()); }catch{} return true;} return false; }
   attachPollId = window.setInterval(()=>{
     try { initVivlioToggle(); } catch {}
