@@ -13,6 +13,8 @@ export const withVivlioTabs = (Original: React.FunctionComponent<any>): React.Fu
   const Wrapper: React.FC<any> = (props: any) => {
     const [tab, setTab] = useState<'markdown' | 'vivlio'>('markdown');
     const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const DBG = '[VIVLIO:TABS]';
+  console.debug(DBG, 'render Wrapper start', { tab, propsKeys: Object.keys(props||{}) });
 
     // TODO: 本実装では CSS/HTML 抽出ロジックを後で差し込む
     const extractHtml = () => {
@@ -25,13 +27,14 @@ export const withVivlioTabs = (Original: React.FunctionComponent<any>): React.Fu
     const extractCss = () => '';
 
     useEffect(() => {
-      if (tab !== 'vivlio') return;
+      if (tab !== 'vivlio') { console.debug(DBG, 'effect: not vivlio tab'); return; }
       const iframe = iframeRef.current;
-      if (!iframe) return;
+      if (!iframe) { console.warn(DBG, 'effect: iframe missing'); return; }
       const doc = iframe.contentDocument;
-      if (!doc) return;
+      if (!doc) { console.warn(DBG, 'effect: iframe document missing'); return; }
       const html = extractHtml();
       const css = extractCss();
+      console.debug(DBG, 'writing iframe doc', { htmlLength: html.length, cssLength: css.length });
       doc.open();
       doc.write(`<!DOCTYPE html><html><head><meta charset=\"utf-8\" /><style>${css}</style></head><body>${html}</body></html>`);
       doc.close();
@@ -40,8 +43,8 @@ export const withVivlioTabs = (Original: React.FunctionComponent<any>): React.Fu
     return (
       <div className="vivlio-tabs-wrapper">
         <div className="vivlio-tabs-bar">
-          <button className={tab==='markdown'? 'active':''} onClick={() => setTab('markdown')}>Markdown</button>
-          <button className={tab==='vivlio'? 'active':''} onClick={() => setTab('vivlio')}>Vivliostyle</button>
+          <button className={tab==='markdown'? 'active':''} onClick={() => { console.debug(DBG,'click markdown'); setTab('markdown'); }}>Markdown</button>
+          <button className={tab==='vivlio'? 'active':''} onClick={() => { console.debug(DBG,'click vivlio'); setTab('vivlio'); }}>Vivliostyle</button>
         </div>
         <div className="vivlio-tabs-content">
           {tab === 'markdown' && <Original {...props} />}
