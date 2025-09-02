@@ -108,24 +108,95 @@ function scheduleRender(src: string){
   debounceTimer = window.setTimeout(()=>{ const {html, css}=renderMarkdownWithEmbeddedCss(lastSrc); post(html, css); }, 250);
 }
 
-function initTabsIfPossible(){
+function initTabsIfPossible() {
   if (tabsInitialized) return;
-  detectedMarkdownPreview = document.querySelector('.page-editor-preview-container');
-  if(!detectedMarkdownPreview) return;
-  if (detectedMarkdownPreview.closest('.vivlio-preview-wrapper')) { tabsInitialized=true; return; }
-  let target = detectedMarkdownPreview;
-  const previewBody = detectedMarkdownPreview.querySelector('.page-editor-preview-body');
-  if (previewBody) target = previewBody as HTMLElement;
-  const wrapper = document.createElement('div'); wrapper.className='vivlio-preview-wrapper'; Object.assign(wrapper.style,{width:'100%',height:'100%',display:'flex',flexDirection:'column'});
-  const tabs = document.createElement('ul'); tabs.className='nav nav-tabs vivlio-tabs'; tabs.style.flexShrink='0';
-  const mdLi=document.createElement('li'); mdLi.className='nav-item'; const mdBtn=document.createElement('button'); mdBtn.type='button'; mdBtn.className='nav-link active'; mdBtn.textContent='Markdown'; mdBtn.onclick=()=>setMode('markdown'); mdLi.appendChild(mdBtn);
-  const vvLi=document.createElement('li'); vvLi.className='nav-item'; const vvBtn=document.createElement('button'); vvBtn.type='button'; vvBtn.className='nav-link'; vvBtn.textContent='Vivliostyle'; vvBtn.onclick=()=>setMode('vivlio'); vvLi.appendChild(vvBtn);
-  tabs.appendChild(mdLi); tabs.appendChild(vvLi);
-  const panels=document.createElement('div'); panels.className='vivlio-panels'; Object.assign(panels.style,{position:'relative',flex:'1 1 auto',minHeight:'0'});
-  markdownPanel=document.createElement('div'); markdownPanel.className='markdown-panel'; Object.assign(markdownPanel.style,{width:'100%',height:'100%',overflow:'auto'});
-  vivlioPanel=document.createElement('div'); vivlioPanel.className='vivlio-panel'; Object.assign(vivlioPanel.style,{width:'100%',height:'100%',overflow:'hidden',display:'none'});
-  const parent = target.parentElement; if(!parent) return; parent.insertBefore(wrapper, target); markdownPanel.appendChild(target); panels.appendChild(markdownPanel); panels.appendChild(vivlioPanel); wrapper.appendChild(tabs); wrapper.appendChild(panels);
-  tabsInitialized=true; updateTabActive();
+  const previewContainer = document.querySelector('.page-editor-preview-container');
+  if (!previewContainer) return;
+
+  if (previewContainer.closest('.vivlio-preview-wrapper') || previewContainer.querySelector('.vivlio-preview-wrapper')) {
+    tabsInitialized = true;
+    return;
+  }
+
+  let target: HTMLElement | DocumentFragment;
+  let parent: HTMLElement;
+
+  const previewBody = previewContainer.querySelector('.page-editor-preview-body');
+
+  if (previewBody) {
+    // .page-editor-preview-body が見つかった場合、それをターゲットにする
+    target = previewBody;
+    parent = previewBody.parentElement;
+    if (!parent || target.closest('.vivlio-preview-wrapper')) return;
+  } else if (previewContainer.hasChildNodes()) {
+    // .page-editor-preview-body がなく、コンテナに子要素がある場合
+    // 子要素を DocumentFragment にまとめてターゲットにする
+    const fragment = document.createDocumentFragment();
+    while (previewContainer.firstChild) {
+      fragment.appendChild(previewContainer.firstChild);
+    }
+    target = fragment;
+    parent = previewContainer;
+  } else {
+    return; // レンダリング前なので待機
+  }
+
+  if (!parent) return;
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'vivlio-preview-wrapper';
+  Object.assign(wrapper.style, { width: '100%', height: '100%', display: 'flex', flexDirection: 'column' });
+
+  const tabs = document.createElement('ul');
+  tabs.className = 'nav nav-tabs vivlio-tabs';
+  tabs.style.flexShrink = '0';
+
+  const mdLi = document.createElement('li');
+  mdLi.className = 'nav-item';
+  const mdBtn = document.createElement('button');
+  mdBtn.type = 'button';
+  mdBtn.className = 'nav-link active';
+  mdBtn.textContent = 'Markdown';
+  mdBtn.onclick = () => setMode('markdown');
+  mdLi.appendChild(mdBtn);
+
+  const vvLi = document.createElement('li');
+  vvLi.className = 'nav-item';
+  const vvBtn = document.createElement('button');
+  vvBtn.type = 'button';
+  vvBtn.className = 'nav-link';
+  vvBtn.textContent = 'Vivliostyle';
+  vvBtn.onclick = () => setMode('vivlio');
+  vvLi.appendChild(vvBtn);
+
+  tabs.appendChild(mdLi);
+  tabs.appendChild(vvLi);
+
+  const panels = document.createElement('div');
+  panels.className = 'vivlio-panels';
+  Object.assign(panels.style, { position: 'relative', flex: '1 1 auto', minHeight: '0' });
+
+  markdownPanel = document.createElement('div');
+  markdownPanel.className = 'markdown-panel';
+  Object.assign(markdownPanel.style, { width: '100%', height: '100%', overflow: 'auto' });
+
+  vivlioPanel = document.createElement('div');
+  vivlioPanel.className = 'vivlio-panel';
+  Object.assign(vivlioPanel.style, { width: '100%', height: '100%', overflow: 'hidden', display: 'none' });
+
+  // markdownPanel にターゲット (previewBody または子要素のフラグメント) を追加
+  markdownPanel.appendChild(target);
+
+  panels.appendChild(markdownPanel);
+  panels.appendChild(vivlioPanel);
+  wrapper.appendChild(tabs);
+  wrapper.appendChild(panels);
+
+  // 親要素 (previewBodyの親 または previewContainer) にラッパーを追加
+  parent.appendChild(wrapper);
+
+  tabsInitialized = true;
+  updateTabActive();
 }
 
 function updateTabActive(){
