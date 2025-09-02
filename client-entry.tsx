@@ -140,7 +140,10 @@ function buildFullDoc(html: string, css?: string|null){
   let userCss = css ? css : '';
   // デフォルト組版 CSS (ユーザー未指定時) - @page が存在しないなら基本サイズ付与
   if(!/@page\b/.test(userCss)){
-    userCss = '@page { size: A4; margin: 20mm; }\n' + 'body{ font:12pt/1.5 serif; }\n' + userCss;
+  // A5 デフォルト (ユーザーCSS未指定時) ※ユーザーが上書きできるよう下に連結
+  const defaultPage = `@page { size: A5; margin: 15mm; }`;
+  const defaultBody = `body { font: 11pt/1.5 serif; widows:2; orphans:2; }`;
+  userCss = `${defaultPage}\n${defaultBody}\n` + userCss;
   }
   try{ lastPageWidthPx = estimatePageWidthPx(userCss) || lastPageWidthPx; }catch{}
   const full = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'+userCss+'</style></head><body>'+html+'</body></html>';
@@ -175,23 +178,20 @@ function post(html: string, css?: string | null){
   if(lastPageWidthPx){
     try {
       const pageW = Math.round(lastPageWidthPx);
-      // 固定ページ幅: ビュー領域が狭くなっても縮小スケールせず横スクロールさせる
+      // 初期実装に近い: パネル中央固定 (横幅不足ならスクロールではなく余白削減を避けるため auto overflow)
       f.style.width = pageW + 'px';
       f.style.minWidth = pageW + 'px';
-      f.style.maxWidth = pageW + 'px'; // 意図的: 親幅に合わせて縮まない
-      f.style.flex = '0 0 auto';       // flex 収縮抑止
-      (f.style as any).flexShrink = '0';
-      f.style.boxShadow = '0 0 6px rgba(0,0,0,.35)';
+      f.style.maxWidth = pageW + 'px';
+      f.style.boxShadow = '0 0 6px rgba(0,0,0,.3)';
       f.style.background = '#fff';
       f.style.display = 'block';
-      f.style.margin = '0 auto'; // 広い場合は中央
+      f.style.margin = '0 auto';
       if(vivlioPanel){
-        // flex レイアウトだと子要素が縮小され得るので block + overflow で固定幅スクロール
         vivlioPanel.style.display='block';
-        vivlioPanel.style.overflow='auto';
+        vivlioPanel.style.overflow='auto'; // 横スクロール許容
         vivlioPanel.style.background='#5a5a5a';
-        vivlioPanel.style.padding='16px 24px';
-        vivlioPanel.style.boxSizing='border-box';
+        vivlioPanel.style.padding='12px 16px';
+        vivlioPanel.style.textAlign='center';
       }
     } catch{}
   }
