@@ -5,7 +5,7 @@
 
 // (renamed copy note) 元ファイル内容。build が参照していない可能性が高い。
 // TEMP: will refactor; import auxiliary minimal plugin (renders non-paginated HTML via growiFacade when available)
-import './src/plugin.ts';
+// import './src/plugin.ts';  // Disabled mini scaffold plugin to avoid persistent placeholder
 import MarkdownIt from 'markdown-it';
 // @ts-ignore
 import markdownItRuby from 'markdown-it-ruby';
@@ -579,8 +579,6 @@ function activate(){
     setTimeout(checkResponsiveLayout, 80);
     responsiveResizeListenerAdded=true;
   }
-  // auto switch to vivlio mode
-  setTimeout(()=>{ try{ if(currentMode!=='vivlio'){ setMode('vivlio'); } }catch{} }, 400);
 }
 
 function deactivate(){ if(iframe){ iframe.remove(); iframe=null;} if(attachPollId) clearInterval(attachPollId); detachFns.forEach(f=>f()); detachFns.length=0; delete (window as any).__VIVLIO_PREVIEW__; delete (window as any).__VIVLIO_PREVIEW_ACTIVE__; }
