@@ -74,8 +74,17 @@ function ensureIframe(): HTMLIFrameElement {
   iframe = document.createElement('iframe');
   Object.assign(iframe.style, { width:'100%',height:'100%',border:'0',background:'#fff'});
   const styleBundle = [cssViewer,cssArrows,cssMenu,cssMsg,cssLoading,cssSelMenu].map(c=>`<style>${c}</style>`).join('\n');
-  // viewerRaw を生で template literal に埋め込むとバッククォート/制御文字で SyntaxError が出る可能性があるため base64 エンコード
-  const viewerB64 = btoa(unescape(encodeURIComponent(viewerRaw)));
+  // viewerRaw を安全に埋め込むため単純 base64 (viewerRaw は ASCII 想定)
+  let viewerB64: string;
+  try {
+    viewerB64 = btoa(viewerRaw);
+  } catch(e) {
+    // 非 ASCII 文字が含まれるケース: UTF-8 エンコードしてから btoa
+    const utf8 = new TextEncoder().encode(viewerRaw);
+    let bin = '';
+    utf8.forEach(b=> bin += String.fromCharCode(b));
+    viewerB64 = btoa(bin);
+  }
   iframe.srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"/>${styleBundle}<style>html,body{margin:0;height:100%;}#log{position:fixed;bottom:0;left:0;right:0;max-height:35%;overflow:auto;font:11px monospace;background:#000c;color:#0f0;padding:4px;display:none;white-space:pre-wrap;}#vs-status{position:fixed;top:4px;left:4px;font:12px system-ui;background:#fff;border:1px solid #ccc;padding:2px 6px;border-radius:4px;}#fallbackHtml{position:absolute;inset:0;overflow:auto;font:14px system-ui;display:none;padding:12px;}</style></head><body><div id="vivliostyle-viewer-viewport" data-vivliostyle-viewer-viewport></div><div id="vivliostyle-menu-bar"></div><div id="vivliostyle-message-dialog"></div><div id="vs-status">boot</div><pre id="log"></pre><div id="fallbackHtml"></div><script>(function(){
   const status=document.getElementById('vs-status');
   const logEl=document.getElementById('log');
@@ -99,7 +108,7 @@ function ensureIframe(): HTMLIFrameElement {
   function diagPages(){ try{ if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer){ const vv=window.VivliostyleViewer.viewer; log('diag pages='+(vv.pageManager?.pages? vv.pageManager.pages.length : 'NA')+' doc='+(!!vv.document)); } }catch(err){ log('diag err '+err); } }
   function fallback(htmlDoc){ try{ if(fallbackEl){ fallbackEl.innerHTML=htmlDoc; fallbackEl.style.display='block'; setStatus('fallback'); } }catch(err){ log('fallback err '+err); } }
   function poll(){ let c=0; const iv=setInterval(()=>{ c++; if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer){ clearInterval(iv); ready=true; setStatus('ready'); log('viewer detected keys='+Object.keys(window.VivliostyleViewer.viewer||{}).join(',')); diagPages(); parent.postMessage({type:'VIVLIO_READY'},'*'); if(pending){ const d=pending; pending=null; render(d);} } else if(c>200){ clearInterval(iv); setStatus('timeout'); log('viewer timeout'); } },100); }
-  function inject(){ setStatus('inject'); try{ var raw=decodeURIComponent(escape(atob('${viewerB64}'))); }catch(e){ setStatus('b64-decode-error'); log('b64 decode error '+e); return; } const blob=new Blob([raw],{type:'text/javascript'}); const u=URL.createObjectURL(blob); const s=document.createElement('script'); s.src=u; s.onload=()=>{ URL.revokeObjectURL(u); setStatus('script'); poll(); }; s.onerror=e=>{ setStatus('err'); log('script err'); }; document.head.appendChild(s);} inject(); })();</script></body></html>`;
+  function inject(){ setStatus('inject'); let raw; try{ raw = atob('${viewerB64}'); }catch(e){ setStatus('b64-decode-error'); log('b64 decode error '+e); return; } const blob=new Blob([raw],{type:'text/javascript'}); const u=URL.createObjectURL(blob); const s=document.createElement('script'); s.src=u; s.onload=()=>{ URL.revokeObjectURL(u); setStatus('script'); poll(); }; s.onerror=e=>{ setStatus('err'); log('script err'); }; document.head.appendChild(s);} inject(); })();</script></body></html>`;
   if (vivlioPanel) { vivlioPanel.innerHTML=''; vivlioPanel.appendChild(iframe); } else document.body.appendChild(iframe);
   return iframe;
 }
