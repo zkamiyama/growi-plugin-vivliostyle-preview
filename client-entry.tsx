@@ -299,41 +299,31 @@ function attachAllEditorListeners(): boolean {
 }
 
 let originalPreviewBody: HTMLElement | null = null;
-
-function ensurePreviewBodies() {
-  if (originalPreviewBody && originalPreviewBody.isConnected) return true;
-  const container = document.querySelector('.page-editor-preview-container');
-  if (!container) return false;
+function resolvePreviewBody(){
+  if(originalPreviewBody && originalPreviewBody.isConnected) return originalPreviewBody;
+  const container=document.querySelector('.page-editor-preview-container');
+  if(!container) return null;
   originalPreviewBody = container.querySelector('.page-editor-preview-body') as HTMLElement | null;
-  if (!originalPreviewBody) {
-    if (container.firstElementChild) originalPreviewBody = container.firstElementChild as HTMLElement;
-  }
-  if (!originalPreviewBody) return false;
-  // Vivlio パネル未生成なら作成して隣に配置
-  if (!vivlioPanel || !vivlioPanel.isConnected) {
-    // オーバーレイ方式: レイアウト崩しによるエディタスクロール移動を避ける
-    // container or originalPreviewBody の親を position:relative にし、vivlioPanel を absolute で重ねる
-    const host = originalPreviewBody.parentElement || container;
-    if (host && getComputedStyle(host).position === 'static') {
-      host.style.position = 'relative';
-    }
-    vivlioPanel = document.createElement('div');
-    vivlioPanel.className = 'vivlio-panel';
-    Object.assign(vivlioPanel.style, {
-      position:'absolute',
-      inset:'0',
-      width:'100%',
-      height:'100%',
-      overflow:'hidden',
-      display:'block',
-      visibility:'hidden',
-      background:'#fff'
-    });
-    host.appendChild(vivlioPanel);
-  // 旧: A4 幅 minWidth 強制は削除。狭い画面では 50% ルール + パネル内スクロールで対応。
-    // original は display を弄らず visibility で切替 (高さ維持)
-  }
-  return true;
+  if(!originalPreviewBody && container.firstElementChild) originalPreviewBody = container.firstElementChild as HTMLElement;
+  return originalPreviewBody;
+}
+function ensureVivlioPanel(){
+  if(vivlioPanel && vivlioPanel.isConnected) return vivlioPanel;
+  const bodyEl=resolvePreviewBody();
+  if(!bodyEl) return null;
+  const host=bodyEl.parentElement||document.body;
+  vivlioPanel=document.createElement('div');
+  vivlioPanel.className='vivlio-panel';
+  Object.assign(vivlioPanel.style,{
+    display:'none',
+    width:'100%',
+    height:'100%',
+    overflow:'auto',
+    background:'#fff',
+    position:'relative'
+  });
+  host.insertBefore(vivlioPanel, bodyEl.nextSibling);
+  return vivlioPanel;
 }
 
 
@@ -367,7 +357,7 @@ function findViewEditButton(): HTMLButtonElement | null {
 
 function initVivlioToggle() {
   if (toggleInitialized) return;
-  if (!ensurePreviewBodies()) return; // プレビュー未描画なら後で再試行
+  if (!resolvePreviewBody()) return; // プレビュー未描画なら後で再試行
   
   console.debug(LOG_PREFIX, 'initVivlioToggle attempt');
   
@@ -490,20 +480,15 @@ function updateToggleActive() {
     toggleBtn.classList.toggle('btn-primary', currentMode === 'vivlio');
     toggleBtn.classList.toggle('btn-outline-secondary', currentMode !== 'vivlio');
   }
-  if (originalPreviewBody && vivlioPanel) {
-    // レイアウト高さを保つため display をいじらず visibility 切替
-    if (currentMode === 'markdown') {
-      originalPreviewBody.style.visibility = 'visible';
-      vivlioPanel.style.visibility = 'hidden';
-      vivlioPanel.style.pointerEvents = 'none';
+  const bodyEl=resolvePreviewBody();
+  if(bodyEl){
+    if(currentMode==='markdown'){
+      bodyEl.style.display='';
+      if(vivlioPanel) vivlioPanel.style.display='none';
     } else {
-      originalPreviewBody.style.visibility = 'hidden';
-      vivlioPanel.style.visibility = 'visible';
-      vivlioPanel.style.pointerEvents = 'auto';
-      try {
-        const h = originalPreviewBody.getBoundingClientRect().height;
-        if (h) vivlioPanel.style.minHeight = h + 'px';
-      } catch {}
+      ensureVivlioPanel();
+      if(vivlioPanel) vivlioPanel.style.display='block';
+      bodyEl.style.display='none';
     }
   }
 }
@@ -512,7 +497,7 @@ function setMode(m:'markdown'|'vivlio') {
   if (m === currentMode) return;
   currentMode = m;
   if (m === 'vivlio') {
-    ensurePreviewBodies();
+    ensureVivlioPanel();
     ensureIframe();
     if (!lastSrc) { const t = tryReadEditorText(); if (t) lastSrc = t; }
     // 初回: ソース確定後ただちにCSS解析 -> ページ幅推定 -> 即描画 (debounce待たない)
