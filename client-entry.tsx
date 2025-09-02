@@ -108,44 +108,30 @@ function scheduleRender(src: string){
   debounceTimer = window.setTimeout(()=>{ const {html, css}=renderMarkdownWithEmbeddedCss(lastSrc); post(html, css); }, 250);
 }
 
+let originalPreviewBody: HTMLElement | null = null;
+
 function initTabsIfPossible() {
   if (tabsInitialized) return;
   const previewContainer = document.querySelector('.page-editor-preview-container');
   if (!previewContainer) return;
 
-  if (previewContainer.closest('.vivlio-preview-wrapper') || previewContainer.querySelector('.vivlio-preview-wrapper')) {
+  if (previewContainer.querySelector('.vivlio-tabs')) {
     tabsInitialized = true;
     return;
   }
 
-  let target: HTMLElement | DocumentFragment;
-  let parent: HTMLElement;
-
-  const previewBody = previewContainer.querySelector('.page-editor-preview-body');
-
-  if (previewBody) {
-    // .page-editor-preview-body が見つかった場合、それをターゲットにする
-    target = previewBody;
-    parent = previewBody.parentElement;
-    if (!parent || target.closest('.vivlio-preview-wrapper')) return;
-  } else if (previewContainer.hasChildNodes()) {
-    // .page-editor-preview-body がなく、コンテナに子要素がある場合
-    // 子要素を DocumentFragment にまとめてターゲットにする
-    const fragment = document.createDocumentFragment();
-    while (previewContainer.firstChild) {
-      fragment.appendChild(previewContainer.firstChild);
+  originalPreviewBody = previewContainer.querySelector('.page-editor-preview-body');
+  if (!originalPreviewBody) {
+    // プレビュー本体がまだレンダリングされていない場合は待機
+    if (previewContainer.hasChildNodes()) {
+      // .page-editor-preview-body がないが子要素はある場合、その最初の要素をプレビューとみなす
+      originalPreviewBody = previewContainer.firstElementChild as HTMLElement;
     }
-    target = fragment;
-    parent = previewContainer;
-  } else {
-    return; // レンダリング前なので待機
+    if (!originalPreviewBody) return;
   }
 
+  const parent = originalPreviewBody.parentElement;
   if (!parent) return;
-
-  const wrapper = document.createElement('div');
-  wrapper.className = 'vivlio-preview-wrapper';
-  Object.assign(wrapper.style, { width: '100%', height: '100%', display: 'flex', flexDirection: 'column' });
 
   const tabs = document.createElement('ul');
   tabs.className = 'nav nav-tabs vivlio-tabs';
@@ -172,28 +158,15 @@ function initTabsIfPossible() {
   tabs.appendChild(mdLi);
   tabs.appendChild(vvLi);
 
-  const panels = document.createElement('div');
-  panels.className = 'vivlio-panels';
-  Object.assign(panels.style, { position: 'relative', flex: '1 1 auto', minHeight: '0' });
-
-  markdownPanel = document.createElement('div');
-  markdownPanel.className = 'markdown-panel';
-  Object.assign(markdownPanel.style, { width: '100%', height: '100%', overflow: 'auto' });
-
+  // vivlioPanel のセットアップ
   vivlioPanel = document.createElement('div');
   vivlioPanel.className = 'vivlio-panel';
   Object.assign(vivlioPanel.style, { width: '100%', height: '100%', overflow: 'hidden', display: 'none' });
 
-  // markdownPanel にターゲット (previewBody または子要素のフラグメント) を追加
-  markdownPanel.appendChild(target);
-
-  panels.appendChild(markdownPanel);
-  panels.appendChild(vivlioPanel);
-  wrapper.appendChild(tabs);
-  wrapper.appendChild(panels);
-
-  // 親要素 (previewBodyの親 または previewContainer) にラッパーを追加
-  parent.appendChild(wrapper);
+  // タブを元のプレビューの上に挿入
+  parent.insertBefore(tabs, originalPreviewBody);
+  // vivlioPanelを元のプレビューの後ろに挿入
+  parent.insertBefore(vivlioPanel, originalPreviewBody.nextSibling);
 
   tabsInitialized = true;
   updateTabActive();
@@ -202,7 +175,10 @@ function initTabsIfPossible() {
 function updateTabActive(){
   const tabsRoot = document.querySelector('.vivlio-tabs'); if(!tabsRoot) return;
   const links = tabsRoot.querySelectorAll('.nav-link'); links.forEach(l=>{ const isViv = /vivlio/i.test(l.textContent||''); l.classList.toggle('active', (isViv && currentMode==='vivlio')||(!isViv && currentMode==='markdown')); });
-  if(markdownPanel&&vivlioPanel){ markdownPanel.style.display=currentMode==='markdown'?'block':'none'; vivlioPanel.style.display=currentMode==='vivlio'?'block':'none'; }
+  if(originalPreviewBody && vivlioPanel){
+    originalPreviewBody.style.display = currentMode === 'markdown' ? '' : 'none';
+    vivlioPanel.style.display = currentMode === 'vivlio' ? 'block' : 'none';
+  }
 }
 
 function setMode(m:'markdown'|'vivlio'){
