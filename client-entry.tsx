@@ -83,8 +83,12 @@ function ensureIframe(): HTMLIFrameElement {
   function setStatus(s){ if(status) status.textContent=s; }
   function log(m){ try{ if(logEl){ logEl.style.display='block'; logEl.textContent += m+'\n'; if(logEl.textContent.length>10000) logEl.textContent = logEl.textContent.slice(-8000);} }catch{} }
   let pending=null; let ready=false; let lastUrl=null;
-  window.addEventListener('message',e=>{ const d=e.data; if(!d||d.type!=='HTML_FULL') return; if(!ready){ pending=d; log('queue msg'); } else { render(d); } });
-  function render(d){ try{ const htmlDoc = d.full || '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>'+(d.html||'')+'</body></html>'; if(lastUrl) try{URL.revokeObjectURL(lastUrl);}catch{}; const blob=new Blob([htmlDoc],{type:'text/html'}); const url=URL.createObjectURL(blob); lastUrl=url; location.hash='#src='+encodeURIComponent(url); try{ if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer&&window.VivliostyleViewer.viewer.load){ window.VivliostyleViewer.viewer.load(url); } }catch(ex){ log('viewer.load fail '+ex); } setStatus('render'); }catch(ex){ log('render err '+ex); fallback(d.full || d.html || ''); }}
+  window.addEventListener('message',e=>{ const d=e.data; if(!d||d.type!=='HTML_FULL') return; if(!ready){
+      // Progressive: viewer 未 ready でも HTML を fallbackHtml に一時表示
+      if(d.progressive){ try{ fallback(d.full || d.html || ''); setStatus('progressive'); }catch(err){ log('progressive fail '+err); } }
+      pending=d; log('queue msg');
+    } else { render(d); } });
+  function render(d){ try{ const htmlDoc = d.full || '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>'+(d.html||'')+'</body></html>'; if(lastUrl) try{URL.revokeObjectURL(lastUrl);}catch{}; const blob=new Blob([htmlDoc],{type:'text/html'}); const url=URL.createObjectURL(blob); lastUrl=url; location.hash='#src='+encodeURIComponent(url); try{ if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer&&window.VivliostyleViewer.viewer.load){ window.VivliostyleViewer.viewer.load(url); } }catch(ex){ log('viewer.load fail '+ex); } setStatus(pending?'render+flush':'render'); try{ if(fallbackEl){ fallbackEl.style.transition='opacity .25s'; fallbackEl.style.opacity='0'; setTimeout(()=>{ fallbackEl.style.display='none'; },300);} }catch{} }catch(ex){ log('render err '+ex); fallback(d.full || d.html || ''); }}
   function fallback(htmlDoc){ try{ if(fallbackEl){ fallbackEl.innerHTML=htmlDoc; fallbackEl.style.display='block'; setStatus('fallback'); } }catch(err){ log('fallback err '+err); } }
   function poll(){ let c=0; const iv=setInterval(()=>{ c++; if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer){ clearInterval(iv); ready=true; setStatus('ready'); parent.postMessage({type:'VIVLIO_READY'},'*'); if(pending){ const d=pending; pending=null; render(d);} } else if(c>200){ clearInterval(iv); setStatus('timeout'); log('viewer timeout'); } },100); }
   function inject(){ setStatus('inject'); try{ var raw=decodeURIComponent(escape(atob('${viewerB64}'))); }catch(e){ setStatus('b64-decode-error'); log('b64 decode error '+e); return; } const blob=new Blob([raw],{type:'text/javascript'}); const u=URL.createObjectURL(blob); const s=document.createElement('script'); s.src=u; s.onload=()=>{ URL.revokeObjectURL(u); setStatus('script'); poll(); }; s.onerror=e=>{ setStatus('err'); log('script err'); }; document.head.appendChild(s);} inject(); })();</script></body></html>`;
@@ -101,7 +105,8 @@ function post(html: string, css?: string | null){
   const f=ensureIframe();
   if(!f.contentWindow) return;
   const full = buildFullDoc(html, css);
-  f.contentWindow.postMessage({type:'HTML_FULL', html, css, full}, '*');
+  // 1st phase: まだ viewer Ready でなければ fallbackHtml 埋め込みを命令 (即時表示)
+  f.contentWindow.postMessage({type:'HTML_FULL', html, css, full, progressive: true}, '*');
 }
 
 function scheduleRender(src: string){
