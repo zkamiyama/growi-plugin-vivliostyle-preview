@@ -130,85 +130,48 @@ function ensurePreviewBodies() {
   return true;
 }
 
-function findControlContainer(): HTMLElement | null {
-  // 候補セレクタを網羅的に試す (GROWI バージョン差異吸収)
-  const selectors = [
-    '.grw-page-controls .btn-group',
-    '.grw-page-controls',
-    '.page-editor-mode-manager .btn-group',
-    '.page-editor-mode-manager',
-    '.page-editor-navbar .btn-group',
-    '.page-editor-navbar',
-    '#page-operation-control .btn-group',
-    '#page-operation-control',
-    '.btn-toolbar .btn-group',
-  ];
-  for (const sel of selectors) {
-    const el = document.querySelector(sel) as HTMLElement | null;
-    if (el) return el;
-  }
-  // 新: 動的ハッシュ付きクラス (例: EditorNavbar_editor-navbar__liqCr) への対応
-  // class 名に editor-navbar を含む最上位要素を探索
-  const dynNavs = Array.from(document.querySelectorAll('[class*="editor-navbar"]')) as HTMLElement[];
-  for (const nav of dynNavs) {
-    // 子に View/Edit ボタン相当があるか軽くチェック
-    const hasViewEdit = !!nav.querySelector('button, a.btn');
-    if (hasViewEdit) return nav;
-  }
-  // Fallback: View/Edit ボタンを直接探して親を利用
+// 単純化: View/Edit ボタンを直接探してその直後に挿入
+function findViewEditButton(): HTMLButtonElement | null {
   const btns = Array.from(document.querySelectorAll('button, a.btn')) as HTMLElement[];
-  const ve = btns.find(b => /^(View|Edit)$/i.test((b.textContent||'').trim()));
-  if (ve) return ve.parentElement as HTMLElement | null;
+  // Edit を優先、次に View を探す
+  let target = btns.find(b => /^Edit$/i.test((b.textContent||'').trim()));
+  if (!target) {
+    target = btns.find(b => /^View$/i.test((b.textContent||'').trim()));
+  }
   if (findControlAttempts < 20) {
     findControlAttempts++;
     try {
-      // 早期デバッグ: 上位付近の候補をダンプ
-      const dumpTargets = Array.from(document.querySelectorAll('[class*="editor"], [class*="navbar"], header'))
-        .slice(0, 6)
-        .map(el => (el as HTMLElement).className)
-        .join(' | ');
-      console.debug(LOG_PREFIX,'control-container not found attempt', findControlAttempts, 'dump=', dumpTargets);
+      const allBtnTexts = btns.slice(0, 10).map(b => (b.textContent||'').trim()).join(' | ');
+      console.debug(LOG_PREFIX, 'findViewEditButton attempt', findControlAttempts, 'found:', !!target, 'all buttons:', allBtnTexts);
     } catch {}
   }
-  return null;
-}
-
-// View / Edit ボタンのグループ(最も右の操作ボタングループ) を優先的に返す
-function refineToButtonGroup(base: HTMLElement | null): HTMLElement | null {
-  if (!base) return null;
-  // 既に btn-group なら採用
-  if (/(^|\s)btn-group(\s|$)/.test(base.className)) return base;
-  // 内側に複数の btn-group があれば、View/Edit を含む最後のもの
-  const groups = Array.from(base.querySelectorAll('.btn-group')) as HTMLElement[];
-  if (groups.length) {
-    const viewEditGroups = groups.filter(g => /View|Edit/i.test(g.textContent||''));
-    if (viewEditGroups.length) return viewEditGroups[viewEditGroups.length - 1];
-    return groups[groups.length - 1];
-  }
-  // ボタンが横並びならその親を使う
-  const editBtn = Array.from(base.querySelectorAll('button, a.btn')).find(b => /Edit/i.test((b.textContent||'').trim()));
-  if (editBtn && editBtn.parentElement) return editBtn.parentElement as HTMLElement;
-  return base;
+  return target as HTMLButtonElement | null;
 }
 
 function initVivlioToggle() {
   if (toggleInitialized) return;
   if (!ensurePreviewBodies()) return; // プレビュー未描画なら後で再試行
-  let controls = findControlContainer();
-  if (!controls) return;
-  controls = refineToButtonGroup(controls) || controls;
-  if (!controls) return;
-  // 既に間違った場所(外側)に巨大ボタンとして存在する場合は移動
+  
+  console.debug(LOG_PREFIX, 'initVivlioToggle attempt');
+  
+  // 既存のトグルボタンがあるか確認
   const existing = document.querySelector('.vivlio-toggle-btn') as HTMLButtonElement | null;
-  if (existing && existing.parentElement !== controls) {
-    controls.appendChild(existing);
+  if (existing) {
+    console.debug(LOG_PREFIX, 'existing toggle found, skipping');
     toggleBtn = existing;
     toggleInitialized = true;
-    tuneToggleStyle(existing, controls);
-    updateToggleActive();
     return;
   }
-  if (controls.querySelector('.vivlio-toggle-btn')) { toggleInitialized = true; return; }
+  
+  const targetBtn = findViewEditButton();
+  if (!targetBtn) {
+    console.debug(LOG_PREFIX, 'View/Edit button not found');
+    return;
+  }
+  
+  console.debug(LOG_PREFIX, 'inserting toggle after button:', targetBtn.textContent?.trim());
+  
+  // トグルボタンを作成
   toggleBtn = document.createElement('button');
   toggleBtn.type = 'button';
   toggleBtn.className = 'btn btn-sm btn-outline-secondary vivlio-toggle-btn';
@@ -218,33 +181,57 @@ function initVivlioToggle() {
   toggleBtn.textContent = 'Vivliostyle';
   toggleBtn.setAttribute('data-bs-toggle','button');
   toggleBtn.onclick = () => setMode(currentMode === 'vivlio' ? 'markdown' : 'vivlio');
-  controls.appendChild(toggleBtn);
-  tuneToggleStyle(toggleBtn, controls);
+  
+  // 直後に挿入
+  if (targetBtn.nextSibling) {
+    targetBtn.parentNode?.insertBefore(toggleBtn, targetBtn.nextSibling);
+  } else {
+    targetBtn.parentNode?.appendChild(toggleBtn);
+  }
+  
+  // スタイル調整
+  tuneToggleStyle(toggleBtn, targetBtn);
+  
   toggleInitialized = true;
   updateToggleActive();
+  
+  console.debug(LOG_PREFIX, 'toggle button inserted successfully');
 }
 
-function tuneToggleStyle(btn: HTMLButtonElement, controls: HTMLElement){
+function tuneToggleStyle(btn: HTMLButtonElement, referenceBtn: HTMLElement){
   try {
-    // Edit ボタンからサイズ感コピー (padding / font-size)
-    const edit = Array.from(controls.querySelectorAll('button, a.btn')).find(b => /Edit/i.test((b.textContent||'').trim())) as HTMLElement | undefined;
-    if (edit) {
-      const cs = getComputedStyle(edit);
-      btn.style.padding = cs.padding;
-      btn.style.fontSize = cs.fontSize;
-      btn.style.lineHeight = cs.lineHeight;
-      btn.style.height = cs.height;
+    console.debug(LOG_PREFIX, 'tuning toggle style from reference:', referenceBtn.textContent?.trim());
+    
+    // 参照ボタンからスタイルコピー
+    const cs = getComputedStyle(referenceBtn);
+    btn.style.padding = cs.padding;
+    btn.style.fontSize = cs.fontSize;
+    btn.style.lineHeight = cs.lineHeight;
+    btn.style.height = cs.height;
+    
+    console.debug(LOG_PREFIX, 'copied styles - padding:', cs.padding, 'fontSize:', cs.fontSize, 'height:', cs.height);
+    
+    // 親コンテナのflex調整
+    const parent = btn.parentElement;
+    if (parent) {
+      // flex-column なら row に変更
+      const parentCs = getComputedStyle(parent);
+      if (parentCs.flexDirection === 'column') {
+        console.debug(LOG_PREFIX, 'converting parent from flex-column to flex-row');
+        parent.style.display = 'flex';
+        parent.style.flexDirection = 'row';
+        parent.style.flexWrap = 'nowrap';
+        parent.style.alignItems = 'center';
+      }
     }
-    // 親が flex-column の場合は一行維持のため親を flex-row 化 (安全策: data 属性で一度だけ)
-    const parent = controls.closest('[class*="flex-column"]') as HTMLElement | null;
-    if (parent && !parent.dataset.vivlioNavFixed) {
-      parent.dataset.vivlioNavFixed = '1';
-      parent.style.display = 'flex';
-      parent.style.flexDirection = 'row';
-      parent.style.flexWrap = 'nowrap';
-      parent.style.alignItems = 'center';
-    }
-  } catch {}
+  } catch (error) {
+    console.warn(LOG_PREFIX, 'style tuning failed:', error);
+    // フォールバック: デフォルトスタイル
+    btn.style.padding = '0.375rem 0.75rem';
+    btn.style.fontSize = '0.875rem';
+    btn.style.lineHeight = '1.5';
+    btn.style.height = 'auto';
+  }
 }
 
 function updateToggleActive() {
