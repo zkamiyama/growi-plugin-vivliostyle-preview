@@ -50,6 +50,7 @@ const detachFns: Array<() => void> = [];
 let findControlAttempts = 0;
 const LOG_PREFIX = '[vivlio:min]';
 let extButtonGroup: HTMLElement | null = null; // 追加ボタン用グループ
+let lastPageWidthPx: number | null = null; // 推定ページ幅 (px)
 
 function renderMarkdownWithEmbeddedCss(src: string){
   try {
@@ -113,13 +114,53 @@ function buildFullDoc(html: string, css?: string|null){
   if(!/@page\b/.test(userCss)){
     userCss = '@page { size: A4; margin: 20mm; }\n' + 'body{ font:12pt/1.5 serif; }\n' + userCss;
   }
+  try{ lastPageWidthPx = estimatePageWidthPx(userCss) || lastPageWidthPx; }catch{}
   const full = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'+userCss+'</style></head><body>'+html+'</body></html>';
   return full;
 }
 
+// @page size から幅(px) を推定 (A4 / 210mm など)。96dpi前提。
+function estimatePageWidthPx(css: string): number | null {
+  // プリセット (横幅 mm)
+  const preset: Record<string, number> = { a5:148, a4:210, a3:297, b5:182, b4:257, 'jis-b5':182, 'jis-b4':257, letter:216, legal:216 };
+  const m = css.match(/@page[^}]*size\s*:[^;]*;/i);
+  if(!m) return null;
+  const decl = m[0];
+  // 形式1: size: A4;
+  const kw = decl.match(/size\s*:\s*([a-z0-9-]+)/i);
+  if(kw){ const key = kw[1].toLowerCase(); if(preset[key]) return mmToPx(preset[key]); }
+  // 形式2: size: 210mm 297mm; or 210mm,297mm; or 210mm 297mm portrait
+  const dims = decl.match(/(\d+(?:\.\d+)?)(mm|cm|in)\s*[ ,]\s*(\d+(?:\.\d+)?)(mm|cm|in)/i);
+  if(dims){
+    const w = parseFloat(dims[1]); const wu = dims[2].toLowerCase();
+    return unitToPx(w, wu);
+  }
+  return null;
+}
+function unitToPx(v:number, u:string){ switch(u){ case 'mm': return mmToPx(v); case 'cm': return mmToPx(v*10); case 'in': return v*96; default: return v; } }
+function mmToPx(mm:number){ return mm/25.4*96; }
+
 function post(html: string, css?: string | null){
   const f=ensureIframe();
   if(!f.contentWindow) return;
+  // ページ幅推定があれば iframe 幅固定 + 中央寄せ
+  if(lastPageWidthPx){
+    try {
+      const pageW = Math.round(lastPageWidthPx);
+      f.style.width = pageW + 'px';
+      f.style.maxWidth = '100%';
+      f.style.boxShadow = '0 0 6px rgba(0,0,0,.35)';
+      f.style.background = '#fff';
+      if(vivlioPanel){
+        vivlioPanel.style.display='flex';
+        vivlioPanel.style.justifyContent='center';
+        vivlioPanel.style.alignItems='flex-start';
+        vivlioPanel.style.overflow='auto';
+        vivlioPanel.style.background='#5a5a5a';
+        vivlioPanel.style.padding='16px 24px';
+      }
+    } catch{}
+  }
   const full = buildFullDoc(html, css);
   // 1st phase: まだ viewer Ready でなければ fallbackHtml 埋め込みを命令 (即時表示)
   try { (f as any).contentWindow.__VIV_LAST_FULL_HTML__ = full; } catch {}
@@ -230,6 +271,12 @@ function initVivlioToggle() {
   toggleBtn.textContent = 'Vivliostyle';
   toggleBtn.setAttribute('data-bs-toggle','button');
   toggleBtn.onclick = () => setMode(currentMode === 'vivlio' ? 'markdown' : 'vivlio');
+  // 文字はみ出し対策: 最低幅 & display:flex
+  toggleBtn.style.display='inline-flex';
+  toggleBtn.style.alignItems='center';
+  toggleBtn.style.minWidth='86px';
+  toggleBtn.style.overflow='visible';
+  toggleBtn.style.wordBreak='keep-all';
   
   // 直接同一グループ内 (または親コンテナ) に挿入して表示崩れを最小化
   const parent = targetBtn.parentElement || document.body;
