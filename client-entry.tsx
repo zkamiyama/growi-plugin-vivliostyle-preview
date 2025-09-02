@@ -171,31 +171,45 @@ function estimatePageWidthPx(css: string): number | null {
 function unitToPx(v:number, u:string){ switch(u){ case 'mm': return mmToPx(v); case 'cm': return mmToPx(v*10); case 'in': return v*96; default: return v; } }
 function mmToPx(mm:number){ return mm/25.4*96; }
 
+function updatePageFrameSizing(){
+  if(!iframe) return;
+  if(!lastPageWidthPx) return;
+  try {
+    const pageW = Math.round(lastPageWidthPx);
+    iframe.style.width = pageW + 'px';
+    iframe.style.minWidth = pageW + 'px';
+    iframe.style.maxWidth = pageW + 'px';
+    iframe.style.boxShadow = '0 0 6px rgba(0,0,0,.3)';
+    iframe.style.background = '#fff';
+    iframe.style.display = 'block';
+    iframe.style.margin = '0 auto';
+    if(vivlioPanel){
+      vivlioPanel.style.display='block';
+      vivlioPanel.style.overflow='auto';
+      vivlioPanel.style.background='#5a5a5a';
+      vivlioPanel.style.padding='12px 16px';
+      vivlioPanel.style.textAlign='center';
+    }
+  }catch{}
+}
+
+let resizeObs: ResizeObserver | null = null;
+function ensureAntiShrinkObserver(){
+  if(resizeObs || !vivlioPanel) return;
+  try {
+    resizeObs = new ResizeObserver(()=>{ updatePageFrameSizing(); });
+    resizeObs.observe(vivlioPanel);
+  }catch{}
+}
+
 function post(html: string, css?: string | null){
   const f=ensureIframe();
   if(!f.contentWindow) return;
-  // ページ幅推定があれば iframe 幅固定 + 中央寄せ
-  if(lastPageWidthPx){
-    try {
-      const pageW = Math.round(lastPageWidthPx);
-      // 初期実装に近い: パネル中央固定 (横幅不足ならスクロールではなく余白削減を避けるため auto overflow)
-      f.style.width = pageW + 'px';
-      f.style.minWidth = pageW + 'px';
-      f.style.maxWidth = pageW + 'px';
-      f.style.boxShadow = '0 0 6px rgba(0,0,0,.3)';
-      f.style.background = '#fff';
-      f.style.display = 'block';
-      f.style.margin = '0 auto';
-      if(vivlioPanel){
-        vivlioPanel.style.display='block';
-        vivlioPanel.style.overflow='auto'; // 横スクロール許容
-        vivlioPanel.style.background='#5a5a5a';
-        vivlioPanel.style.padding='12px 16px';
-        vivlioPanel.style.textAlign='center';
-      }
-    } catch{}
-  }
+  // 先に full を構築して lastPageWidthPx を確定させる
   const full = buildFullDoc(html, css);
+  // 直後に幅適用 (初回クリック時にも反映される)
+  updatePageFrameSizing();
+  ensureAntiShrinkObserver();
   // 1st phase: まだ viewer Ready でなければ fallbackHtml 埋め込みを命令 (即時表示)
   try { (f as any).contentWindow.__VIV_LAST_FULL_HTML__ = full; } catch {}
   f.contentWindow.postMessage({type:'HTML_FULL', html, css, full, progressive: true}, '*');
@@ -438,7 +452,12 @@ function setMode(m:'markdown'|'vivlio') {
     ensurePreviewBodies();
     ensureIframe();
     if (!lastSrc) { const t = tryReadEditorText(); if (t) lastSrc = t; }
-    scheduleRender(lastSrc || '# Vivliostyle Preview');
+  // 初回即時レンダリング (debounce 待ち不要) で 2 回押し現象解消
+  const srcNow = lastSrc || '# Vivliostyle Preview';
+  const { html, css } = renderMarkdownWithEmbeddedCss(srcNow);
+  post(html, css);
+  // 直後の変更は従来通り debounce
+  scheduleRender(srcNow);
   }
   updateToggleActive();
 }
