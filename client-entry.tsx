@@ -96,11 +96,11 @@ function ensureIframe(): HTMLIFrameElement {
   /* dev debug panes */
   #log{position:fixed;bottom:0;left:0;right:0;max-height:35%;overflow:auto;font:11px monospace;background:#000c;color:#0f0;padding:4px;display:none;white-space:pre-wrap;z-index:9999;}
   #vs-status{position:fixed;top:4px;left:4px;font:12px system-ui;background:#fff;border:1px solid #ccc;padding:2px 6px;border-radius:4px;z-index:9999;}
-  #fallbackHtml{position:absolute;inset:0;overflow:auto;font:14px system-ui;display:none;padding:12px;}
+  #fallbackHtml{position:absolute;inset:0;overflow:auto;font:14px system-ui;display:none;padding:12px;background:#fff;}
   /* --- Hide Vivliostyle header/menu bar & reclaim space --- */
   #vivliostyle-menu-bar{display:none !important;height:0 !important;overflow:hidden !important;padding:0 !important;margin:0 !important;border:none !important;}
   /* Ensure viewport spans full height when menu removed */
-  #vivliostyle-viewer-viewport{top:0 !important;}
+  #vivliostyle-viewer-viewport{top:0 !important;background:#fff;}
   </style></head><body><div id="vivliostyle-viewer-viewport" data-vivliostyle-viewer-viewport></div><div id="vivliostyle-menu-bar"></div><div id="vivliostyle-message-dialog"></div><div id="vs-status">boot</div><pre id="log"></pre><div id="fallbackHtml"></div><script>(function(){try{var b='${controlB64}';var raw=atob(b);var blob=new Blob([raw],{type:'text/javascript'});var u=URL.createObjectURL(blob);var s=document.createElement('script');s.src=u;s.onload=function(){setTimeout(()=>URL.revokeObjectURL(u),2000);/* 再確認で viewport top を 0 に固定 */try{var vp=document.getElementById('vivliostyle-viewer-viewport'); if(vp) vp.style.top='0';}catch(e){} };s.onerror=function(){console.error('[vivlio:min] control load error');};document.head.appendChild(s);}catch(e){console.error('[vivlio:min] control bootstrap error',e);} })();</script></body></html>`;
   if (vivlioPanel) { vivlioPanel.innerHTML=''; vivlioPanel.appendChild(iframe); } else document.body.appendChild(iframe);
   return iframe;
