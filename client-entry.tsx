@@ -58,6 +58,16 @@ let keyForceListenerAdded = false;
 let spinnerShowTimer: number | null = null; // 遅延表示タイマー
 let lastPostedSrc: string | null = null;    // 直近 post 済み Markdown ソース (重複 skip)
 
+function ensureHostSpinnerKeyframes(){
+  try {
+    if(document.getElementById('vivlio-host-spinner-style')) return;
+    const st=document.createElement('style');
+    st.id='vivlio-host-spinner-style';
+    st.textContent='@keyframes vivlio-spin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(st);
+  } catch{}
+}
+
 function renderMarkdownWithEmbeddedCss(src: string){
   if (!src || typeof src !== 'string') {
     console.warn('[vivlio:min] invalid markdown input:', typeof src);
@@ -187,7 +197,7 @@ function post(html: string, css?: string | null){
     if(spinnerHideTimer){ clearTimeout(spinnerHideTimer); spinnerHideTimer=null; }
     spinnerEl.style.display='none';
     spinnerEl.style.opacity='0';
-    spinnerShowTimer = window.setTimeout(()=>{ try{ if(spinnerEl){ spinnerEl.style.display='block'; requestAnimationFrame(()=>{ if(spinnerEl) spinnerEl.style.opacity='1'; }); } }catch{} },120);
+    spinnerShowTimer = window.setTimeout(()=>{ try{ if(spinnerEl){ spinnerEl.style.display='block'; requestAnimationFrame(()=>{ if(spinnerEl) spinnerEl.style.opacity='1'; }); } }catch{} },60);
     const failSafeTimer = window.setTimeout(()=>{ try{ if(spinnerEl){ spinnerEl.style.opacity='0'; spinnerEl.style.display='none'; } }catch{} },5000);
     detachFns.push(()=>clearTimeout(failSafeTimer));
   }
@@ -211,8 +221,9 @@ function post(html: string, css?: string | null){
         vivlioPanel.style.padding='12px 16px';
         vivlioPanel.style.textAlign='center';
         if(!spinnerEl){
+          ensureHostSpinnerKeyframes();
           spinnerEl=document.createElement('div');
-          Object.assign(spinnerEl.style,{position:'absolute',top:'8px',right:'8px',width:'18px',height:'18px',border:'3px solid #999',borderTopColor:'#2b6cb0',borderRadius:'50%',animation:'vivlio-spin .8s linear infinite',opacity:'0',transition:'opacity .18s',zIndex:'50',display:'none'});
+          Object.assign(spinnerEl.style,{position:'absolute',top:'8px',right:'8px',width:'18px',height:'18px',border:'3px solid #999',borderTopColor:'#2b6cb0',borderRadius:'50%',animation:'vivlio-spin .6s linear infinite',opacity:'0',transition:'opacity .12s',zIndex:'50',display:'none'});
           vivlioPanel.appendChild(spinnerEl);
         }
       }
@@ -237,7 +248,7 @@ function scheduleRender(src: string){
   if(src===lastPostedSrc) return; // 重複不要
   lastSrc = src;
   if (debounceTimer) window.clearTimeout(debounceTimer);
-  debounceTimer = window.setTimeout(()=>{ const {html, css}=renderMarkdownWithEmbeddedCss(lastSrc); post(html, css); }, 120);
+  debounceTimer = window.setTimeout(()=>{ const {html, css}=renderMarkdownWithEmbeddedCss(lastSrc); post(html, css); }, 80);
 }
 
 function attachAllEditorListeners(): boolean {
@@ -516,7 +527,7 @@ function activate(){
   (window as any).__VIVLIO_PREVIEW_ACTIVE__=true;
   (window as any).__VIVLIO_PREVIEW__={ scheduleRender, registerExtraButton };
   window.addEventListener('message',e=>{ if(e.data?.type==='VIVLIO_READY'){ vivlioReady=true; immediateRender(); } });
-  window.addEventListener('message',e=>{ if(e.data?.type==='VIVLIO_RENDER_DONE'){ try{ if(spinnerShowTimer){ clearTimeout(spinnerShowTimer); spinnerShowTimer=null; } if(spinnerEl){ spinnerEl.style.opacity='0'; if(spinnerHideTimer) clearTimeout(spinnerHideTimer); spinnerHideTimer=window.setTimeout(()=>{ try{ if(spinnerEl) spinnerEl.style.display='none'; }catch{} },220); } }catch{} } });
+  window.addEventListener('message',e=>{ if(e.data?.type==='VIVLIO_RENDER_DONE'){ try{ if(spinnerShowTimer){ clearTimeout(spinnerShowTimer); spinnerShowTimer=null; } if(spinnerEl){ spinnerEl.style.opacity='0'; spinnerEl.style.display='none'; if(spinnerHideTimer){ clearTimeout(spinnerHideTimer); spinnerHideTimer=null; } } }catch{} } });
   function tryAttach(){ return attachAllEditorListeners(); }
   attachPollId = window.setInterval(()=>{
     try { initVivlioToggle(); } catch {}
