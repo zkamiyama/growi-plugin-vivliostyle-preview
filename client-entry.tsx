@@ -8,19 +8,7 @@ import MarkdownIt from 'markdown-it';
 // @ts-ignore
 import markdownItRuby from 'markdown-it-ruby';
 // @ts-ignore
-import viewerRaw from '@vivliostyle/viewer/lib/js/vivliostyle-viewer.js?raw';
-// @ts-ignore
-import cssViewer from '@vivliostyle/viewer/lib/css/vivliostyle-viewer.css?raw';
-// @ts-ignore
-import cssArrows from '@vivliostyle/viewer/lib/css/ui.arrows.css?raw';
-// @ts-ignore
-import cssMenu from '@vivliostyle/viewer/lib/css/ui.menu-bar.css?raw';
-// @ts-ignore
-import cssMsg from '@vivliostyle/viewer/lib/css/ui.message-dialog.css?raw';
-// @ts-ignore
-import cssLoading from '@vivliostyle/viewer/lib/css/ui.loading-overlay.css?raw';
-// @ts-ignore
-import cssSelMenu from '@vivliostyle/viewer/lib/css/ui.text-selection-menu.css?raw';
+// viewerRaw / CSS インライン埋め込みは廃止し静的ホスト HTML + CDN ロードへ移行
 import config from './package.json';
 
 // build script が置換するパターンを維持
@@ -121,11 +109,8 @@ function ensureIframe(): HTMLIFrameElement {
   if (iframe && document.body.contains(iframe)) return iframe;
   iframe = document.createElement('iframe');
   Object.assign(iframe.style, { width:'100%',height:'100%',border:'0',background:'#fff'});
-  const styleBundle = [cssViewer,cssArrows,cssMenu,cssMsg,cssLoading,cssSelMenu].map(c=>`<style>${c}</style>`).join('\n');
-  const viewerBlob = URL.createObjectURL(new Blob([viewerRaw], { type:'text/javascript' }));
-  const controlInline = `/* vivliostyle control (direct blob) */\n(function(){\n  const logEl=document.getElementById('log');\n  const fallbackEl=document.getElementById('fallbackHtml');\n  function log(m){ try{ if(logEl){ logEl.style.display='block'; logEl.textContent+=m+'\\n'; if(logEl.textContent.length>16000) logEl.textContent=logEl.textContent.slice(-14000);} }catch{} }\n  function extractBody(h){ try{ const m=h.match(/<body[^>]*>([\\s\\S]*?)<\\/body>/i); return m?m[1]:h; }catch{return h;} }\n  let ready=false; let lastUrl=null;\n  function makeBlob(d){ try{ const full=d.full||'<!DOCTYPE html><html><head><meta charset=\\"utf-8\\"></head><body>'+(d.html||'')+'</body></html>'; if(lastUrl) try{URL.revokeObjectURL(lastUrl);}catch{}; const b=new Blob([full],{type:'text/html'}); lastUrl=URL.createObjectURL(b); return {full,url:lastUrl}; }catch(e){ log('blob fail '+e); return null;} }\n  window.addEventListener('message',e=>{ const d=e.data; if(!d||d.type!=='HTML_FULL') return; if(ready) return; const mk=makeBlob(d); if(mk){ location.hash='#src='+encodeURIComponent(mk.url)+'&bookMode=true'; try{ fallbackEl.innerHTML=extractBody(mk.full); fallbackEl.style.display='block'; }catch{} log('hash set len='+mk.full.length); } });\n  function pages(){ try{return document.querySelectorAll('[data-vivliostyle-page-container]').length;}catch{return 0;} }\n  function poll(){ let c=0; const iv=setInterval(()=>{ c++; const pc=pages(); const status=document.body.getAttribute('data-vivliostyle-viewer-status'); if(pc>0 || status){ clearInterval(iv); ready=true; log('ready pages='+pc); if(pc>0){ try{ fallbackEl.style.display='none'; }catch{} parent.postMessage({type:'VIVLIO_RENDER_DONE', pages:pc},'*'); } else { parent.postMessage({type:'VIVLIO_RENDER_DONE', note:'noPagesYet'},'*'); } } else if(c>240){ clearInterval(iv); log('timeout'); parent.postMessage({type:'VIVLIO_RENDER_DONE', error:'timeout'},'*'); } },125); }\n  function inject(){ const s=document.createElement('script'); s.src='${'"+viewerBlob+"'}'; s.onload=()=>{ log('viewer loaded'); poll(); }; s.onerror=()=>{ log('viewer load error'); parent.postMessage({type:'VIVLIO_RENDER_DONE', error:'script load'},'*'); }; document.head.appendChild(s);}\n  try{ inject(); }catch(e){ log('inject err '+e); }\n})();`;
-  const escaped = controlInline.replace(/<\/script>/gi,'<\\/script>');
-  iframe.srcdoc = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"/>${styleBundle}<style>html,body{margin:0;height:100%;}#log{position:fixed;bottom:0;left:0;right:0;max-height:35%;overflow:auto;font:11px monospace;background:#000c;color:#0f0;padding:4px;display:none;white-space:pre-wrap;z-index:9999;}#fallbackHtml{position:absolute;inset:0;overflow:auto;font:14px system-ui;display:none;padding:12px;background:#fff;}#vivliostyle-menu-bar{display:none !important;}#vivliostyle-viewer-viewport{top:0 !important;background:#fff;}</style></head><body><div id=\"vivliostyle-viewer\"></div><div id=\"vivliostyle-viewer-viewport\" data-vivliostyle-viewer-viewport></div><div id=\"vivliostyle-menu-bar\"></div><div id=\"vivliostyle-message-dialog\"></div><pre id=\"log\"></pre><div id=\"fallbackHtml\"></div><script>${escaped}</script></body></html>`;
+  // 静的ホストファイル (public/vivlio-host.html) を読み込む
+  iframe.src = '/vivlio-host.html';
   if (vivlioPanel) { vivlioPanel.innerHTML=''; vivlioPanel.appendChild(iframe); } else document.body.appendChild(iframe);
   return iframe;
 }
