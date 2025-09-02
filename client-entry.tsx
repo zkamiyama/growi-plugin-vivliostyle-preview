@@ -57,6 +57,10 @@ let spinnerHideTimer: number | null = null;
 let keyForceListenerAdded = false;
 let spinnerShowTimer: number | null = null; // 遅延表示タイマー
 let lastPostedSrc: string | null = null;    // 直近 post 済み Markdown ソース (重複 skip)
+let resizeWinHandlerAdded = false;          // 既存: ビューワー幅 50% ルール用
+let responsivePrevCollapsed = false;        // 直近プレビュー折畳み状態
+let responsiveSavedMode: 'markdown'|'vivlio'|null = null; // 折畳み前 vivlio の復元用
+let responsiveResizeListenerAdded = false;  // レスポンシブ監視追加済みフラグ
 
 function ensureHostSpinnerKeyframes(){
   try {
@@ -271,6 +275,46 @@ function scheduleRender(src: string){
   lastSrc = src;
   if (debounceTimer) window.clearTimeout(debounceTimer);
   debounceTimer = window.setTimeout(()=>{ const {html, css}=renderMarkdownWithEmbeddedCss(lastSrc); post(html, css); }, 80);
+}
+
+function isPreviewActuallyVisible(): boolean {
+  try {
+    const cont = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
+    if(!cont) return false;
+    const cs = getComputedStyle(cont);
+    if(cs.display==='none' || cs.visibility==='hidden') return false;
+    if(cont.offsetWidth===0 || cont.offsetHeight===0) return false;
+    return true;
+  } catch { return false; }
+}
+
+function checkResponsiveLayout(){
+  const visible = isPreviewActuallyVisible();
+  if(!visible){
+    if(!responsivePrevCollapsed){
+      responsivePrevCollapsed=true;
+      if(currentMode==='vivlio'){
+        responsiveSavedMode='vivlio';
+        currentMode='markdown';
+      }
+      if(toggleBtn){ try{ toggleBtn.remove(); }catch{} }
+      toggleBtn=null; toggleInitialized=false;
+      if(vivlioPanel){ vivlioPanel.style.visibility='hidden'; vivlioPanel.style.pointerEvents='none'; }
+    }
+  } else {
+    if(responsivePrevCollapsed){
+      responsivePrevCollapsed=false;
+      try { ensurePreviewBodies(); } catch{}
+      try { initVivlioToggle(); } catch{}
+      if(responsiveSavedMode==='vivlio'){
+        responsiveSavedMode=null;
+        try { setMode('vivlio'); } catch{ setTimeout(()=>{ try{ setMode('vivlio'); }catch{} },80); }
+      } else { updateToggleActive(); }
+      const snap = tryReadEditorText(); if(snap) scheduleRender(snap);
+    } else {
+      if(currentMode==='vivlio' && lastSrc){ try { post(renderMarkdownWithEmbeddedCss(lastSrc).html, null); } catch{} }
+    }
+  }
 }
 
 function attachAllEditorListeners(): boolean {
@@ -552,6 +596,13 @@ function activate(){
     window.addEventListener('keyup', keyHandler, true);
     detachFns.push(()=>window.removeEventListener('keyup', keyHandler, true));
     keyForceListenerAdded=true;
+  }
+  if(!responsiveResizeListenerAdded){
+    const rs=()=>checkResponsiveLayout();
+    window.addEventListener('resize', rs);
+    detachFns.push(()=>window.removeEventListener('resize', rs));
+    setTimeout(checkResponsiveLayout, 80);
+    responsiveResizeListenerAdded=true;
   }
 }
 
