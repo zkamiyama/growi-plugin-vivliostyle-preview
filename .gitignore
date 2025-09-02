@@ -33,3 +33,6 @@ yarn-error.log*
 .idea
 *.orig
 *.code-workspace
+
+# project: exclude markdown files per user request (won't track any *.md going forward)
+*.md
