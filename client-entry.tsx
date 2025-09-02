@@ -64,42 +64,85 @@ const addPlugin = (options: ViewOptions) => {
     if (!wrapped) {
       console.warn(DBG, 'No suitable preview component found to wrap. Available component keys:', componentKeys);
       (window as any).__VIVLIO_COMPONENT_KEYS__ = componentKeys;
-      // DOM fallback (遅延して既存 .page-content をタブ化)
-      if (!(window as any).__VIVLIO_FALLBACK_SCHEDULED__) {
-        (window as any).__VIVLIO_FALLBACK_SCHEDULED__ = true;
-        setTimeout(() => {
+
+      // DOM fallback using MutationObserver for robustness
+      const fallbackObserver = new MutationObserver((mutations, observer) => {
+        const target = document.querySelector('.page-content, .wiki');
+        // Wait for the target to exist and have children
+        if (target && target.hasChildNodes() && !target.querySelector('.vivlio-tabs-wrapper')) {
+          console.info(DBG, 'fallback: target found, applying DOM tab wrapper.');
+
           try {
-            if (document.querySelector('.vivlio-tabs-wrapper')) { console.debug(DBG,'fallback already applied'); return; }
-            const target = document.querySelector('.page-content, .wiki');
-            if (!target) { console.debug(DBG,'fallback: target .page-content not found'); return; }
-            console.info(DBG,'fallback: applying DOM tab wrapper');
             const wrapper = document.createElement('div');
             wrapper.className = 'vivlio-tabs-wrapper vivlio-tabs-wrapper--fallback';
             const bar = document.createElement('div');
             bar.className = 'vivlio-tabs-bar';
-            const btnMd = document.createElement('button'); btnMd.textContent='Markdown'; btnMd.className='active';
-            const btnViv = document.createElement('button'); btnViv.textContent='Vivliostyle';
+            const btnMd = document.createElement('button'); btnMd.textContent = 'Markdown'; btnMd.className = 'active';
+            const btnViv = document.createElement('button'); btnViv.textContent = 'Vivliostyle';
             bar.append(btnMd, btnViv);
-            const content = document.createElement('div'); content.className='vivlio-tabs-content';
-            const panelMd = document.createElement('div'); panelMd.className='vivlio-panel-md';
-            const panelViv = document.createElement('div'); panelViv.className='vivlio-panel-viv'; panelViv.style.display='none';
-            const iframe = document.createElement('iframe'); iframe.style.cssText='width:100%;height:600px;border:1px solid #ccc;background:#fff;'; panelViv.appendChild(iframe);
-            // move children
-            while (target.firstChild) panelMd.appendChild(target.firstChild);
+
+            const content = document.createElement('div'); content.className = 'vivlio-tabs-content';
+            const panelMd = document.createElement('div'); panelMd.className = 'vivlio-panel-md';
+            const panelViv = document.createElement('div'); panelViv.className = 'vivlio-panel-viv'; panelViv.style.display = 'none';
+            const iframe = document.createElement('iframe'); iframe.style.cssText = 'width:100%;height:600px;border:1px solid #ccc;background:#fff;';
+            panelViv.appendChild(iframe);
+
+            // Move children from original target to the new markdown panel
+            while (target.firstChild) {
+              panelMd.appendChild(target.firstChild);
+            }
+
             content.append(panelMd, panelViv);
             wrapper.append(bar, content);
             target.appendChild(wrapper);
-            const switchTab = (mode: 'md'|'viv') => {
-              if (mode==='md'){ btnMd.classList.add('active'); btnViv.classList.remove('active'); panelMd.style.display='block'; panelViv.style.display='none'; }
-              else { btnViv.classList.add('active'); btnMd.classList.remove('active'); panelMd.style.display='none'; panelViv.style.display='block'; try { const html = document.querySelector('.vivlio-panel-md')?.innerHTML || ''; iframe.contentDocument?.open(); iframe.contentDocument?.write('<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>'+html+'</body></html>'); iframe.contentDocument?.close(); } catch(e){ console.error(DBG,'fallback vivlio write error', e);} }
+
+            const switchTab = (mode: 'md' | 'viv') => {
+              if (mode === 'md') {
+                btnMd.classList.add('active');
+                btnViv.classList.remove('active');
+                panelMd.style.display = 'block';
+                panelViv.style.display = 'none';
+              } else {
+                btnViv.classList.add('active');
+                btnMd.classList.remove('active');
+                panelMd.style.display = 'none';
+                panelViv.style.display = 'block';
+                try {
+                  const html = panelMd.innerHTML || '';
+                  const doc = iframe.contentDocument;
+                  if (doc) {
+                    doc.open();
+                    doc.write(`<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${html}</body></html>`);
+                    doc.close();
+                  }
+                } catch (e) {
+                  console.error(DBG, 'fallback vivlio write error', e);
+                }
+              }
             };
-            btnMd.onclick = () => { console.debug(DBG,'fallback click markdown'); switchTab('md'); };
-            btnViv.onclick = () => { console.debug(DBG,'fallback click vivlio'); switchTab('viv'); };
-          } catch(err) {
-            console.error(DBG,'fallback error', err);
+
+            btnMd.onclick = () => { console.debug(DBG, 'fallback click markdown'); switchTab('md'); };
+            btnViv.onclick = () => { console.debug(DBG, 'fallback click vivlio'); switchTab('viv'); };
+
+            // Disconnect observer once the job is done
+            observer.disconnect();
+            console.info(DBG, 'fallback: observer disconnected.');
+
+          } catch (err) {
+            console.error(DBG, 'fallback error', err);
           }
-        }, 0);
-      }
+        }
+      });
+
+      // Start observing the body for child list modifications
+      fallbackObserver.observe(document.body, { childList: true, subtree: true });
+      console.info(DBG, 'fallback: MutationObserver started.');
+
+      // Failsafe timeout to stop the observer
+      setTimeout(() => {
+        fallbackObserver.disconnect();
+        console.info(DBG, 'fallback: observer disconnected by failsafe timeout.');
+      }, 5000);
     }
 
     if (options.remarkPlugins) {
