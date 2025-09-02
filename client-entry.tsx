@@ -47,6 +47,8 @@ let vivlioPanel: HTMLElement | null = null;
 let toggleBtn: HTMLButtonElement | null = null;
 let attachPollId: number | null = null;
 const detachFns: Array<() => void> = [];
+let findControlAttempts = 0;
+const LOG_PREFIX = '[vivlio:min]';
 
 function renderMarkdownWithEmbeddedCss(src: string){
   try {
@@ -145,10 +147,29 @@ function findControlContainer(): HTMLElement | null {
     const el = document.querySelector(sel) as HTMLElement | null;
     if (el) return el;
   }
+  // 新: 動的ハッシュ付きクラス (例: EditorNavbar_editor-navbar__liqCr) への対応
+  // class 名に editor-navbar を含む最上位要素を探索
+  const dynNavs = Array.from(document.querySelectorAll('[class*="editor-navbar"]')) as HTMLElement[];
+  for (const nav of dynNavs) {
+    // 子に View/Edit ボタン相当があるか軽くチェック
+    const hasViewEdit = !!nav.querySelector('button, a.btn');
+    if (hasViewEdit) return nav;
+  }
   // Fallback: View/Edit ボタンを直接探して親を利用
   const btns = Array.from(document.querySelectorAll('button, a.btn')) as HTMLElement[];
   const ve = btns.find(b => /^(View|Edit)$/i.test((b.textContent||'').trim()));
   if (ve) return ve.parentElement as HTMLElement | null;
+  if (findControlAttempts < 20) {
+    findControlAttempts++;
+    try {
+      // 早期デバッグ: 上位付近の候補をダンプ
+      const dumpTargets = Array.from(document.querySelectorAll('[class*="editor"], [class*="navbar"], header'))
+        .slice(0, 6)
+        .map(el => (el as HTMLElement).className)
+        .join(' | ');
+      console.debug(LOG_PREFIX,'control-container not found attempt', findControlAttempts, 'dump=', dumpTargets);
+    } catch {}
+  }
   return null;
 }
 
