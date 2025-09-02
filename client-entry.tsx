@@ -215,16 +215,38 @@ function post(html: string, css?: string | null){
       f.style.display = 'block';
       f.style.margin = '0 auto';
       if(vivlioPanel){
-        vivlioPanel.style.display='block';
-        vivlioPanel.style.overflow='auto'; // 横スクロール許容
+        vivlioPanel.style.display='flex';
         vivlioPanel.style.background='#5a5a5a';
-        vivlioPanel.style.padding='12px 16px';
-        vivlioPanel.style.textAlign='center';
+        vivlioPanel.style.padding='8px 0'; // 水平余白 0 -> 背景を必須幅に含めない
+        vivlioPanel.style.justifyContent='center';
+        vivlioPanel.style.alignItems='flex-start';
+        vivlioPanel.style.overflowX='auto';
+        vivlioPanel.style.overflowY='auto';
+        // 50% ルール適用
+        const halfWin = Math.floor(window.innerWidth * 0.5);
+        if(pageW > halfWin){
+          vivlioPanel.style.width = halfWin + 'px';
+          vivlioPanel.style.maxWidth = halfWin + 'px';
+        } else {
+          vivlioPanel.style.width=''; vivlioPanel.style.maxWidth='';
+        }
         if(!spinnerEl){
           ensureHostSpinnerKeyframes();
           spinnerEl=document.createElement('div');
           Object.assign(spinnerEl.style,{position:'absolute',top:'8px',right:'8px',width:'18px',height:'18px',border:'3px solid #999',borderTopColor:'#2b6cb0',borderRadius:'50%',animation:'vivlio-spin .6s linear infinite',opacity:'0',transition:'opacity .12s',zIndex:'50',display:'none'});
           vivlioPanel.appendChild(spinnerEl);
+        }
+        if(!resizeWinHandlerAdded){
+          const onResize=()=>{
+            if(!vivlioPanel) return;
+            const hw=Math.floor(window.innerWidth*0.5);
+            if(lastPageWidthPx && lastPageWidthPx>hw){
+              vivlioPanel.style.width=hw+'px'; vivlioPanel.style.maxWidth=hw+'px';
+            } else { vivlioPanel.style.width=''; vivlioPanel.style.maxWidth=''; }
+          };
+          window.addEventListener('resize', onResize);
+          detachFns.push(()=>window.removeEventListener('resize', onResize));
+          resizeWinHandlerAdded=true;
         }
       }
     } catch{}
@@ -292,21 +314,7 @@ function ensurePreviewBodies() {
       background:'#fff'
     });
     host.appendChild(vivlioPanel);
-    // 縮小抑止: 祖先側に最低幅と横スクロールを付与 (推定前は A4 幅 ≈ 795px)
-    try {
-      const approxA4 = Math.round(mmToPx(210));
-      host.style.minWidth = approxA4 + 'px';
-      host.style.overflowX = 'auto';
-      const gp = host.parentElement;
-      if (gp) {
-        (gp as HTMLElement).style.overflowX = 'auto';
-        const gpCS = getComputedStyle(gp);
-        if (['flex','inline-flex'].includes(gpCS.display)) {
-          (gp as HTMLElement).style.flex = '0 0 auto';
-          (gp as HTMLElement).style.minWidth = approxA4 + 'px';
-        }
-      }
-    } catch {}
+  // 旧: A4 幅 minWidth 強制は削除。狭い画面では 50% ルール + パネル内スクロールで対応。
     // original は display を弄らず visibility で切替 (高さ維持)
   }
   return true;
