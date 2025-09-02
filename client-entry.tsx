@@ -52,10 +52,9 @@ const LOG_PREFIX = '[vivlio:min]';
 let extButtonGroup: HTMLElement | null = null; // 追加ボタン用グループ
 let lastPageWidthPx: number | null = null; // 推定ページ幅 (px)
 let resizeObs: ResizeObserver | null = null;
-let spinnerEl: HTMLElement | null = null;
-let spinnerHideTimer: number | null = null;
+// (spinner removed)
 let keyForceListenerAdded = false;
-let spinnerShowTimer: number | null = null; // （使用縮小予定）
+// spinnerShowTimer removed
 let lastPostedSrc: string | null = null;    // 直近 post 済み Markdown ソース (重複 skip)
 let resizeWinHandlerAdded = false;          // 既存: ビューワー幅 50% ルール用
 let responsivePrevCollapsed = false;        // 直近プレビュー折畳み状態
@@ -195,13 +194,6 @@ function mmToPx(mm:number){ return mm/25.4*96; }
 function post(html: string, css?: string | null){
   const f=ensureIframe();
   if(!f.contentWindow) return;
-  // スピナー: レンダー要求直後ただちに表示 (ブランク期間のみ) / 直前のタイマー消去
-  if(spinnerShowTimer){ clearTimeout(spinnerShowTimer); spinnerShowTimer=null; }
-  if(spinnerEl){
-    if(spinnerHideTimer){ clearTimeout(spinnerHideTimer); spinnerHideTimer=null; }
-    spinnerEl.style.display='block';
-    spinnerEl.style.opacity='1';
-  }
   lastPostedSrc = lastSrc;
   // ページ幅推定があれば iframe 幅固定 + 中央寄せ
   if(lastPageWidthPx){
@@ -231,12 +223,7 @@ function post(html: string, css?: string | null){
         } else {
           vivlioPanel.style.width=''; vivlioPanel.style.maxWidth='';
         }
-        if(!spinnerEl){
-          ensureHostSpinnerKeyframes();
-          spinnerEl=document.createElement('div');
-          Object.assign(spinnerEl.style,{position:'absolute',top:'8px',right:'8px',width:'18px',height:'18px',border:'3px solid #999',borderTopColor:'#2b6cb0',borderRadius:'50%',animation:'vivlio-spin .6s linear infinite',opacity:'0',transition:'none',zIndex:'50',display:'none'});
-          vivlioPanel.appendChild(spinnerEl);
-        }
+  // spinner removed
         if(!resizeWinHandlerAdded){
           const onResize=()=>{
             if(!vivlioPanel) return;
@@ -576,7 +563,7 @@ function activate(){
   (window as any).__VIVLIO_PREVIEW_ACTIVE__=true;
   (window as any).__VIVLIO_PREVIEW__={ scheduleRender, registerExtraButton };
   window.addEventListener('message',e=>{ if(e.data?.type==='VIVLIO_READY'){ vivlioReady=true; immediateRender(); } });
-  window.addEventListener('message',e=>{ if(e.data?.type==='VIVLIO_RENDER_DONE'){ try{ if(spinnerShowTimer){ clearTimeout(spinnerShowTimer); spinnerShowTimer=null; } if(spinnerEl){ spinnerEl.style.display='none'; spinnerEl.style.opacity='0'; } }catch{} } });
+  // spinner removed: no VIVLIO_RENDER_DONE visual handling needed
   function tryAttach(){ return attachAllEditorListeners(); }
   attachPollId = window.setInterval(()=>{
     try { initVivlioToggle(); } catch {}
