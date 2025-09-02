@@ -52,6 +52,8 @@ const LOG_PREFIX = '[vivlio:min]';
 let extButtonGroup: HTMLElement | null = null; // 追加ボタン用グループ
 let lastPageWidthPx: number | null = null; // 推定ページ幅 (px)
 let resizeObs: ResizeObserver | null = null;
+let spinnerEl: HTMLElement | null = null;
+let spinnerHideTimer: number | null = null;
 
 function renderMarkdownWithEmbeddedCss(src: string){
   if (!src || typeof src !== 'string') {
@@ -118,7 +120,7 @@ function ensureIframe(): HTMLIFrameElement {
 
   // 制御用スクリプト本体（以前の巨大インライン IIFE をこちらへ移動）。
   // 文字化け/制御文字による about:srcdoc SyntaxError を避けるため base64 文字列として埋め込み、起動時に Blob 経由で読み込む。
-  const controlScript = `/* vivliostyle control script */\n(function(){\n  const status=document.getElementById('vs-status');\n  const logEl=document.getElementById('log');\n  const fallbackEl=document.getElementById('fallbackHtml');\n  function setStatus(s){ try{ console.log('[vivlio:status]', s); }catch{} }\n  function log(m){ try{ if(logEl){ logEl.style.display='block'; logEl.textContent += m+'\\n'; if(logEl.textContent.length>12000) logEl.textContent = logEl.textContent.slice(-10000);} }catch{} }\n  let pending=null; let ready=false; let lastUrl=null;\n  window.addEventListener('message',e=>{ const d=e.data; if(!d||d.type!=='HTML_FULL') return; if(!ready){ if(d.progressive){ try{ fallback(d.full || d.html || ''); setStatus('progressive'); }catch(err){ log('progressive fail '+err); } } pending=d; log('queue msg htmlLen='+(d.full?d.full.length:(d.html?d.html.length:0))); log('html head preview:'+(d.full||d.html||'').slice(0,160).replace(/\\s+/g,' ')); } else { render(d); } });\n  function hasPages(){ try{ return !!(window.VivliostyleViewer&&window.VivliostyleViewer.viewer&&window.VivliostyleViewer.viewer.pageManager&&window.VivliostyleViewer.viewer.pageManager.pages&&window.VivliostyleViewer.viewer.pageManager.pages.length); }catch{return false;} }\n  function diagPages(){ try{ if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer){ const vv=window.VivliostyleViewer.viewer; log('diag pages='+(vv.pageManager?.pages? vv.pageManager.pages.length : 'NA')+' doc='+(!!vv.document)); } }catch(err){ log('diag err '+err); } }\n  function render(d){ try{ const htmlDoc = d.full || '<!DOCTYPE html><html><head><meta charset=\\"utf-8\\"></head><body>'+(d.html||'')+'</body></html>'; log('render start htmlLen='+htmlDoc.length); if(lastUrl) try{URL.revokeObjectURL(lastUrl);}catch{}; const blob=new Blob([htmlDoc],{type:'text/html'}); const url=URL.createObjectURL(blob); lastUrl=url; location.hash='#src='+encodeURIComponent(url); try{ if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer&&window.VivliostyleViewer.viewer.load){ const vv=window.VivliostyleViewer.viewer; log('call viewer.load('+url+')'); let ret; try{ ret=vv.load(url); }catch(er){ log('direct load throw '+er); } if(ret && typeof ret.then==='function'){ ret.then(()=>{ const pc = vv.pageManager?.pages?.length; log('viewer.load resolved pages='+pc); }).catch(e=>{ log('viewer.load rejected '+e); }); } } else { log('viewer.load not available'); } }catch(ex){ log('viewer.load fail '+ex); } setStatus(pending?'render+flush':'render'); try{ if(fallbackEl){ fallbackEl.style.transition='opacity .25s'; fallbackEl.style.opacity='0'; setTimeout(()=>{ fallbackEl.style.display='none'; },300);} }catch{} setTimeout(diagPages,500); setTimeout(()=>{ diagPages(); if(!hasPages()){ log('no pages after 1500ms -> restore fallback'); try{ fallbackEl.style.display='block'; fallbackEl.style.opacity='1'; setStatus('fallback-restore'); }catch{} } },1500); setTimeout(diagPages,3000); }catch(ex){ log('render err '+ex); fallback(d.full || d.html || ''); }}\n  function fallback(htmlDoc){ try{ if(fallbackEl){ fallbackEl.innerHTML=htmlDoc; fallbackEl.style.display='block'; setStatus('fallback'); } }catch(err){ log('fallback err '+err); } }\n  function poll(){ let c=0; const iv=setInterval(()=>{ c++; if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer){ clearInterval(iv); ready=true; setStatus('ready'); log('viewer detected keys='+Object.keys(window.VivliostyleViewer.viewer||{}).join(',')); diagPages(); parent.postMessage({type:'VIVLIO_READY'},'*'); if(pending){ const d=pending; pending=null; render(d);} } else if(c>200){ clearInterval(iv); setStatus('timeout'); log('viewer timeout'); } },100); }\n  function injectViewer(){ setStatus('inject'); let raw; try{ raw = atob('${viewerB64}'); }catch(e){ setStatus('b64-decode-error'); log('b64 decode error '+e); return; } const blob=new Blob([raw],{type:'text/javascript'}); const u=URL.createObjectURL(blob); const s=document.createElement('script'); s.src=u; s.onload=()=>{ URL.revokeObjectURL(u); setStatus('script'); poll(); }; s.onerror=e=>{ setStatus('err'); log('script err'); }; document.head.appendChild(s);}\n  try { injectViewer(); } catch(er){ log('injectViewer throw '+er); }\n})();\n`;
+  const controlScript = `/* vivliostyle control script */\n(function(){\n  const status=document.getElementById('vs-status');\n  const logEl=document.getElementById('log');\n  const fallbackEl=document.getElementById('fallbackHtml');\n  function setStatus(s){ try{ console.log('[vivlio:status]', s); }catch{} }\n  function log(m){ try{ if(logEl){ logEl.style.display='block'; logEl.textContent += m+'\\n'; if(logEl.textContent.length>12000) logEl.textContent = logEl.textContent.slice(-10000);} }catch{} }\n  let pending=null; let ready=false; let lastUrl=null;\n  window.addEventListener('message',e=>{ const d=e.data; if(!d||d.type!=='HTML_FULL') return; if(!ready){ if(d.progressive){ try{ fallback(d.full || d.html || ''); setStatus('progressive'); }catch(err){ log('progressive fail '+err); } } pending=d; log('queue msg htmlLen='+(d.full?d.full.length:(d.html?d.html.length:0))); log('html head preview:'+(d.full||d.html||'').slice(0,160).replace(/\\s+/g,' ')); } else { render(d); } });\n  function hasPages(){ try{ return !!(window.VivliostyleViewer&&window.VivliostyleViewer.viewer&&window.VivliostyleViewer.viewer.pageManager&&window.VivliostyleViewer.viewer.pageManager.pages&&window.VivliostyleViewer.viewer.pageManager.pages.length); }catch{return false;} }\n  function diagPages(){ try{ if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer){ const vv=window.VivliostyleViewer.viewer; log('diag pages='+(vv.pageManager?.pages? vv.pageManager.pages.length : 'NA')+' doc='+(!!vv.document)); } }catch(err){ log('diag err '+err); } }\n  function render(d){ try{ const htmlDoc = d.full || '<!DOCTYPE html><html><head><meta charset=\\"utf-8\\"></head><body>'+(d.html||'')+'</body></html>'; log('render start htmlLen='+htmlDoc.length); if(lastUrl) try{URL.revokeObjectURL(lastUrl);}catch{}; const blob=new Blob([htmlDoc],{type:'text/html'}); const url=URL.createObjectURL(blob); lastUrl=url; location.hash='#src='+encodeURIComponent(url); try{ if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer&&window.VivliostyleViewer.viewer.load){ const vv=window.VivliostyleViewer.viewer; log('call viewer.load('+url+')'); let ret; try{ ret=vv.load(url); }catch(er){ log('direct load throw '+er); } if(ret && typeof ret.then==='function'){ ret.then(()=>{ const pc = vv.pageManager?.pages?.length; log('viewer.load resolved pages='+pc); parent.postMessage({type:'VIVLIO_RENDER_DONE', pages: pc},'*'); }).catch(e=>{ log('viewer.load rejected '+e); parent.postMessage({type:'VIVLIO_RENDER_DONE', error: String(e)},'*'); }); } else { parent.postMessage({type:'VIVLIO_RENDER_DONE', note:'noPromise'},'*'); } } else { log('viewer.load not available'); parent.postMessage({type:'VIVLIO_RENDER_DONE', note:'noViewerLoad'},'*'); } }catch(ex){ log('viewer.load fail '+ex); parent.postMessage({type:'VIVLIO_RENDER_DONE', error: String(ex)},'*'); } setStatus(pending?'render+flush':'render'); try{ if(fallbackEl){ fallbackEl.style.transition='opacity .25s'; fallbackEl.style.opacity='0'; setTimeout(()=>{ fallbackEl.style.display='none'; },300);} }catch{} setTimeout(diagPages,500); setTimeout(()=>{ diagPages(); if(!hasPages()){ log('no pages after 1500ms -> restore fallback'); try{ fallbackEl.style.display='block'; fallbackEl.style.opacity='1'; setStatus('fallback-restore'); }catch{} } },1500); setTimeout(diagPages,3000); }catch(ex){ log('render err '+ex); parent.postMessage({type:'VIVLIO_RENDER_DONE', error: String(ex)},'*'); fallback(d.full || d.html || ''); }}\n  function fallback(htmlDoc){ try{ if(fallbackEl){ fallbackEl.innerHTML=htmlDoc; fallbackEl.style.display='block'; setStatus('fallback'); } }catch(err){ log('fallback err '+err); } }\n  function poll(){ let c=0; const iv=setInterval(()=>{ c++; if(window.VivliostyleViewer&&window.VivliostyleViewer.viewer){ clearInterval(iv); ready=true; setStatus('ready'); log('viewer detected keys='+Object.keys(window.VivliostyleViewer.viewer||{}).join(',')); diagPages(); parent.postMessage({type:'VIVLIO_READY'},'*'); if(pending){ const d=pending; pending=null; render(d);} } else if(c>200){ clearInterval(iv); setStatus('timeout'); log('viewer timeout'); parent.postMessage({type:'VIVLIO_RENDER_DONE', error:'timeout'},'*'); } },100); }\n  function injectViewer(){ setStatus('inject'); let raw; try{ raw = atob('${viewerB64}'); }catch(e){ setStatus('b64-decode-error'); log('b64 decode error '+e); parent.postMessage({type:'VIVLIO_RENDER_DONE', error:'b64 '+e},'*'); return; } const blob=new Blob([raw],{type:'text/javascript'}); const u=URL.createObjectURL(blob); const s=document.createElement('script'); s.src=u; s.onload=()=>{ URL.revokeObjectURL(u); setStatus('script'); poll(); }; s.onerror=e=>{ setStatus('err'); log('script err'); parent.postMessage({type:'VIVLIO_RENDER_DONE', error:'script load'},'*'); }; document.head.appendChild(s);}\n  try { injectViewer(); } catch(er){ log('injectViewer throw '+er); parent.postMessage({type:'VIVLIO_RENDER_DONE', error:'inject '+er},'*'); }\n})();\n`;
   // base64 化（UTF-8）
   const controlB64 = (()=>{ const enc = new TextEncoder().encode(controlScript); let bin=''; enc.forEach(b=> bin+=String.fromCharCode(b)); return btoa(bin); })();
   iframe.srcdoc = `<!DOCTYPE html><html><head><meta charset="utf-8"/>${styleBundle}<style>
@@ -127,6 +129,7 @@ function ensureIframe(): HTMLIFrameElement {
   #log{position:fixed;bottom:0;left:0;right:0;max-height:35%;overflow:auto;font:11px monospace;background:#000c;color:#0f0;padding:4px;display:none;white-space:pre-wrap;z-index:9999;}
   #vs-status{display:none !important;}
   #fallbackHtml{position:absolute;inset:0;overflow:auto;font:14px system-ui;display:none;padding:12px;background:#fff;}
+  @keyframes vivlio-spin{to{transform:rotate(360deg)}}
   /* --- Hide Vivliostyle header/menu bar & reclaim space --- */
   #vivliostyle-menu-bar{display:none !important;height:0 !important;overflow:hidden !important;padding:0 !important;margin:0 !important;border:none !important;}
   /* Ensure viewport spans full height when menu removed */
@@ -175,6 +178,7 @@ function mmToPx(mm:number){ return mm/25.4*96; }
 function post(html: string, css?: string | null){
   const f=ensureIframe();
   if(!f.contentWindow) return;
+  if(spinnerEl){ spinnerEl.style.opacity='1'; if(spinnerHideTimer){ clearTimeout(spinnerHideTimer); spinnerHideTimer=null; } }
   // ページ幅推定があれば iframe 幅固定 + 中央寄せ
   if(lastPageWidthPx){
     try {
@@ -193,6 +197,11 @@ function post(html: string, css?: string | null){
         vivlioPanel.style.background='#5a5a5a';
         vivlioPanel.style.padding='12px 16px';
         vivlioPanel.style.textAlign='center';
+        if(!spinnerEl){
+          spinnerEl=document.createElement('div');
+          Object.assign(spinnerEl.style,{position:'absolute',top:'8px',right:'8px',width:'18px',height:'18px',border:'3px solid #999',borderTopColor:'#2b6cb0',borderRadius:'50%',animation:'vivlio-spin .8s linear infinite',opacity:'0',transition:'opacity .25s',zIndex:'50'});
+          vivlioPanel.appendChild(spinnerEl);
+        }
       }
     } catch{}
   }
@@ -215,6 +224,15 @@ function scheduleRender(src: string){
   lastSrc = src;
   if (debounceTimer) window.clearTimeout(debounceTimer);
   debounceTimer = window.setTimeout(()=>{ const {html, css}=renderMarkdownWithEmbeddedCss(lastSrc); post(html, css); }, 250);
+}
+
+function attachAllEditorListeners(): boolean {
+  let attached=false;
+  try { const cmHost=document.querySelector('.CodeMirror'); if(cmHost && (cmHost as any).CodeMirror){ const cm=(cmHost as any).CodeMirror; if(!(cm as any).__vivlioHooked){ const h=()=>{ try{ scheduleRender(cm.getValue()); }catch{} }; cm.on('change',h); detachFns.push(()=>{ try{ cm.off('change',h);}catch{} }); (cm as any).__vivlioHooked=true; attached=true; } } }catch{}
+  try { const cm6=document.querySelector('.cm-content[contenteditable="true"]'); if(cm6 && !(cm6 as any).__vivlioHooked){ const h=()=>{ scheduleRender(cm6.textContent||''); }; cm6.addEventListener('input',h); detachFns.push(()=>cm6.removeEventListener('input',h)); (cm6 as any).__vivlioHooked=true; attached=true; } }catch{}
+  try { const ta=document.querySelector('textarea[name="markdown"], textarea.markdown-body, textarea'); if(ta && !(ta as any).__vivlioHooked){ const h=()=>{ scheduleRender((ta as HTMLTextAreaElement).value); }; ta.addEventListener('input',h); detachFns.push(()=>ta.removeEventListener('input',h)); (ta as any).__vivlioHooked=true; attached=true; } }catch{}
+  if(attached){ const snap=tryReadEditorText(); if(snap) scheduleRender(snap); }
+  return attached;
 }
 
 let originalPreviewBody: HTMLElement | null = null;
@@ -484,11 +502,13 @@ function activate(){
   (window as any).__VIVLIO_PREVIEW_ACTIVE__=true;
   (window as any).__VIVLIO_PREVIEW__={ scheduleRender, registerExtraButton };
   window.addEventListener('message',e=>{ if(e.data?.type==='VIVLIO_READY'){ vivlioReady=true; immediateRender(); } });
-  function tryAttach(){ const cmHost=document.querySelector('.CodeMirror'); if(cmHost && (cmHost as any).CodeMirror){ const cm=(cmHost as any).CodeMirror; const h=()=>{ try{ scheduleRender(cm.getValue()); }catch{} }; cm.on('change',h); detachFns.push(()=>{ try{ cm.off('change',h);}catch{} }); try{ scheduleRender(cm.getValue()); }catch{} return true;} return false; }
+  window.addEventListener('message',e=>{ if(e.data?.type==='VIVLIO_RENDER_DONE'){ try{ if(spinnerEl){ spinnerEl.style.opacity='0'; if(spinnerHideTimer) clearTimeout(spinnerHideTimer); spinnerHideTimer=window.setTimeout(()=>{ try{ if(spinnerEl) spinnerEl.style.display='none'; }catch{} },400); } }catch{} } });
+  function tryAttach(){ return attachAllEditorListeners(); }
   attachPollId = window.setInterval(()=>{
     try { initVivlioToggle(); } catch {}
     if (tryAttach()) { if (attachPollId) clearInterval(attachPollId); }
   }, 800);
+  try { const mo=new MutationObserver(()=>{ if(currentMode==='vivlio') attachAllEditorListeners(); }); mo.observe(document.body,{subtree:true,childList:true}); detachFns.push(()=>{ try{mo.disconnect();}catch{} }); }catch{}
 }
 
 function deactivate(){ if(iframe){ iframe.remove(); iframe=null;} if(attachPollId) clearInterval(attachPollId); detachFns.forEach(f=>f()); detachFns.length=0; delete (window as any).__VIVLIO_PREVIEW__; delete (window as any).__VIVLIO_PREVIEW_ACTIVE__; }
