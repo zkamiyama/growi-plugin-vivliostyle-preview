@@ -18,6 +18,9 @@ viewer ready 以前でも即座に Markdown→HTML 変換結果を fallbackHtml 
 ### 4. Viewer ヘッダー衝突
 Vivliostyle メニューバーが GROWI 上で本文に被るため `#vivliostyle-menu-bar{display:none}` を srcdoc に注入し viewport `top:0` を強制。今後オプション化可能。
 
+### 4.1 ステータス表示簡素化
+以前は iframe 左上に `#vs-status` バッジで `progressive / ready / render` などを表示していたが UI ノイズのため非表示 (`display:none`) にし、同内容を `console.log('[vivlio:status]', state)` へリダイレクト。
+
 ### 5. 追加デバッグ導線
 `__VIV_LAST_FULL_HTML__` (iframe.contentWindow) に直近送信 HTML を保持し DevTools から確認可能。
 
