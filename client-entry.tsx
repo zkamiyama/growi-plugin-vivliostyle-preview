@@ -199,7 +199,8 @@ function post(html: string, css?: string | null){
   const full = buildFullDoc(html, css);
   // 1st phase: まだ viewer Ready でなければ fallbackHtml 埋め込みを命令 (即時表示)
   try { (f as any).contentWindow.__VIV_LAST_FULL_HTML__ = full; } catch {}
-  f.contentWindow.postMessage({type:'HTML_FULL', html, css, full, progressive: false}, '*');
+  // vivlioReady になるまでは progressive=true で iframe 内 fallback 埋め込みを可視化
+  f.contentWindow.postMessage({type:'HTML_FULL', html, css, full, progressive: !vivlioReady}, '*');
 }
 
 function immediateRender(){
