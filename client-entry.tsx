@@ -52,7 +52,6 @@ const LOG_PREFIX = '[vivlio:min]';
 let extButtonGroup: HTMLElement | null = null; // 追加ボタン用グループ
 let lastPageWidthPx: number | null = null; // 推定ページ幅 (px)
 let resizeObs: ResizeObserver | null = null;
-let splitApplied = false;
 
 function renderMarkdownWithEmbeddedCss(src: string){
   if (!src || typeof src !== 'string') {
@@ -239,7 +238,8 @@ function ensurePreviewBodies() {
     vivlioPanel = document.createElement('div');
     vivlioPanel.className = 'vivlio-panel';
     Object.assign(vivlioPanel.style, {
-      position:'relative',
+      position:'absolute',
+      inset:'0',
       width:'100%',
       height:'100%',
       overflow:'hidden',
@@ -268,39 +268,6 @@ function ensurePreviewBodies() {
   return true;
 }
 
-function applySplitLayout(){
-  if(splitApplied) return;
-  try {
-    const editor = document.querySelector('.CodeMirror, .cm-editor') as HTMLElement | null;
-    if(!editor || !vivlioPanel) return;
-    // Ascend to a reasonable wrapper (2 levels max) to apply flex
-    let editorWrapper: HTMLElement = editor;
-    for(let i=0;i<2;i++){
-      if(editorWrapper.parentElement) editorWrapper = editorWrapper.parentElement as HTMLElement;
-    }
-    const commonParent = editorWrapper.parentElement;
-    if(!commonParent) return;
-    if(getComputedStyle(commonParent).display !== 'flex'){
-      commonParent.style.display='flex';
-      commonParent.style.alignItems='stretch';
-      commonParent.style.gap='0';
-    }
-    // Ensure vivlioPanel is inside commonParent
-    if(!vivlioPanel.parentElement || vivlioPanel.parentElement !== commonParent){
-      commonParent.appendChild(vivlioPanel);
-    }
-    // widths 50% each
-    editorWrapper.style.flex='0 0 50%';
-    editorWrapper.style.maxWidth='50%';
-    editorWrapper.style.minWidth='50%';
-    vivlioPanel.style.flex='0 0 50%';
-    vivlioPanel.style.maxWidth='50%';
-    vivlioPanel.style.minWidth='50%';
-    vivlioPanel.style.overflow='auto';
-    // Inner iframe width stays page width; horizontal scroll if overflow
-    splitApplied = true;
-  } catch {}
-}
 
 // 単純化: View/Edit ボタンを直接探してその直後に挿入
 function findViewEditButton(): HTMLButtonElement | null {
@@ -457,10 +424,19 @@ function updateToggleActive() {
   }
   if (originalPreviewBody && vivlioPanel) {
     // レイアウト高さを保つため display をいじらず visibility 切替
-  // 分割表示: 両方可視 (Vivlio 未アクティブ時は表示はするが低優先にしたいなら opacity 調整も検討)
-  originalPreviewBody.style.visibility = 'visible';
-  vivlioPanel.style.visibility = 'visible';
-  vivlioPanel.style.pointerEvents = 'auto';
+    if (currentMode === 'markdown') {
+      originalPreviewBody.style.visibility = 'visible';
+      vivlioPanel.style.visibility = 'hidden';
+      vivlioPanel.style.pointerEvents = 'none';
+    } else {
+      originalPreviewBody.style.visibility = 'hidden';
+      vivlioPanel.style.visibility = 'visible';
+      vivlioPanel.style.pointerEvents = 'auto';
+      try {
+        const h = originalPreviewBody.getBoundingClientRect().height;
+        if (h) vivlioPanel.style.minHeight = h + 'px';
+      } catch {}
+    }
   }
 }
 
@@ -491,8 +467,6 @@ function setMode(m:'markdown'|'vivlio') {
         resizeObs.observe(vivlioPanel);
       } catch{}
     }
-  // Vivlio モード突入時にレイアウト分割を適用
-  applySplitLayout();
   }
   updateToggleActive();
 }
@@ -512,7 +486,6 @@ function activate(){
   function tryAttach(){ const cmHost=document.querySelector('.CodeMirror'); if(cmHost && (cmHost as any).CodeMirror){ const cm=(cmHost as any).CodeMirror; const h=()=>{ try{ scheduleRender(cm.getValue()); }catch{} }; cm.on('change',h); detachFns.push(()=>{ try{ cm.off('change',h);}catch{} }); try{ scheduleRender(cm.getValue()); }catch{} return true;} return false; }
   attachPollId = window.setInterval(()=>{
     try { initVivlioToggle(); } catch {}
-  if(currentMode==='vivlio') applySplitLayout();
     if (tryAttach()) { if (attachPollId) clearInterval(attachPollId); }
   }, 800);
 }
