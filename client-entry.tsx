@@ -51,6 +51,7 @@ let findControlAttempts = 0;
 const LOG_PREFIX = '[vivlio:min]';
 let extButtonGroup: HTMLElement | null = null; // 追加ボタン用グループ
 let lastPageWidthPx: number | null = null; // 推定ページ幅 (px)
+let vivlioModeNeedsRender = false;
 
 function renderMarkdownWithEmbeddedCss(src: string){
   if (!src || typeof src !== 'string') {
@@ -446,23 +447,25 @@ function updateToggleActive() {
 }
 
 function setMode(m:'markdown'|'vivlio') {
-  if (m === currentMode) return;
+  if (m === currentMode && m === 'vivlio' && !vivlioModeNeedsRender) return;
   currentMode = m;
   if (m === 'vivlio') {
     ensurePreviewBodies();
     ensureIframe();
     if (!lastSrc) { const t = tryReadEditorText(); if (t) lastSrc = t; }
-  // 初回即時レンダリング (debounce 待ち不要) で 2 回押し現象解消
-  const srcNow = lastSrc || '# Vivliostyle Preview';
-  const { html, css } = renderMarkdownWithEmbeddedCss(srcNow);
-  post(html, css);
-  // 直後の変更は従来通り debounce
-  scheduleRender(srcNow);
+    if (vivlioReady) {
+      console.debug(LOG_PREFIX, 'setMode: vivlio is ready, rendering immediately.');
+      const srcNow = lastSrc || '# Vivliostyle Preview';
+      const { html, css } = renderMarkdownWithEmbeddedCss(srcNow);
+      post(html, css);
+      vivlioModeNeedsRender = false;
+    } else {
+      console.debug(LOG_PREFIX, 'setMode: vivlio not ready, will render on VIVLIO_READY event.');
+      vivlioModeNeedsRender = true;
+    }
   }
   updateToggleActive();
-}
-
-function tryReadEditorText(): string | null {
+}function tryReadEditorText(): string | null {
   try { const cmHost=document.querySelector('.CodeMirror'); if(cmHost && (cmHost as any).CodeMirror) return (cmHost as any).CodeMirror.getValue(); } catch{}
   try { const ta=document.querySelector('textarea'); if(ta) return (ta as HTMLTextAreaElement).value; } catch{}
   try { const cm6=document.querySelector('.cm-content[contenteditable="true"]'); if(cm6) return cm6.textContent||''; } catch{}
@@ -473,7 +476,19 @@ function activate(){
   if((window as any).__VIVLIO_PREVIEW_ACTIVE__) return;
   (window as any).__VIVLIO_PREVIEW_ACTIVE__=true;
   (window as any).__VIVLIO_PREVIEW__={ scheduleRender, registerExtraButton };
-  window.addEventListener('message',e=>{ if(e.data?.type==='VIVLIO_READY'){ vivlioReady=true; if(lastSrc){ const {html,css}=renderMarkdownWithEmbeddedCss(lastSrc); post(html,css);} } });
+  window.addEventListener('message',e=>{
+    if(e.data?.type==='VIVLIO_READY'){
+      console.debug(LOG_PREFIX, 'VIVLIO_READY received.');
+      vivlioReady=true;
+      if (currentMode === 'vivlio' && vivlioModeNeedsRender) {
+        console.debug(LOG_PREFIX, 'VIVLIO_READY: Triggering deferred render.');
+        const srcNow = lastSrc || '# Vivliostyle Preview';
+        const { html, css } = renderMarkdownWithEmbeddedCss(srcNow);
+        post(html, css);
+        vivlioModeNeedsRender = false;
+      }
+    }
+  });
   function tryAttach(){ const cmHost=document.querySelector('.CodeMirror'); if(cmHost && (cmHost as any).CodeMirror){ const cm=(cmHost as any).CodeMirror; const h=()=>{ try{ scheduleRender(cm.getValue()); }catch{} }; cm.on('change',h); detachFns.push(()=>{ try{ cm.off('change',h);}catch{} }); try{ scheduleRender(cm.getValue()); }catch{} return true;} return false; }
   attachPollId = window.setInterval(()=>{
     try { initVivlioToggle(); } catch {}
