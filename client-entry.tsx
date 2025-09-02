@@ -54,6 +54,7 @@ let lastPageWidthPx: number | null = null; // 推定ページ幅 (px)
 let resizeObs: ResizeObserver | null = null;
 let spinnerEl: HTMLElement | null = null;
 let spinnerHideTimer: number | null = null;
+let keyForceListenerAdded = false;
 
 function renderMarkdownWithEmbeddedCss(src: string){
   if (!src || typeof src !== 'string') {
@@ -509,6 +510,17 @@ function activate(){
     if (tryAttach()) { if (attachPollId) clearInterval(attachPollId); }
   }, 800);
   try { const mo=new MutationObserver(()=>{ if(currentMode==='vivlio') attachAllEditorListeners(); }); mo.observe(document.body,{subtree:true,childList:true}); detachFns.push(()=>{ try{mo.disconnect();}catch{} }); }catch{}
+  if(!keyForceListenerAdded){
+    const keyHandler=(e:KeyboardEvent)=>{
+      if(e.key==='Backspace' || e.key==='Delete'){
+        const snap=tryReadEditorText();
+        if(snap!=null) scheduleRender(snap);
+      }
+    };
+    window.addEventListener('keyup', keyHandler, true);
+    detachFns.push(()=>window.removeEventListener('keyup', keyHandler, true));
+    keyForceListenerAdded=true;
+  }
 }
 
 function deactivate(){ if(iframe){ iframe.remove(); iframe=null;} if(attachPollId) clearInterval(attachPollId); detachFns.forEach(f=>f()); detachFns.length=0; delete (window as any).__VIVLIO_PREVIEW__; delete (window as any).__VIVLIO_PREVIEW_ACTIVE__; }
