@@ -128,23 +128,45 @@ function ensurePreviewBodies() {
   return true;
 }
 
+function findControlContainer(): HTMLElement | null {
+  // 候補セレクタを網羅的に試す (GROWI バージョン差異吸収)
+  const selectors = [
+    '.grw-page-controls .btn-group',
+    '.grw-page-controls',
+    '.page-editor-mode-manager .btn-group',
+    '.page-editor-mode-manager',
+    '.page-editor-navbar .btn-group',
+    '.page-editor-navbar',
+    '#page-operation-control .btn-group',
+    '#page-operation-control',
+    '.btn-toolbar .btn-group',
+  ];
+  for (const sel of selectors) {
+    const el = document.querySelector(sel) as HTMLElement | null;
+    if (el) return el;
+  }
+  // Fallback: View/Edit ボタンを直接探して親を利用
+  const btns = Array.from(document.querySelectorAll('button, a.btn')) as HTMLElement[];
+  const ve = btns.find(b => /^(View|Edit)$/i.test((b.textContent||'').trim()));
+  if (ve) return ve.parentElement as HTMLElement | null;
+  return null;
+}
+
 function initVivlioToggle() {
   if (toggleInitialized) return;
   if (!ensurePreviewBodies()) return; // プレビュー未描画なら後で再試行
-  // 右上ボタン群探索 (候補を順に)
-  const controls = document.querySelector(
-    '.grw-page-controls .btn-group, .grw-page-controls, .page-editor-mode-manager .btn-group, .page-editor-mode-manager'
-  ) as HTMLElement | null;
+  const controls = findControlContainer();
   if (!controls) return;
-  // 既に存在すれば流用
   if (controls.querySelector('.vivlio-toggle-btn')) { toggleInitialized = true; return; }
   toggleBtn = document.createElement('button');
   toggleBtn.type = 'button';
-  toggleBtn.className = 'btn btn-outline-secondary btn-sm vivlio-toggle-btn';
+  // 既存ボタン高さに合わせ btn-sm は状況で除外 (親が大きければ自動調整)
+  toggleBtn.className = 'btn btn-outline-secondary vivlio-toggle-btn';
+  toggleBtn.style.marginLeft = '4px';
   toggleBtn.textContent = 'Vivliostyle';
-  toggleBtn.onclick = () => {
-    setMode(currentMode === 'vivlio' ? 'markdown' : 'vivlio');
-  };
+  toggleBtn.setAttribute('data-bs-toggle','button');
+  toggleBtn.onclick = () => setMode(currentMode === 'vivlio' ? 'markdown' : 'vivlio');
+  // 並び順: 末尾に追加 (必要なら先頭に挿入可)
   controls.appendChild(toggleBtn);
   toggleInitialized = true;
   updateToggleActive();
