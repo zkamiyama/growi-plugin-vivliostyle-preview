@@ -27,13 +27,34 @@ const PreviewShell: React.FC = () => {
   }, [isOpen]);
 
   return (
-    <div
-      data-vivlio-shell
-      style={{ width: '100%', height: '100%', position: 'relative', display: isOpen ? 'flex' : 'none', flexDirection: 'column' }}
-      aria-hidden={!isOpen}
-    >
-  <VivliostylePreview markdown={markdown} isVisible={isOpen} />
-    </div>
+    <>
+      {/* 既存領域(将来拡張用 / 今は非表示運用) */}
+      <div data-vivlio-shell style={{ display: 'none' }} aria-hidden />
+      {/* 右下ポップアップ */}
+      {isOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            right: 16,
+            bottom: 16,
+            width: '420px',
+            height: '60vh',
+            maxHeight: '720px',
+            minHeight: '360px',
+            background: '#fff',
+            border: '1px solid #ccc',
+            borderRadius: 8,
+            boxShadow: '0 8px 28px rgba(0,0,0,.18)',
+            display: 'flex',
+            flexDirection: 'column',
+            zIndex: 2147483000,
+            overflow: 'hidden'
+          }}
+        >
+          <VivliostylePreview markdown={markdown} isVisible={isOpen} />
+        </div>
+      )}
+    </>
   );
 };
 
