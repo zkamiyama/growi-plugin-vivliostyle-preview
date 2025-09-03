@@ -4,16 +4,24 @@ import '../styles/preview.css';
 import VivliostyleFrame from './VivliostyleFrame';
 import { useAppContext } from '../context/AppContext';
 import { useVivliostyleBridge } from '../hooks/useVivliostyleBridge';
+import * as MarkdownIt from 'markdown-it';
+
+const md = new MarkdownIt({ html: true, linkify: true });
 
 const PreviewShell: React.FC = () => {
   const { isOpen, markdown } = useAppContext();
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
-
-  // useVivliostyleBridgeフックでiframeと通信
-  const { isReady } = useVivliostyleBridge(iframeRef.current, markdown);
+  const [html, setHtml] = React.useState('');
 
   React.useEffect(() => {
-    // 既存プレビュー本体 (中身) のみを消す
+    if (isOpen) {
+      setHtml(md.render(markdown));
+    }
+  }, [isOpen, markdown]);
+
+  const { isReady } = useVivliostyleBridge(iframeRef.current, html);
+
+  React.useEffect(() => {
     const originalPreviewBody = document.querySelector('.page-editor-preview-body') as HTMLElement | null;
     const vivlioHost = document.getElementById('vivlio-preview-container');
     if (!vivlioHost) return;
@@ -29,7 +37,6 @@ const PreviewShell: React.FC = () => {
 
     return () => {
       if (originalPreviewBody) originalPreviewBody.style.display = originalBodyDisplay || '';
-      vivlioHost.style.display = 'none';
     };
   }, [isOpen]);
 
@@ -40,7 +47,7 @@ const PreviewShell: React.FC = () => {
         <VivliostyleFrame ref={iframeRef} />
         {!isReady && (
           <div className="vivlio-loading" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
-            Loading Vivliostyle...
+            Loading Vivliostyle Viewer...
           </div>
         )}
       </div>

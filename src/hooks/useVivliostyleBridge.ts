@@ -3,13 +3,14 @@ import { useEffect, useState } from 'react';
 
 // メッセージの型定義
 export interface VivliostyleMessage {
-  type: 'update' | 'ready';
-  markdown?: string;
+  type: 'update' | 'ready' | 'error';
+  html?: string;
+  message?: string;
 }
 
 export function useVivliostyleBridge(
   iframe: HTMLIFrameElement | null,
-  markdown: string,
+  html: string,
 ) {
   const [isReady, setIsReady] = useState(false);
 
@@ -18,7 +19,6 @@ export function useVivliostyleBridge(
 
     const target = iframe.contentWindow;
 
-    // iframeの準備完了を待ってから最初のデータを送る
     const handleReady = (event: MessageEvent<VivliostyleMessage>) => {
       if (event.source === target && event.data.type === 'ready') {
         setIsReady(true);
@@ -34,11 +34,10 @@ export function useVivliostyleBridge(
 
   useEffect(() => {
     if (isReady && iframe?.contentWindow) {
-      const message: VivliostyleMessage = { type: 'update', markdown };
-      // '*' はデモ用。本番では targetOrigin を指定すべき
+      const message: VivliostyleMessage = { type: 'update', html };
       iframe.contentWindow.postMessage(message, '*');
     }
-  }, [iframe, markdown, isReady]);
+  }, [iframe, html, isReady]);
 
   return { isReady };
 }
