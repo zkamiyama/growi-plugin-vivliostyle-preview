@@ -271,6 +271,32 @@ export const ExternalToggle: React.FC = () => {
     window.addEventListener('hashchange', checkHashAndAttach);
     window.addEventListener('popstate', checkHashAndAttach);
 
+    // SPA が history.pushState / replaceState を用いる場合に遷移を拾えないため
+    // これらをラップしてカスタムイベントを発行し、遷移検知を強化する
+    const originalPush = history.pushState;
+    const originalReplace = history.replaceState;
+    let wrappedHistory = false;
+    try {
+      (history as any).pushState = function (...args: any[]) {
+        const ret = originalPush.apply(this, args as any);
+        window.dispatchEvent(new Event('pushstate'));
+        window.dispatchEvent(new Event('locationchange'));
+        return ret;
+      };
+      (history as any).replaceState = function (...args: any[]) {
+        const ret = originalReplace.apply(this, args as any);
+        window.dispatchEvent(new Event('replacestate'));
+        window.dispatchEvent(new Event('locationchange'));
+        return ret;
+      };
+      window.addEventListener('pushstate', checkHashAndAttach);
+      window.addEventListener('replacestate', checkHashAndAttach);
+      window.addEventListener('locationchange', checkHashAndAttach);
+      wrappedHistory = true;
+    } catch (e) {
+      // 環境によっては history の書き換えができないことがあるため安全に無視
+    }
+
     // SPA や動的レンダリングで hash/popstate が発生しない遷移を検知するための DOM 監視
     // DOM の変化があれば軽く debounce して判定を再実行する。
     let navObserver: MutationObserver | null = null;
@@ -350,6 +376,16 @@ export const ExternalToggle: React.FC = () => {
       window.removeEventListener('popstate', checkHashAndAttach);
   try { if (navObserver) { navObserver.disconnect(); navObserver = null; } } catch {}
   try { if (navRaf != null) { cancelAnimationFrame(navRaf); navRaf = null; } } catch {}
+      // restore history wrappers
+      try {
+        if (wrappedHistory) {
+          (history as any).pushState = originalPush;
+          (history as any).replaceState = originalReplace;
+          window.removeEventListener('pushstate', checkHashAndAttach);
+          window.removeEventListener('replacestate', checkHashAndAttach);
+          window.removeEventListener('locationchange', checkHashAndAttach);
+        }
+      } catch (e) {}
       // ensure full cleanup
       detachIfAttached();
       stopPollingAndObserver();
