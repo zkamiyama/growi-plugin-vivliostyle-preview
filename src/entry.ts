@@ -65,9 +65,19 @@ function findPreviewContainer(): HTMLElement | null {
 }
 
 function initTabsIfPossible(){
-  if (tabsInitialized) return;
+  if (tabsInitialized || stopAutoInit) return;
   detectedMarkdownPreview = findPreviewContainer();
-  if(!detectedMarkdownPreview) return;
+  if(!detectedMarkdownPreview) {
+    initRetry += 1;
+    // ログを抑えつつ状況を追跡
+    console.debug('[VIVLIO_DEV][init] preview container not found', { retry: initRetry });
+    if (initRetry >= MAX_INIT_RETRY) {
+      stopAutoInit = true;
+      // eslint-disable-next-line no-console
+      console.warn('[VIVLIO_DEV] preview init: max retries reached, stopping further attempts');
+    }
+    return;
+  }
   if (detectedMarkdownPreview.closest('.vivlio-preview-wrapper')) { tabsInitialized=true; return; }
   let target = detectedMarkdownPreview;
   const innerBody = detectedMarkdownPreview.querySelector('.page-editor-preview-body');
@@ -128,6 +138,10 @@ function attachEditorListeners(){
 
 let domObserver: MutationObserver | null = null;
 
+let initRetry = 0;
+const MAX_INIT_RETRY = 8; // 最大リトライ回数
+let stopAutoInit = false;
+
 function activate(){
   if((window as any).__VIVLIO_PREVIEW_ACTIVE__) { console.info('[VIVLIO_DEV] already active'); return; }
   (window as any).__VIVLIO_PREVIEW_ACTIVE__=true;
@@ -138,7 +152,12 @@ function activate(){
   initTabsIfPossible();
   attachEditorListeners();
   // Poll fallback (some DOM arrives later)
-  attachPollId=window.setInterval(()=>{ if(!tabsInitialized) initTabsIfPossible(); if(!detachFns.length && attachEditorListeners()){ /* attached */ } if(tabsInitialized && detachFns.length){ if(attachPollId) clearInterval(attachPollId); } },1000);
+  attachPollId=window.setInterval(()=>{
+    if (stopAutoInit) { if (attachPollId) { clearInterval(attachPollId); attachPollId = null; } return; }
+    if(!tabsInitialized) initTabsIfPossible();
+    if(!detachFns.length && attachEditorListeners()){ /* attached */ }
+    if(tabsInitialized && detachFns.length){ if(attachPollId) clearInterval(attachPollId); attachPollId = null; }
+  },1000);
   // MutationObserver for dynamic re-render / preview container replacement
   try {
     domObserver = new MutationObserver(()=>{ if(!tabsInitialized) initTabsIfPossible(); });
