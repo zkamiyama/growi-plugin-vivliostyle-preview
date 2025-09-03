@@ -223,28 +223,54 @@ export const ExternalToggle: React.FC = () => {
     }
 
 
-    // ハッシュが '#edit' のときのみ即時表示する（なければ hashchange を待つ簡易トリガー）
-    const hashMatches = typeof location !== 'undefined' && (location.hash || '').indexOf('#edit') !== -1;
-    if (!hashMatches) {
-      const onHash = () => {
-        const nowMatches = (location.hash || '').indexOf('#edit') !== -1;
-        if (nowMatches) {
-          const immediate = findAnchorOnce();
-          if (immediate) attach(immediate);
-          window.removeEventListener('hashchange', onHash);
-        }
-      };
-      window.addEventListener('hashchange', onHash);
-      // cleanup: remove listener if effect unmounts
-      return () => { window.removeEventListener('hashchange', onHash); };
-    }
+    // ハッシュ(#edit) をトリガーに表示/非表示を切り替える
+    const hasEditHash = () => typeof location !== 'undefined' && (location.hash || '').indexOf('#edit') !== -1;
 
-    // 1) 即時試行（ハッシュ一致時）
-    const immediate = findAnchorOnce();
-    if (immediate) {
-      attach(immediate);
-      return () => { /* no-op cleanup */ };
-    }
+    const detachIfAttached = () => {
+      if (!resolvedRef.current) return;
+      // remove wrapper element if present
+      try {
+        const wrapper = primaryAnchorRef.current?.parentElement?.querySelector('.vivlio-inline-toggle') as HTMLElement | null;
+        if (wrapper && wrapper.parentElement) wrapper.remove();
+      } catch (e) {
+        // ignore
+      }
+      // disconnect observers
+      try { if (observerRef.current) { observerRef.current.disconnect(); observerRef.current = null; } } catch {}
+      try { if (reorderObserverRef.current) { reorderObserverRef.current.disconnect(); reorderObserverRef.current = null; } } catch {}
+      resolvedRef.current = false;
+      primaryAnchorRef.current = null;
+      lastBaseColorRef.current = null;
+      setWrapperEl(null);
+      setAnchorClasses('');
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][ExternalToggle] detached due to hash change (no #edit)');
+    };
+
+    const checkHashAndAttach = () => {
+      if (hasEditHash()) {
+        if (!resolvedRef.current) {
+          const immediate = findAnchorOnce();
+          if (immediate) {
+            attach(immediate);
+            // eslint-disable-next-line no-console
+            console.debug('[VivlioDBG][ExternalToggle] attached on #edit');
+          }
+        }
+      } else {
+        detachIfAttached();
+      }
+    };
+
+    // 初回チェックと hashchange 監視
+    checkHashAndAttach();
+    window.addEventListener('hashchange', checkHashAndAttach);
+
+    return () => {
+      window.removeEventListener('hashchange', checkHashAndAttach);
+      // ensure full cleanup
+      detachIfAttached();
+    };
 
     // 2) ポーリング (早期 DOM 未構築ケース) + 3回
     let pollCount = 0;
@@ -265,7 +291,7 @@ export const ExternalToggle: React.FC = () => {
     }, pollInterval);
 
     // 3) MutationObserver (最終手段) - body 配下を監視して候補が追加されたら即 attach
-  observerRef.current = new MutationObserver((mutations) => {
+  const obs = new MutationObserver((mutations) => {
       if (resolvedRef.current) return;
       for (const m of mutations) {
         if (!m.addedNodes?.length) continue;
@@ -280,7 +306,8 @@ export const ExternalToggle: React.FC = () => {
         }
       }
     });
-    observerRef.current.observe(document.body, { subtree: true, childList: true });
+    observerRef.current = obs;
+    obs.observe(document.body, { subtree: true, childList: true });
 
     return () => {
       clearInterval(pollTimer);
