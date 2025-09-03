@@ -121,9 +121,10 @@ export const ExternalToggle: React.FC = () => {
         const { view, edit } = pickButtons(parent);
         const anchor = (isVisible(edit) ? edit : null) || (isVisible(view) ? view : null) || initialAnchor;
         // 無限再配置を防ぐため、現在位置と違う場合のみ移動
-        const needsRepositioning = anchor && anchor.nextSibling !== wrapper;
+        // 要素ノードの隣接チェックのみで再配置判定
+        const needsRepositioning = anchor && anchor.nextElementSibling !== wrapper;
         if (needsRepositioning) {
-          parent.insertBefore(wrapper!, anchor.nextSibling);
+          parent.insertBefore(wrapper!, anchor.nextElementSibling);
           // eslint-disable-next-line no-console
           console.debug('[VivlioDBG][ExternalToggle] reposition (cycle)', { anchor: normalizeLabel(anchor) });
         }
@@ -132,8 +133,9 @@ export const ExternalToggle: React.FC = () => {
         // 色計算
         try {
           const cs = window.getComputedStyle(anchor || initialAnchor);
-          let baseColor = cs.borderColor;
-          if (isTransparent(baseColor)) baseColor = cs.backgroundColor;
+          // 優先順: backgroundColor → borderColor → color
+          let baseColor = cs.backgroundColor;
+          if (isTransparent(baseColor)) baseColor = cs.borderColor;
           if (isTransparent(baseColor)) baseColor = cs.color;
           if (baseColor && baseColor !== lastBaseColorRef.current) {
             const res = computePureComplement(baseColor);
