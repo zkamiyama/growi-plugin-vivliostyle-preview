@@ -62,7 +62,17 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const source = dataUrl || null; // bookMode=false で loadDocument() を利用
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ 
+      width: '100%', 
+      height: '100%', 
+      display: 'flex', 
+      flexDirection: 'column', 
+      overflow: 'hidden',
+      position: 'relative',
+      zIndex: 10,
+      backgroundColor: '#fff', // 背景色を明示的に設定
+      border: '1px solid #ddd' // 境界を明確にする
+    }}>
       <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 10px',background:'#d4edda',borderBottom:'1px solid #c3e6cb',fontSize:12}}>
         <strong style={{color:'#155724'}}>Vivliostyle Preview</strong>
         <span style={{color:'#155724',opacity:.7}}>(@vivliostyle/react)</span>
