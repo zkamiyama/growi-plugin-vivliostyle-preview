@@ -2,18 +2,29 @@
 import * as React from 'react';
 import '../styles/preview.css';
 import VivliostyleFrame from './VivliostyleFrame';
-import { useEditorMarkdown } from '../hooks/useEditorMarkdown';
-import { useVivliostyleBridge } from '../hooks/useVivliostyleBridge';
-import { usePreviewToggle } from '../hooks/usePreviewToggle';
+import { useAppContext } from '../context/AppContext';
 // markdown-it (CommonJS) を ESM で扱う: デフォルト互換を考慮
-import MarkdownItCjs from 'markdown-it';
-// tsconfig の esModuleInterop:false でも Vite 側が CJS を default export として解決する
-const md = new (MarkdownItCjs as unknown as typeof import('markdown-it'))({ html: true, linkify: true });
+import MarkdownItModule from 'markdown-it';
+// Jest 実行時 (ts-jest transpile) では CJS の module.exports = function() 形式が default に乗らないケースがあるため require フォールバック
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let MarkdownItCtor: any = (MarkdownItModule as any)?.default || (MarkdownItModule as any);
+// まだ関数でなければ require 試行 (Jest は CommonJS ランタイム)
+if (typeof MarkdownItCtor !== 'function') {
+  try {
+    // eslint-disable-next-line global-require, @typescript-eslint/no-var-requires
+    const req = require('markdown-it');
+    MarkdownItCtor = req.default || req;
+  } catch {
+    /* ignore */
+  }
+}
+if (typeof MarkdownItCtor !== 'function') {
+  throw new Error('Failed to load markdown-it constructor');
+}
+const md = new MarkdownItCtor({ html: true, linkify: true });
 
 const PreviewShell: React.FC = () => {
-  const { isOpen, toggle } = usePreviewToggle();
-  const { markdown } = useEditorMarkdown({ debounceMs: 250 });
-  const { updateViewer } = useVivliostyleBridge();
+  const { isOpen, toggle, markdown, updateViewer } = useAppContext();
 
   React.useEffect(() => {
     if (!isOpen) return;

@@ -1,7 +1,7 @@
 // FloatingToggle.tsx
 // GROWI DOM 構造に依存せず常時右下に表示される FAB 形式のトグルボタン
 import * as React from 'react';
-import { usePreviewToggle } from '../hooks/usePreviewToggle';
+import { useAppContext } from '../context/AppContext';
 
 const btnStyle: React.CSSProperties = {
   position: 'fixed',
@@ -19,7 +19,7 @@ const btnStyle: React.CSSProperties = {
 };
 
 export const FloatingToggle: React.FC = () => {
-  const { isOpen, toggle } = usePreviewToggle();
+  const { isOpen, toggle } = useAppContext();
   return (
     <button
       type="button"

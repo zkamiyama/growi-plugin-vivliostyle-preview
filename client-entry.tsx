@@ -10,6 +10,7 @@ import { createRoot } from 'react-dom/client';
 import PreviewShell from './src/ui/PreviewShell';
 import ExternalToggle from './src/ui/ExternalToggle';
 import FloatingToggle from './src/ui/FloatingToggle';
+import { AppProvider } from './src/context/AppContext';
 import config from './package.json';
 
 // GROWIのスクリプトプラグイン規約：activate/deactivateのみ担当
@@ -29,11 +30,13 @@ function mount() {
     document.body.appendChild(host);
   }
   const root = createRoot(host);
-  root.render(<>
-    <PreviewShell />
-    <ExternalToggle />
-    <FloatingToggle />
-  </>);
+  root.render(
+    <AppProvider>
+      <PreviewShell />
+      <ExternalToggle />
+      <FloatingToggle />
+    </AppProvider>
+  );
   (window as any).__vivlio_root = root; // 後でunmount用に保持
 }
 

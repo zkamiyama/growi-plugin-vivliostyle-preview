@@ -19,6 +19,10 @@
 }
 .vivlio-preview.is-open { transform: translateY(0); }
 
+/* 閉じているときは下のUI操作をブロックしない */
+.vivlio-preview.is-closed { pointer-events: none; }
+.vivlio-preview.is-closed .vivlio-toolbar { pointer-events: auto; }
+
 .vivlio-toolbar {
   padding: 4px 8px;
   border-bottom: 1px solid #eee;
