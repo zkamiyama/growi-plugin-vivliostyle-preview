@@ -1,9 +1,13 @@
 /* Keep only overflow fallback; color & sizing fully inherit from copied classes */
 .vivlio-inline-toggle .vivlio-toggle-btn.is-overflowing { font-size: 11px; }
 
-/* active時に補色背景を適用 */
-.vivlio-inline-toggle .vivlio-toggle-btn.vivlio-complement.active {
+/* 常時補色。active でトーンを少し変更して差別化 */
+.vivlio-inline-toggle .vivlio-toggle-btn.vivlio-complement {
 	background: var(--vivlio-active-bg, currentColor) !important;
 	color: var(--vivlio-active-fg, #fff) !important;
 	border-color: var(--vivlio-active-bg, currentColor) !important;
+	filter: brightness(0.95);
+}
+.vivlio-inline-toggle .vivlio-toggle-btn.vivlio-complement.active {
+	filter: brightness(1.05) saturate(1.1);
 }
