@@ -1,39 +1,90 @@
 <!DOCTYPE html><html lang="ja">
 <head>
 <meta charset="utf-8" />
-<title>Vivliostyle Host</title>
+<title>Vivliostyle Preview</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
-html,body{margin:0;padding:0;height:100%;}
-#fallback{position:absolute;inset:0;overflow:auto;font:14px system-ui;display:none;background:#fff;padding:12px;}
-#log{position:fixed;left:0;right:0;bottom:0;max-height:35%;overflow:auto;font:11px monospace;background:#000c;color:#0f0;margin:0;display:none;white-space:pre-wrap;z-index:9999;padding:4px;}
-#vivliostyle-menu-bar{display:none!important}
-#vivliostyle-viewer-viewport{top:0!important;background:#fff;}
+html,body{margin:0;padding:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+#preview-content{padding:20px;max-width:800px;margin:0 auto;line-height:1.6;}
+#preview-content h1{border-bottom:2px solid #eee;padding-bottom:8px;}
+#preview-content h2{border-bottom:1px solid #eee;padding-bottom:4px;}
+#preview-content h3{margin-top:24px;}
+#preview-content p{margin:16px 0;}
+#preview-content ul,ol{margin:16px 0;padding-left:24px;}
+#preview-content li{margin:4px 0;}
+#preview-content code{background:#f5f5f5;padding:2px 4px;border-radius:3px;font-family:Consolas,Monaco,monospace;}
+#preview-content pre{background:#f5f5f5;padding:12px;border-radius:6px;overflow-x:auto;}
+#preview-content blockquote{border-left:4px solid #ddd;margin:16px 0;padding:8px 16px;background:#f9f9f9;}
+#preview-content table{border-collapse:collapse;width:100%;margin:16px 0;}
+#preview-content th,td{border:1px solid #ddd;padding:8px 12px;text-align:left;}
+#preview-content th{background:#f5f5f5;font-weight:bold;}
+#status{position:fixed;top:10px;right:10px;background:#007bff;color:white;padding:4px 8px;border-radius:4px;font-size:12px;z-index:1000;}
 </style>
 </head>
 <body>
-<div id="vivliostyle-viewer"></div>
-<div id="vivliostyle-viewer-viewport" data-vivliostyle-viewer-viewport></div>
-<div id="vivliostyle-menu-bar"></div>
-<div id="vivliostyle-message-dialog"></div>
-<pre id="log"></pre>
-<div id="fallback"></div>
+<div id="status">準備中...</div>
+<div id="preview-content">
+<h1>Vivliostyle Preview</h1>
+<p>Markdownコンテンツを待機中...</p>
+</div>
 <script>
 (function(){
-  const logEl=document.getElementById('log');
-  function log(m){ try{ logEl.style.display='block'; logEl.textContent+=m+'\n'; if(logEl.textContent.length>20000) logEl.textContent=logEl.textContent.slice(-15000);}catch(e){} }
-  window.addEventListener('error',e=>log('[onerror] '+e.message));
-  window.addEventListener('unhandledrejection',e=>log('[unhandled] '+e.reason));
-  // Load viewer from CDN (stable). Could be replaced with self-hosted path later.
-  const CDN="https://unpkg.com/@vivliostyle/viewer@latest/lib/js/vivliostyle-viewer.js";
-  function loadViewer(){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=CDN;s.onload=()=>res();s.onerror=()=>rej(new Error('viewer load error'));document.head.appendChild(s);});}
-  let lastBlob=null; let readyReported=false;
-  function makeDoc(d){ const full=d.full||'<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>'+(d.html||'')+'</body></html>'; if(lastBlob) try{URL.revokeObjectURL(lastBlob);}catch{}; const b=new Blob([full],{type:'text/html'}); lastBlob=URL.createObjectURL(b); return {full,url:lastBlob}; }
-  function applyContent(d){ const mk=makeDoc(d); location.hash='#src='+encodeURIComponent(mk.url)+'&bookMode=true'; try{ const fb=document.getElementById('fallback'); fb.innerHTML=extractBody(mk.full); fb.style.display='block'; }catch{} log('hash set len='+mk.full.length); }
-  function extractBody(h){ const m=h.match(/<body[^>]*>([\s\S]*?)<\/body>/i); return m?m[1]:h; }
-  window.addEventListener('message',e=>{ const d=e.data; if(!d||d.type!=='HTML_FULL') return; applyContent(d); });
-  function poll(){ let c=0; const iv=setInterval(()=>{ c++; const pc=document.querySelectorAll('[data-vivliostyle-page-container]').length; const st=document.body.getAttribute('data-vivliostyle-viewer-status'); if(pc>0||st){ if(!readyReported){ readyReported=true; try{ const fb=document.getElementById('fallback'); if(pc>0&&fb) fb.style.display='none'; }catch{} parent.postMessage({type:'VIVLIO_RENDER_DONE', pages:pc},'*'); log('ready pages='+pc); } } if(c>240 && !readyReported){ readyReported=true; parent.postMessage({type:'VIVLIO_RENDER_DONE', error:'timeout'},'*'); log('timeout'); clearInterval(iv); } },150); }
-  loadViewer().then(()=>{ log('viewer loaded'); poll(); }).catch(err=>{ log('viewer load failed '+err); parent.postMessage({type:'VIVLIO_RENDER_DONE', error:'load-failed'},'*'); });
+  const statusEl = document.getElementById('status');
+  const contentEl = document.getElementById('preview-content');
+  
+  function updateStatus(msg) {
+    statusEl.textContent = msg;
+    setTimeout(() => statusEl.style.display = 'none', 2000);
+  }
+  
+  // 簡易Markdown→HTML変換
+  function markdownToHtml(md) {
+    if (!md) return '<p>コンテンツがありません</p>';
+    
+    return md
+      // エスケープ
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      // 見出し
+      .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+      .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+      .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+      // 太字・斜体
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      // コード
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/```([^`]+)```/g, '<pre><code>$1</code></pre>')
+      // リスト（簡易版）
+      .replace(/^\* (.*$)/gm, '<li>$1</li>')
+      .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+      // 改行
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br>')
+      // 段落でラップ
+      .replace(/^(?!<[hul])/gm, '<p>')
+      .replace(/(?<!>)$/gm, '</p>')
+      // 不正な<p>タグを修正
+      .replace(/<p><\/p>/g, '')
+      .replace(/<p>(<[hul])/g, '$1')
+      .replace(/(<\/[hul][^>]*>)<\/p>/g, '$1');
+  }
+  
+  // postMessageリスナー（新仕様対応）
+  window.addEventListener('message', (event) => {
+    const { type, markdown } = event.data || {};
+    
+    if (type === 'update' && typeof markdown === 'string') {
+      const html = markdownToHtml(markdown);
+      contentEl.innerHTML = html;
+      updateStatus('更新完了');
+    }
+  });
+  
+  // 親に準備完了を通知
+  updateStatus('準備完了');
+  parent.postMessage({ type: 'ready' }, '*');
 })();
 </script>
 </body>
