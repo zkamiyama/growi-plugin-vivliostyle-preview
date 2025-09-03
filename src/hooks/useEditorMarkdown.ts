@@ -20,17 +20,29 @@ const CM5_ROOTS = [
 export function useEditorMarkdown(opts: Options = {}) {
   const { debounceMs = 200 } = opts;
   const [markdown, setMarkdown] = React.useState<string>('');
+  const lastRawRef = React.useRef<string>('');
+  const attachPhaseRef = React.useRef<string>('init');
   const debTimerRef = React.useRef<number | null>(null);
   const observerRef = React.useRef<MutationObserver | null>(null);
   const cleanupRef = React.useRef<(() => void) | null>(null);
   const retryRef = React.useRef(0);
 
   const emit = React.useCallback((raw: string) => {
+    const before = lastRawRef.current;
+    const changed = before !== raw;
+    const delta = changed ? raw.length - before.length : 0;
     if (debTimerRef.current) window.clearTimeout(debTimerRef.current);
     debTimerRef.current = window.setTimeout(() => {
+      lastRawRef.current = raw;
       setMarkdown(raw);
       // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG] useEditorMarkdown:update', { length: raw.length });
+      console.debug('[VivlioDBG] useEditorMarkdown:update', {
+        phase: attachPhaseRef.current,
+        length: raw.length,
+        changed,
+        delta,
+        head20: raw.slice(0, 20),
+      });
     }, debounceMs);
   }, [debounceMs]);
 
@@ -40,11 +52,12 @@ export function useEditorMarkdown(opts: Options = {}) {
     function tryAttach() {
       if (disposed) return;
       // 1) Textarea
-      for (const sel of TEXTAREA_SELECTORS) {
+    for (const sel of TEXTAREA_SELECTORS) {
         const ta = document.querySelector<HTMLTextAreaElement>(sel);
         if (ta) {
           // eslint-disable-next-line no-console
-          console.debug('[VivlioDBG] useEditorMarkdown: textarea found', { sel });
+      attachPhaseRef.current = 'textarea';
+      console.debug('[VivlioDBG] useEditorMarkdown: textarea found', { sel, valueLen: ta.value.length });
           const handler = () => emit(ta.value);
           handler();
             ta.addEventListener('input', handler);
@@ -53,11 +66,12 @@ export function useEditorMarkdown(opts: Options = {}) {
         }
       }
       // 2) CodeMirror 6
-      for (const sel of CM6_SELECTORS) {
+    for (const sel of CM6_SELECTORS) {
         const cm6 = document.querySelector<HTMLElement>(sel);
         if (cm6) {
           // eslint-disable-next-line no-console
-            console.debug('[VivlioDBG] useEditorMarkdown: CM6 content found', { sel });
+      attachPhaseRef.current = 'cm6';
+      console.debug('[VivlioDBG] useEditorMarkdown: CM6 content found', { sel, textLen: cm6.innerText.length });
           const extract = () => cm6.innerText;
           emit(extract());
           observerRef.current = new MutationObserver(() => emit(extract()));
@@ -67,11 +81,12 @@ export function useEditorMarkdown(opts: Options = {}) {
         }
       }
       // 3) CodeMirror 5
-      for (const sel of CM5_ROOTS) {
+    for (const sel of CM5_ROOTS) {
         const root = document.querySelector<HTMLElement>(sel);
         if (root) {
           // eslint-disable-next-line no-console
-          console.debug('[VivlioDBG] useEditorMarkdown: CM5 root found', { sel });
+      attachPhaseRef.current = 'cm5';
+      console.debug('[VivlioDBG] useEditorMarkdown: CM5 root found', { sel });
           const extract = () => Array.from(root.querySelectorAll<HTMLElement>('.CodeMirror-line'))
             .map(l => l.innerText)
             .join('\n');
@@ -85,7 +100,7 @@ export function useEditorMarkdown(opts: Options = {}) {
 
       retryRef.current += 1;
       // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG] useEditorMarkdown: retry', { retry: retryRef.current });
+      console.debug('[VivlioDBG] useEditorMarkdown: retry', { retry: retryRef.current, phase: attachPhaseRef.current });
       if (retryRef.current < 15) {
         setTimeout(tryAttach, 300);
       } else {
@@ -100,6 +115,8 @@ export function useEditorMarkdown(opts: Options = {}) {
       cleanupRef.current?.();
       observerRef.current?.disconnect();
       if (debTimerRef.current) window.clearTimeout(debTimerRef.current);
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG] useEditorMarkdown: cleanup', { phase: attachPhaseRef.current });
     };
   }, [emit]);
 
