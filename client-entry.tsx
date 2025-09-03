@@ -59,6 +59,33 @@ function mount() {
     window.addEventListener('popstate', retryHandler as EventListener);
     // If document wasn't ready earlier, also retry on DOMContentLoaded
     document.addEventListener('DOMContentLoaded', retryHandler as EventListener, { once: true });
+    // If the current URL already indicates editor mode, start a short bounded poll
+    // because some UI frameworks create the preview container slightly later.
+    try {
+      if ((location && location.hash && String(location.hash).indexOf('#edit') !== -1)) {
+        let pollAttempts = 0;
+        const maxPollAttempts = 10;
+        const pollIntervalMs = 200;
+        const pollId = setInterval(() => {
+          pollAttempts += 1;
+          const fut = locatePreviewContainer();
+          if (fut) {
+            clearInterval(pollId);
+            try { if (!(window as any).__vivlio_root) mount(); } catch {}
+            // cleanup retry handlers just in case
+            window.removeEventListener('hashchange', retryHandler as EventListener);
+            window.removeEventListener('popstate', retryHandler as EventListener);
+            document.removeEventListener('DOMContentLoaded', retryHandler as EventListener);
+            return;
+          }
+          if (pollAttempts >= maxPollAttempts) {
+            clearInterval(pollId);
+          }
+        }, pollIntervalMs);
+      }
+    } catch (e) {
+      // ignore environment errors
+    }
     return;
   }
   let host = document.getElementById(CONTAINER_ID);
