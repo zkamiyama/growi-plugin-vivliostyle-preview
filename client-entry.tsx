@@ -9,7 +9,6 @@ import config from './package.json';
 // GROWIのスクリプトプラグイン規約：activate/deactivateのみ担当
 const PLUGIN_ID = config.name;
 const CONTAINER_ID = 'vivlio-preview-container';
-// 単一 React ルート戦略: トグルは同一 Provider 配下で描画する
 
 function mount() {
   if (document.readyState === 'loading') {
@@ -36,10 +35,8 @@ function mount() {
   root.render(
     <React.StrictMode>
       <AppProvider>
-        <div style={{ display: 'contents' }}>
-          <ExternalToggle />
-          <PreviewShell />
-        </div>
+        <PreviewShell />
+        <ExternalToggle />
       </AppProvider>
     </React.StrictMode>
   );
@@ -54,8 +51,6 @@ function unmount() {
   }
   const host = document.getElementById(CONTAINER_ID);
   if (host?.parentNode) host.parentNode.removeChild(host);
-
-  // 追加のトグル専用 root は廃止
 }
 
 const activate = () => {
