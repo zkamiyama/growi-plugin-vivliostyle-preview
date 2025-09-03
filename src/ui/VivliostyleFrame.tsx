@@ -11,7 +11,7 @@ const VivliostyleFrame: React.FC = () => {
       title="Vivliostyle Viewer"
       src={VIEWER_URL}
       style={{ width: '100%', height: '100%', border: 0 }}
-              sandbox="allow-scripts allow-popups allow-downloads"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-downloads"
     />
   );
 };
