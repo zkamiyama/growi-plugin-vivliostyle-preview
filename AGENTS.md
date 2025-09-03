@@ -297,22 +297,24 @@ Dead-letter: 連続失敗ジョブは `jobs/dead-letter/` に JSON 保存 + 通�
 
 利用コマンド (ルートで実行):
 ```
-pnpm build:push "feat: 縦書き余白調整"
+.\build-and-push.ps1 "feat: 縦書き余白調整"
 ```
 内部処理順:
-1. `plugin-publish/` が存在すればそこを対象 (無ければ `plugin/`)
-2. `client-entry.ts(x)` の `BUILD_ID` を `YYYYMMDDHH` 形式で更新 (存在時)
-3. `npm run build` 実行 (対象パッケージ内)
-4. `dist/`, エントリソース等を `git add`
-5. コミットメッセージに `(BUILD_ID:xxxx base:gitsha)` 付与
-6. `git push origin main`
+1. `npm run build` 実行
+2. `git add .`
+3. コミットメッセージに指定されたメッセージで `git commit`
+4. `git push origin main`
 
 コミット差分が無い場合は commit をスキップ。
 失敗時終了コード:
-- 1: エントリファイル未発見
-- 2: push 失敗
+- 1: build 失敗
+- 2: git add 失敗
+- 3: commit 失敗
+- 4: push 失敗
 
 注意: version の自動 bump は行わない (SemVer 管理は手動)。必要なら先に `package.json` を編集してから実行。
+
+**今後はこのスクリプトを使ってビルドしてコミットプッシュすることを肝に銘じる。**
 
 
 ---
