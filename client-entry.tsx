@@ -9,7 +9,7 @@ import config from './package.json';
 // GROWIのスクリプトプラグイン規約：activate/deactivateのみ担当
 const PLUGIN_ID = config.name;
 const CONTAINER_ID = 'vivlio-preview-container';
-const TOGGLE_CONTAINER_ID = 'vivlio-toggle-container';
+// 単一 React ルート戦略: トグルは同一 Provider 配下で描画する
 
 function mount() {
   if (document.readyState === 'loading') {
@@ -18,7 +18,7 @@ function mount() {
     return;
   }
 
-  // --- プレビュー本体のマウント ---
+  // --- プレビュー & トグル単一ルートマウント ---
   const previewContainer = document.querySelector('.page-editor-preview-container');
   if (!previewContainer) {
     setTimeout(mount, 200); // リトライ
@@ -36,33 +36,14 @@ function mount() {
   root.render(
     <React.StrictMode>
       <AppProvider>
-        <PreviewShell />
+        <div style={{ display: 'contents' }}>
+          <ExternalToggle />
+          <PreviewShell />
+        </div>
       </AppProvider>
     </React.StrictMode>
   );
   (window as any).__vivlio_root = root; // 後でunmount用に保持
-
-  // --- トグルボタンのマウント ---
-  const editorNavbar = document.querySelector('.page-editor-navbar-bottom');
-  if (editorNavbar) {
-    let toggleHost = document.getElementById(TOGGLE_CONTAINER_ID);
-    if (!toggleHost) {
-      toggleHost = document.createElement('div');
-      toggleHost.id = TOGGLE_CONTAINER_ID;
-      toggleHost.classList.add('ml-2'); // for margin
-      editorNavbar.appendChild(toggleHost);
-    }
-
-    const toggleRoot = createRoot(toggleHost);
-    toggleRoot.render(
-      <React.StrictMode>
-        <AppProvider>
-          <ExternalToggle />
-        </AppProvider>
-      </React.StrictMode>
-    );
-    (window as any).__vivlio_toggle_root = toggleRoot;
-  }
 }
 
 function unmount() {
@@ -74,13 +55,7 @@ function unmount() {
   const host = document.getElementById(CONTAINER_ID);
   if (host?.parentNode) host.parentNode.removeChild(host);
 
-  const toggleRoot = (window as any).__vivlio_toggle_root;
-  if (toggleRoot) {
-    toggleRoot.unmount();
-    delete (window as any).__vivlio_toggle_root;
-  }
-  const toggleHost = document.getElementById(TOGGLE_CONTAINER_ID);
-  if (toggleHost?.parentNode) toggleHost.parentNode.removeChild(toggleHost);
+  // 追加のトグル専用 root は廃止
 }
 
 const activate = () => {
