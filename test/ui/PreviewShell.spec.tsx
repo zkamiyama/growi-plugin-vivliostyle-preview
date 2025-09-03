@@ -36,15 +36,19 @@ describe('PreviewShell (with AppContext)', () => {
     return render(<PreviewShell />);
   };
 
-  it('closed state: shell exists but iframe not rendered', () => {
+  it('closed state: iframe exists but shell hidden', () => {
     renderWithContext({
       isOpen: false,
       toggle: mockToggle,
       markdown: '# Hello',
     });
     // コンテナは data-vivlio-shell 属性で判別
-    expect(document.querySelector('[data-vivlio-shell]')).toBeTruthy();
-    expect(screen.queryByTitle(/Vivliostyle Viewer/i)).not.toBeInTheDocument();
+    const shell = document.querySelector('[data-vivlio-shell]') as HTMLElement | null;
+    expect(shell).toBeTruthy();
+    const iframe = screen.getByTitle(/Vivliostyle Viewer/i);
+    // 非表示: 親シェルの display が none
+    expect(shell!.style.display).toBe('none');
+    expect(iframe).toBeInTheDocument();
   });
 
   it('open state: iframe present', () => {

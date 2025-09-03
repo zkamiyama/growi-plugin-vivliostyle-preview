@@ -34,10 +34,9 @@ const PreviewShell: React.FC = () => {
     console.debug('[VivlioDBG] isOpen effect fired', { isOpen, hasContainer: !!previewContainer, hiddenOriginal: !!originalPreviewBody });
   }, [isOpen]);
 
-  // markdown 更新時 iframe へ反映 (開いている時のみ送れば十分だが単純化)
-  // iframe ready 管理
+  // iframe ready 管理と未送信 markdown のキュー
   const readyRef = React.useRef(false);
-  const pendingHtmlRef = React.useRef<string | null>(null);
+  const pendingMarkdownRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     function handleMessage(ev: MessageEvent) {
@@ -46,14 +45,14 @@ const PreviewShell: React.FC = () => {
         // eslint-disable-next-line no-console
         console.debug('[VivlioDBG] iframe reported ready');
         readyRef.current = true;
-        if (pendingHtmlRef.current) {
+        if (pendingMarkdownRef.current) {
           const iframe = document.getElementById('vivlio-iframe') as HTMLIFrameElement | null;
           if (iframe?.contentWindow) {
-            iframe.contentWindow.postMessage({ type: 'markdown:update', html: pendingHtmlRef.current }, '*');
+            iframe.contentWindow.postMessage({ type: 'markdown:update-raw', markdown: pendingMarkdownRef.current }, '*');
             // eslint-disable-next-line no-console
-            console.debug('[VivlioDBG] flushed pending html (on ready)');
+            console.debug('[VivlioDBG] flushed pending markdown (on ready)');
           }
-          pendingHtmlRef.current = null;
+          pendingMarkdownRef.current = null;
         }
       }
     }
@@ -63,25 +62,24 @@ const PreviewShell: React.FC = () => {
 
   React.useEffect(() => {
     const iframe = document.getElementById('vivlio-iframe') as HTMLIFrameElement | null;
+    const hasIframe = !!iframe;
+    const raw = (markdown && markdown.trim().length > 0 ? markdown : '_(empty)_');
     // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG] markdown effect', { length: markdown?.length, isOpen, hasIframe: !!iframe, ready: readyRef.current });
-    if (!isOpen) return;
-  // markdown-it は空文字で空HTMLになるので簡易プレースホルダ
-  const raw = (markdown && markdown.trim().length > 0 ? markdown : '_(empty)_');
+    console.debug('[VivlioDBG] markdown effect', { length: markdown?.length, isOpen, hasIframe, ready: readyRef.current });
     if (!iframe || !iframe.contentWindow) {
       // eslint-disable-next-line no-console
       console.debug('[VivlioDBG] iframe not ready yet (no element or no contentWindow)');
       return;
     }
     if (!readyRef.current) {
-  pendingHtmlRef.current = raw;
+      pendingMarkdownRef.current = raw;
       // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG] queued html until ready');
+      console.debug('[VivlioDBG] queued markdown until ready');
       return;
     }
     // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG] posting raw markdown to iframe', { preview: raw.slice(0, 60) });
-  iframe.contentWindow.postMessage({ type: 'markdown:update-raw', markdown: raw }, '*');
+    console.debug('[VivlioDBG] posting raw markdown to iframe', { preview: raw.slice(0, 60) });
+    iframe.contentWindow.postMessage({ type: 'markdown:update-raw', markdown: raw }, '*');
   }, [markdown, isOpen]);
 
   return (
@@ -90,23 +88,19 @@ const PreviewShell: React.FC = () => {
       style={{ width: '100%', height: '100%', position: 'relative', display: isOpen ? 'flex' : 'none', flexDirection: 'column', border: '1px solid #ddd' }}
       aria-hidden={!isOpen}
     >
-      {isOpen && (
-        <>
-          <div style={{ display: 'flex', gap: 8, padding: '4px 6px', background: '#f5f5f5', borderBottom: '1px solid #ccc', alignItems: 'center' }}>
-            <strong style={{ fontSize: 12 }}>Vivliostyle Preview Debug</strong>
-            <span style={{ fontSize: 11, color: '#555' }}>live md len: {markdown.length}</span>
-            <textarea
-              value={debugText}
-              onChange={(e) => setDebugText(e.target.value)}
-              style={{ fontFamily: 'monospace', fontSize: 11, height: 54, flex: 1, resize: 'vertical' }}
-            />
-            <button type="button" className="btn btn-sm btn-secondary" onClick={() => forceUpdateMarkdown(debugText)}>Force Inject</button>
-          </div>
-          <div style={{ flex: 1 }}>
-            <VivliostyleFrame />
-          </div>
-        </>
-      )}
+      <div style={{ display: 'flex', gap: 8, padding: '4px 6px', background: '#f5f5f5', borderBottom: '1px solid #ccc', alignItems: 'center' }}>
+        <strong style={{ fontSize: 12 }}>Vivliostyle Preview Debug</strong>
+        <span style={{ fontSize: 11, color: '#555' }}>live md len: {markdown.length}</span>
+        <textarea
+          value={debugText}
+          onChange={(e) => setDebugText(e.target.value)}
+          style={{ fontFamily: 'monospace', fontSize: 11, height: 54, flex: 1, resize: 'vertical' }}
+        />
+        <button type="button" className="btn btn-sm btn-secondary" onClick={() => forceUpdateMarkdown(debugText)}>Force Inject</button>
+      </div>
+      <div style={{ flex: 1 }}>
+        <VivliostyleFrame />
+      </div>
     </div>
   );
 };
