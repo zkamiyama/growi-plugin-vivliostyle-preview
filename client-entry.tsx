@@ -3,7 +3,6 @@ import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import PreviewShell from './src/ui/PreviewShell';
 import ExternalToggle from './src/ui/ExternalToggle';
-import { VivliostyleCDNTest } from './src/ui/VivliostyleCDNTest';
 import { AppProvider } from './src/context/AppContext';
 import config from './package.json';
 
@@ -54,28 +53,9 @@ function mount() {
     </React.StrictMode>
   );
   (window as any).__vivlio_root = root; // 後でunmount用に保持
-  
-  // CDN テスト用コンポーネントを body 直下に常時表示
-  mountCDNTest();
-  
+
   // eslint-disable-next-line no-console
   console.debug('[VivlioDBG] mount finished');
-}
-
-function mountCDNTest() {
-  const CDN_TEST_ID = 'vivlio-cdn-test-container';
-  let testHost = document.getElementById(CDN_TEST_ID);
-  if (!testHost) {
-    testHost = document.createElement('div');
-    testHost.id = CDN_TEST_ID;
-    document.body.appendChild(testHost);
-    
-    const testRoot = createRoot(testHost);
-    testRoot.render(<VivliostyleCDNTest />);
-    (window as any).__vivlio_cdn_test_root = testRoot;
-    // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG] CDN test mounted');
-  }
 }
 
 function unmount() {
@@ -90,15 +70,6 @@ function unmount() {
   }
   const host = document.getElementById(CONTAINER_ID);
   if (host?.parentNode) host.parentNode.removeChild(host);
-  
-  // CDN テストも削除
-  const testRoot = (window as any).__vivlio_cdn_test_root;
-  if (testRoot) {
-    testRoot.unmount();
-    delete (window as any).__vivlio_cdn_test_root;
-  }
-  const testHost = document.getElementById('vivlio-cdn-test-container');
-  if (testHost?.parentNode) testHost.parentNode.removeChild(testHost);
 }
 
 const activate = () => {
