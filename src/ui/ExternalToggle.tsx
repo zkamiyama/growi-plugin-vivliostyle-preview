@@ -98,9 +98,10 @@ export const ExternalToggle: React.FC = () => {
         if (d!==0) { if (max===R) h=(G-B)/d+(G<B?6:0); else if (max===G) h=(B-R)/d+2; else h=(R-G)/d+4; h/=6; }
         h = (h*360 + 180) % 360; // hue 反転
         const s = 1; // 彩度100%
-        const l = 0.5; // 明度50% (純色)
+        // 元の明度を保持 (Lはいじらない)
+        const origL = (max + min) / 2;
         const hue2rgb=(p:number,q:number,t:number)=>{ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; };
-        const q = l < 0.5 ? l * (1 + s) : l + s - l * s; const p = 2 * l - q;
+        const q = origL < 0.5 ? origL * (1 + s) : origL + s - origL * s; const p = 2 * origL - q;
         const r2=Math.round(hue2rgb(p,q,(h/360)+1/3)*255); const g2=Math.round(hue2rgb(p,q,(h/360))*255); const b2=Math.round(hue2rgb(p,q,(h/360)-1/3)*255);
         const toHex=(x:number)=>x.toString(16).padStart(2,'0');
         const compHex=`#${toHex(r2)}${toHex(g2)}${toHex(b2)}`;
@@ -122,7 +123,9 @@ export const ExternalToggle: React.FC = () => {
         if (!parent) return;
         const { view, edit } = pickButtons(parent);
         const anchor = (isVisible(edit) ? edit : null) || (isVisible(view) ? view : null) || initialAnchor;
-        if (anchor && anchor.nextSibling !== wrapper) {
+        // 無限再配置を防ぐため、現在位置と違う場合のみ移動
+        const needsRepositioning = anchor && anchor.nextSibling !== wrapper;
+        if (needsRepositioning) {
           parent.insertBefore(wrapper!, anchor.nextSibling);
           // eslint-disable-next-line no-console
           console.debug('[VivlioDBG][ExternalToggle] reposition (cycle)', { anchor: normalizeLabel(anchor) });
@@ -167,11 +170,20 @@ export const ExternalToggle: React.FC = () => {
       if (wrapper.parentElement && !reorderObserverRef.current) {
         const parent = wrapper.parentElement;
         let rafId: number | null = null;
+        let lastMutationCount = 0; // 無限ループ検出
         const schedule = () => {
           if (rafId != null) return;
+          lastMutationCount++;
+          if (lastMutationCount > 50) {
+            // eslint-disable-next-line no-console
+            console.warn('[VivlioDBG][ExternalToggle] mutation loop detected, throttling');
+            return; // 無限ループを検出、処理停止
+          }
           rafId = window.requestAnimationFrame(() => {
             rafId = null;
             repositionAndRecolor();
+            // カウントリセット (正常処理後)
+            if (lastMutationCount > 0) lastMutationCount = Math.max(0, lastMutationCount - 1);
           });
         };
         reorderObserverRef.current = new MutationObserver(schedule);
