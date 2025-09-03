@@ -1,91 +1,62 @@
-<!DOCTYPE html><html lang="ja">
+<!DOCTYPE html>
+<html lang="ja">
 <head>
-<meta charset="utf-8" />
-<title>Vivliostyle Preview</title>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<style>
-html,body{margin:0;padding:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
-#preview-content{padding:20px;max-width:800px;margin:0 auto;line-height:1.6;}
-#preview-content h1{border-bottom:2px solid #eee;padding-bottom:8px;}
-#preview-content h2{border-bottom:1px solid #eee;padding-bottom:4px;}
-#preview-content h3{margin-top:24px;}
-#preview-content p{margin:16px 0;}
-#preview-content ul,ol{margin:16px 0;padding-left:24px;}
-#preview-content li{margin:4px 0;}
-#preview-content code{background:#f5f5f5;padding:2px 4px;border-radius:3px;font-family:Consolas,Monaco,monospace;}
-#preview-content pre{background:#f5f5f5;padding:12px;border-radius:6px;overflow-x:auto;}
-#preview-content blockquote{border-left:4px solid #ddd;margin:16px 0;padding:8px 16px;background:#f9f9f9;}
-#preview-content table{border-collapse:collapse;width:100%;margin:16px 0;}
-#preview-content th,td{border:1px solid #ddd;padding:8px 12px;text-align:left;}
-#preview-content th{background:#f5f5f5;font-weight:bold;}
-#status{position:fixed;top:10px;right:10px;background:#007bff;color:white;padding:4px 8px;border-radius:4px;font-size:12px;z-index:1000;}
-</style>
+  <meta charset="utf-8" />
+  <title>Vivliostyle Preview Host</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { margin: 0; }
+    #content { width: 100%; height: 100vh; }
+    .error-pane {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+  </style>
 </head>
 <body>
-<div id="status">準備中...</div>
-<div id="preview-content">
-<h1>Vivliostyle Preview</h1>
-<p>Markdownコンテンツを待機中...</p>
-</div>
-<script>
-(function(){
-  const statusEl = document.getElementById('status');
-  const contentEl = document.getElementById('preview-content');
-  
-  function updateStatus(msg) {
-    statusEl.textContent = msg;
-    setTimeout(() => statusEl.style.display = 'none', 2000);
-  }
-  
-  // 簡易Markdown→HTML変換
-  function markdownToHtml(md) {
-    if (!md) return '<p>コンテンツがありません</p>';
-    
-    return md
-      // エスケープ
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      // 見出し
-      .replace(/^### (.*$)/gm, '<h3>$1</h3>')
-      .replace(/^## (.*$)/gm, '<h2>$1</h2>')
-      .replace(/^# (.*$)/gm, '<h1>$1</h1>')
-      // 太字・斜体
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      // コード
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/```([^`]+)```/g, '<pre><code>$1</code></pre>')
-      // リスト（簡易版）
-      .replace(/^\* (.*$)/gm, '<li>$1</li>')
-      .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
-      // 改行
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n/g, '<br>')
-      // 段落でラップ
-      .replace(/^(?!<[hul])/gm, '<p>')
-      .replace(/(?<!>)$/gm, '</p>')
-      // 不正な<p>タグを修正
-      .replace(/<p><\/p>/g, '')
-      .replace(/<p>(<[hul])/g, '$1')
-      .replace(/(<\/[hul][^>]*>)<\/p>/g, '$1');
-  }
-  
-  // postMessageリスナー（新仕様対応）
-  window.addEventListener('message', (event) => {
-    const { type, markdown } = event.data || {};
-    
-    if (type === 'update' && typeof markdown === 'string') {
-      const html = markdownToHtml(markdown);
-      contentEl.innerHTML = html;
-      updateStatus('更新完了');
+  <div id="content">
+    <p>Waiting for content...</p>
+  </div>
+
+  <script>
+    const contentEl = document.getElementById('content');
+
+    // 親ウィンドウからのメッセージを待つ
+    window.addEventListener('message', (event) => {
+      // 安全のためオリジンをチェックすべきだが、デバッグ中は一旦省略
+      const { type, html } = event.data || {};
+
+      if (type === 'update' && typeof html === 'string') {
+        // Vivliostyle.js があれば、それを使ってロードする
+        if (window.Vivliostyle) {
+          // 既存のビューをクリーンアップ
+          contentEl.innerHTML = '';
+          window.Vivliostyle.viewer.load(
+            {
+              source: new Blob([html], { type: 'text/html' }),
+              profile: 'vivliostyle/profiles/default.js' // デフォルトプロファイル
+            },
+            contentEl
+          );
+        } else {
+          // Vivliostyle.js がない場合は、単純にHTMLを挿入
+          contentEl.innerHTML = html;
+        }
+      }
+    });
+
+    // 親ウィンドウに準備完了を通知
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'ready' }, '*');
     }
-  });
-  
-  // 親に準備完了を通知
-  updateStatus('準備完了');
-  parent.postMessage({ type: 'ready' }, '*');
-})();
-</script>
+  </script>
 </body>
 </html>
