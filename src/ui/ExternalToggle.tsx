@@ -64,6 +64,7 @@ function findAnchorOnce(): HTMLElement | null {
 export const ExternalToggle: React.FC = () => {
   const { isOpen, toggle } = useAppContext();
   const [wrapperEl, setWrapperEl] = React.useState<HTMLElement | null>(null);
+  const [anchorClasses, setAnchorClasses] = React.useState<string>('');
   const observerRef = React.useRef<MutationObserver | null>(null);
   const resolvedRef = React.useRef(false);
 
@@ -80,32 +81,8 @@ export const ExternalToggle: React.FC = () => {
             // eslint-disable-next-line no-console
             console.debug('[VivlioDBG][ExternalToggle] wrapper created & inserted', { time: Date.now(), parent: anchor.parentElement.className, anchorText: normalizeLabel(anchor) });
       }
-
-      // OFF状態配色を Edit ボタンと揃える: anchor から算出スタイルを取得し CSS 変数として付与
-      try {
-        const targetForStyle = (() => {
-          // 明示的に "edit" を含むボタンを優先探索
-          const explicitEdit = Array.from(document.querySelectorAll('button, a'))
-            .find(el => /\bedit\b/i.test(normalizeLabel(el)) && el instanceof HTMLElement) as HTMLElement | undefined;
-          return explicitEdit || anchor;
-        })();
-        const cs = window.getComputedStyle(targetForStyle);
-        wrapper.style.setProperty('--vivlio-off-bg', cs.backgroundColor || 'transparent');
-        wrapper.style.setProperty('--vivlio-off-color', cs.color || '#6c757d');
-        // 枠線色 (borderColor は結合色の場合があるので優先度順にピック)
-        const borderColor = cs.borderColor && cs.borderColor !== 'rgba(0, 0, 0, 0)' ? cs.borderColor : '#6c757d';
-        wrapper.style.setProperty('--vivlio-off-border', borderColor);
-        // eslint-disable-next-line no-console
-        console.debug('[VivlioDBG][ExternalToggle] captured edit style', {
-          fromEdit: targetForStyle !== anchor,
-          bg: cs.backgroundColor,
-          color: cs.color,
-          border: borderColor,
-        });
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.warn('[VivlioDBG][ExternalToggle] failed to capture style', e);
-      }
+      // アンカーのクラスをコピーして同一スキームに揃える
+      setAnchorClasses(anchor.className || '');
       setWrapperEl(wrapper);
       resolvedRef.current = true;
       if (observerRef.current) {
@@ -180,14 +157,21 @@ export const ExternalToggle: React.FC = () => {
   }, [isOpen, wrapperEl]);
 
   if (!wrapperEl) return null;
+  // アンカー基準クラスから active を除去し、状態に応じて付与
+  const baseClasses = anchorClasses
+    .split(/\s+/)
+    .filter(c => c && c !== 'active')
+    .join(' ');
+  const finalClassName = `${baseClasses} vivlio-toggle-btn${isOpen ? ' active' : ''}${isOverflow ? ' is-overflowing' : ''}`.trim();
+
   return createPortal(
     <button
       ref={btnRef}
       type="button"
-      className={`vivlio-toggle-btn btn btn-sm ${isOpen ? 'is-active' : ''} ${isOverflow ? 'is-overflowing' : ''}`}
+      className={finalClassName}
       onClick={(e) => {
         // eslint-disable-next-line no-console
-        console.debug('[VivlioDBG][ExternalToggle] click', { isOpenBefore: isOpen, time: Date.now() });
+        console.debug('[VivlioDBG][ExternalToggle] click', { isOpenBefore: isOpen, time: Date.now(), anchorClasses });
         toggle();
       }}
       aria-pressed={isOpen}
