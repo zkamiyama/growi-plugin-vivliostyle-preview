@@ -3,6 +3,7 @@ import * as React from 'react';
 import VivliostyleFrame from './VivliostyleFrame';
 import { VivliostylePlanB } from './VivliostylePlanB';
 import { VivliostylePlanC } from './VivliostylePlanC';
+import { VivliostylePlanD } from './VivliostylePlanD';
 import { useAppContext } from '../context/AppContext';
 
 // simple markdown -> html (temporary; will be replaced by VFM pipeline)
@@ -15,6 +16,7 @@ const PreviewShell: React.FC = () => {
   const [debugText, setDebugText] = React.useState<string>('# Debug\n\nSample paragraph.');
   const [usePlanB, setUsePlanB] = React.useState<boolean>(false); // PLAN B 切り替え
   const [usePlanC, setUsePlanC] = React.useState<boolean>(false); // PLAN C 切り替え
+  const [usePlanD, setUsePlanD] = React.useState<boolean>(true); // PLAN D をデフォルトに
 
   // トグル変化時: 元プレビューの表示/非表示も復活
   React.useEffect(() => {
@@ -109,12 +111,20 @@ const PreviewShell: React.FC = () => {
           PLAN B (HTTP)
         </label>
         <label style={{ fontSize: 11, color: '#555', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <input 
-            type="checkbox" 
-            checked={usePlanC} 
+          <input
+            type="checkbox"
+            checked={usePlanC}
             onChange={(e) => setUsePlanC(e.target.checked)}
           />
           PLAN C (React)
+        </label>
+        <label style={{ fontSize: 11, color: '#155724', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <input
+            type="checkbox"
+            checked={usePlanD}
+            onChange={(e) => setUsePlanD(e.target.checked)}
+          />
+          <strong>PLAN D (@vivliostyle/react)</strong>
         </label>
         <span style={{ fontSize: 11, color: '#555' }}>live md len: {markdown.length}</span>
         <textarea
@@ -125,7 +135,9 @@ const PreviewShell: React.FC = () => {
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => forceUpdateMarkdown(debugText)}>Force Inject</button>
       </div>
       <div style={{ flex: 1 }}>
-        {usePlanC ? (
+        {usePlanD ? (
+          <VivliostylePlanD markdown={markdown} isVisible={isOpen} />
+        ) : usePlanC ? (
           <VivliostylePlanC markdown={markdown} isVisible={isOpen} />
         ) : usePlanB ? (
           <VivliostylePlanB markdown={markdown} isOpen={isOpen} />

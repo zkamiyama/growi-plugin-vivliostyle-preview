@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@types/unist": "^3.0.3",
+    "@vivliostyle/react": "^2.34.1",
     "@vivliostyle/vfm": "^2.2.1",
     "hastscript": "^9.0.1",
     "react-innertext": "^1.1.5",
