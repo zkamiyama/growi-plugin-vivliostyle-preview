@@ -2,6 +2,7 @@
 import * as React from 'react';
 import VivliostyleFrame from './VivliostyleFrame';
 import { VivliostylePlanB } from './VivliostylePlanB';
+import { VivliostylePlanC } from './VivliostylePlanC';
 import { useAppContext } from '../context/AppContext';
 
 // simple markdown -> html (temporary; will be replaced by VFM pipeline)
@@ -13,6 +14,7 @@ const PreviewShell: React.FC = () => {
   const { isOpen, markdown, forceUpdateMarkdown } = useAppContext();
   const [debugText, setDebugText] = React.useState<string>('# Debug\n\nSample paragraph.');
   const [usePlanB, setUsePlanB] = React.useState<boolean>(false); // PLAN B 切り替え
+  const [usePlanC, setUsePlanC] = React.useState<boolean>(false); // PLAN C 切り替え
 
   // トグル変化時: 元プレビューの表示/非表示も復活
   React.useEffect(() => {
@@ -104,7 +106,15 @@ const PreviewShell: React.FC = () => {
             checked={usePlanB} 
             onChange={(e) => setUsePlanB(e.target.checked)}
           />
-          PLAN B
+          PLAN B (HTTP)
+        </label>
+        <label style={{ fontSize: 11, color: '#555', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <input 
+            type="checkbox" 
+            checked={usePlanC} 
+            onChange={(e) => setUsePlanC(e.target.checked)}
+          />
+          PLAN C (React)
         </label>
         <span style={{ fontSize: 11, color: '#555' }}>live md len: {markdown.length}</span>
         <textarea
@@ -115,7 +125,9 @@ const PreviewShell: React.FC = () => {
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => forceUpdateMarkdown(debugText)}>Force Inject</button>
       </div>
       <div style={{ flex: 1 }}>
-        {usePlanB ? (
+        {usePlanC ? (
+          <VivliostylePlanC markdown={markdown} isVisible={isOpen} />
+        ) : usePlanB ? (
           <VivliostylePlanB markdown={markdown} isOpen={isOpen} />
         ) : (
           <VivliostyleFrame />
