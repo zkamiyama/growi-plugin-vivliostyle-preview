@@ -21,33 +21,14 @@ const PreviewShell: React.FC = () => {
 
   React.useEffect(() => {
     const host = document.getElementById('vivlio-preview-container');
-    const originalPreviewBody = document.querySelector('.page-editor-preview-body') as HTMLElement | null;
-    
-    // 追加の候補セレクタで元プレビューを探索
-    const originalPreviewCandidates = [
-      '.page-editor-preview-body',
-      '.page-editor-preview .preview-body',
-      '.grw-editor-preview-body',
-      '.preview-body',
-      '.page-editor-preview > div',
-    ];
-    
-    let originalElement = originalPreviewBody;
-    if (!originalElement) {
-      for (const sel of originalPreviewCandidates) {
-        const el = document.querySelector(sel) as HTMLElement | null;
-        if (el) {
-          originalElement = el;
-          break;
-        }
-      }
-    }
-    
+    const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
+
     if (!host) {
       // eslint-disable-next-line no-console
       console.warn('[VivlioDBG][PreviewShell] host container missing when toggling', { isOpen });
       return;
     }
+
     host.dataset.vivlioMount = 'true';
     host.style.display = isOpen ? 'block' : 'none';
     if (isOpen) {
@@ -55,51 +36,53 @@ const PreviewShell: React.FC = () => {
       host.style.width = '100%';
       host.style.height = '100%';
       host.style.overflow = 'auto';
-      host.style.zIndex = '10'; // 元プレビューより上に表示
+      host.style.zIndex = '10';
       if (!host.style.minHeight) host.style.minHeight = '400px';
     }
-    
-    // 元プレビューの隠蔽をより確実にする
-    if (originalElement) {
-      const displayBefore = originalElement.style.display;
-      const visibilityBefore = originalElement.style.visibility;
 
-      if (isOpen) {
-        originalElement.style.setProperty('display', 'none', 'important');
-        originalElement.style.visibility = 'hidden';
-        originalElement.setAttribute('aria-hidden', 'true');
-      } else {
-        originalElement.style.display = '';
-        originalElement.style.visibility = '';
-        originalElement.removeAttribute('aria-hidden');
-      }
+    let hiddenCount = 0;
+    let restoredCount = 0;
+    const processed: string[] = [];
 
-      const displayAfter = originalElement.style.display;
-      const visibilityAfter = originalElement.style.visibility;
-      const computedDisplay = window.getComputedStyle(originalElement).display;
-
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][PreviewShell] style change details', {
-        displayBefore,
-        visibilityBefore,
-        displayAfter,
-        visibilityAfter,
-        computedDisplay,
+    if (previewContainer) {
+      const children = Array.from(previewContainer.children) as HTMLElement[];
+      children.forEach((el, idx) => {
+        if (el === host) return; // 自分は対象外
+        processed.push(`${idx}:${el.className || el.id || el.tagName}`);
+        if (isOpen) {
+          // 既に保存していなければ元displayを保存
+            if (!el.dataset.vivlioPrevDisplay) {
+              el.dataset.vivlioPrevDisplay = el.style.display || '';
+            }
+            el.style.setProperty('display', 'none', 'important');
+            el.setAttribute('aria-hidden', 'true');
+            hiddenCount += 1;
+        } else {
+          if (el.dataset.vivlioPrevDisplay !== undefined) {
+            el.style.display = el.dataset.vivlioPrevDisplay;
+            delete el.dataset.vivlioPrevDisplay; // 復帰後クリア
+          } else {
+            el.style.display = '';
+          }
+          el.removeAttribute('aria-hidden');
+          restoredCount += 1;
+        }
       });
     }
-    
+
     // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][PreviewShell] toggle effect', {
+    console.debug('[VivlioDBG][PreviewShell] toggle siblings', {
       isOpen,
       hasHost: !!host,
-      originalElement: originalElement?.className || 'none',
-      hiddenOriginal: !!originalElement && originalElement.style.display === 'none',
-      markdownLen: markdown.length,
-      hostChildren: host.childElementCount,
+      hasPreviewContainer: !!previewContainer,
       hostDisplay: host.style.display,
-      hostZIndex: host.style.zIndex,
+      markdownLen: markdown.length,
+      hiddenCount,
+      restoredCount,
+      processed,
+      previewChildren: previewContainer ? previewContainer.children.length : -1,
     });
-  }, [isOpen, markdown.length]);
+  }, [isOpen]);
 
   // Host (#vivlio-preview-container) 内にマウントされるのでラッパ不要
   if (!isOpen) {
