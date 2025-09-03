@@ -54,6 +54,12 @@ const PreviewShell: React.FC = () => {
           }
           pendingMarkdownRef.current = null;
         }
+      } else if (ev.data.type === 'vivlio:error') {
+        // eslint-disable-next-line no-console
+        console.error('[VivlioDBG] iframe error:', ev.data.message);
+      } else if (ev.data.type === 'vivlio:ok') {
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG] iframe load success');
       }
     }
     window.addEventListener('message', handleMessage);

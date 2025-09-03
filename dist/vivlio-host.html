@@ -22,81 +22,116 @@
     <div id="log" style="display:none"></div>
   </div>
   <script>
-    const statusEl = document.getElementById('status');
-    const viewerRoot = document.getElementById('viewer-root');
-    function setStatus(msg){ statusEl.textContent = msg; }
-    function log(msg, obj){ console.debug('[VivlioDBG][iframe]', msg, obj||''); }
+    (function () {
+      const LOG = (...a) => console.log('[VivlioHost]', ...a);
+      const statusEl = document.getElementById('status');
+      const viewerRoot = document.getElementById('viewer-root');
+      
+      let viewer = null;
+      let ready = false;
 
-    let lastMarkdownHash = null;
-    let viewerInstance = null;
-    let ready = false;
-    let queuedMarkdown = null; // 直近のみ保持（将来バッファ拡張可）
+      // load の直列化
+      let inflight = false;
+      let queuedMarkdown = null;
 
-    function hash(str){
-      let h = 0, i=0, len = str.length;
-      while(i < len){ h = (h*31 + str.charCodeAt(i++))|0; }
-      return (h>>>0).toString(16);
-    }
+      async function ensureInit() {
+        if (ready) return true;
+        if (!(window.Vivliostyle && window.vfm)) return false;
 
-    async function ensureInit(){
-      if(ready) return true;
-      if(!window.Vivliostyle || !window.vfm){ return false; }
-      try {
-        viewerInstance = window.Vivliostyle.viewer.create(viewerRoot);
+        // viewer インスタンス生成
+        viewer = window.Vivliostyle.viewer.create(viewerRoot);
+
+        // マイクロタスク1拍だけ待って内部初期化のレースを避ける（経験則）
+        await Promise.resolve();
+
         ready = true;
-        setStatus('ready');
-        log('viewer instance created');
-        // 親へ ready 通知（初期化完了後）
-        if (window.parent && window.parent !== window) {
-          log('posting ready');
-          window.parent.postMessage({ type: 'vivlio:ready' }, '*');
+        statusEl.textContent = 'ready';
+        LOG('viewer instance created');
+        // 親へ ready 通知
+        try { parent.postMessage({ type: 'vivlio:ready' }, '*'); } catch (_) {}
+
+        // 溜まっていた初回分があれば処理
+        if (queuedMarkdown != null) {
+          const md = queuedMarkdown;
+          queuedMarkdown = null;
+          void renderMarkdown(md);
         }
-        if(queuedMarkdown){
-          const md = queuedMarkdown; queuedMarkdown = null;
-          renderMarkdown(md); // flush
+        return true;
+      }
+
+      function buildHtmlFromMarkdown(md) {
+        // VFM 2.x 正式 API: stringify は完全な HTML 文書を返す
+        // render は本文断片の可能性があるため使用しない
+        let html;
+        if (window.vfm && typeof window.vfm.stringify === 'function') {
+          html = window.vfm.stringify(md || '');
+        } else if (window.vfm && typeof window.vfm.render === 'function') {
+          // フォールバック: 断片 -> 包装して完全なHTMLにする
+          const body = window.vfm.render(md || '');
+          html = '<!doctype html><html><head><meta charset="utf-8"></head><body>' + body + '</body></html>';
+        } else {
+          html = '<!doctype html><meta charset="utf-8"><body>' + String(md || '') + '</body>';
         }
-      } catch(e){
-        console.error('[VivlioDBG][iframe] viewer create failed', e);
-        setStatus('init error');
-      }
-      return ready;
-    }
 
-    async function renderMarkdown(md){
-      if(!await ensureInit()) { queuedMarkdown = md; return; }
-      const currentHash = hash(md);
-      if(currentHash === lastMarkdownHash){ log('skip same hash', currentHash); return; }
-      lastMarkdownHash = currentHash;
-      setStatus('parsing');
-      try {
-        const htmlBody = window.vfm.render(md || '');
-        const docHtml = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>preview</title></head><body>${htmlBody}</body></html>`;
-        setStatus('loading');
-        const blobUrl = URL.createObjectURL(new Blob([docHtml], { type: 'text/html' }));
-        await viewerInstance.load(blobUrl);
-        setStatus('ok');
-      } catch(e){
-        console.error('[VivlioDBG][iframe] render error', e);
-        setStatus('error');
-        viewerRoot.insertAdjacentHTML('beforeend', `<pre class="log">${String(e).replace(/</g,'&lt;')}</pre>`);
+        // 相対URL解決用に <base> を必ず注入
+        const baseHref = location.origin + '/';
+        if (html.includes('<head>')) {
+          html = html.replace('<head>', `<head><base href="${baseHref}">`);
+        } else if (html.match(/<html[^>]*>/i)) {
+          html = html.replace(/<html[^>]*>/i, m => `${m}<head><base href="${baseHref}"></head>`);
+        } else {
+          html = `<!doctype html><html><head><meta charset="utf-8"><base href="${baseHref}"></head><body>${html}</body></html>`;
+        }
+        return html;
       }
-    }
 
-    window.addEventListener('message', (ev)=>{
-      const { type, markdown } = ev.data || {};
-      if(type === 'markdown:update-raw'){
-        log('receive raw markdown', { length: (markdown||'').length });
-        renderMarkdown(markdown||'');
+      async function renderMarkdown(md) {
+        // 初期化してなければ待つ（ポーリングと併用）
+        if (!ready) {
+          const ok = await ensureInit();
+          if (!ok) { queuedMarkdown = md; return; }
+        }
+        // 直列化: 実行中なら最後の1件だけキュー
+        if (inflight) { queuedMarkdown = md; return; }
+        inflight = true;
+
+        const html = buildHtmlFromMarkdown(md);
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+
+        statusEl.textContent = 'loading';
+        console.time('viewer.load');
+        try {
+          await viewer.load(url);
+          console.timeEnd('viewer.load');
+          statusEl.textContent = 'ok';
+          try { parent.postMessage({ type: 'vivlio:ok' }, '*'); } catch (_) {}
+        } catch (err) {
+          console.timeEnd('viewer.load');
+          console.error('[VivlioHost] viewer.load failed:', err);
+          statusEl.textContent = 'error';
+          try { parent.postMessage({ type: 'vivlio:error', message: String(err) }, '*'); } catch (_) {}
+        } finally {
+          URL.revokeObjectURL(url);
+          inflight = false;
+          if (queuedMarkdown != null) {
+            const next = queuedMarkdown;
+            queuedMarkdown = null;
+            void renderMarkdown(next);
+          }
+        }
       }
-    });
 
-    // 初期化リトライ（Vivliostyle / vfm スクリプトロード待機）
-    const initInterval = setInterval(() => {
-      if(ready) { clearInterval(initInterval); return; }
-      ensureInit();
-    }, 100);
-    // 安全解除: 10秒で諦め
-    setTimeout(()=>{ if(!ready){ clearInterval(initInterval); setStatus('timeout'); } }, 10000);
+      window.addEventListener('message', ev => {
+        if (!ev || !ev.data) return;
+        if (ev.data.type === 'markdown:update-raw') {
+          void renderMarkdown(ev.data.markdown || '');
+        }
+      });
+
+      // 100ms ごとに init 試行
+      setInterval(ensureInit, 100);
+    })();
   </script>
 </body>
 </html>

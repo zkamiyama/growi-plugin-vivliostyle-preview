@@ -1,0 +1,52 @@
+<!DOCTYPE html><meta charset="utf-8">
+<title>Vivliostyle 最小再現テスト</title>
+<div id="root" style="height:100vh"></div>
+<script src="https://unpkg.com/@vivliostyle/viewer@2.34.1/dist/vivliostyle-viewer.js"></script>
+<script src="https://unpkg.com/@vivliostyle/vfm@2.2.1/dist/vfm.min.js"></script>
+<script>
+(async () => {
+  console.log('Starting test...');
+  const viewer = Vivliostyle.viewer.create(document.getElementById('root'));
+  await Promise.resolve(); // 1拍待つ
+
+  const md = '# Test\n\n![img](/path/to/image.png)\n\nSample content.';
+  console.log('Markdown:', md);
+  
+  // 1) 完全HTMLを生成（VFM stringify）
+  let html;
+  if (vfm && typeof vfm.stringify === 'function') {
+    html = vfm.stringify(md);
+    console.log('Using vfm.stringify');
+  } else if (vfm && typeof vfm.render === 'function') {
+    const body = vfm.render(md);
+    html = '<!doctype html><html><head><meta charset="utf-8"></head><body>' + body + '</body></html>';
+    console.log('Using vfm.render fallback');
+  } else {
+    console.error('VFM not available');
+    return;
+  }
+
+  // 2) 相対URL解決のため base を注入
+  const baseHref = location.origin + '/';
+  if (html.includes('<head>')) {
+    html = html.replace('<head>', `<head><base href="${baseHref}">`);
+  } else {
+    html = `<!doctype html><html><head><meta charset="utf-8"><base href="${baseHref}"></head><body>${html}</body></html>`;
+  }
+  
+  console.log('Final HTML length:', html.length);
+  console.log('HTML preview:', html.substring(0, 200) + '...');
+
+  const url = URL.createObjectURL(new Blob([html], {type:'text/html'}));
+  try {
+    console.time('viewer.load');
+    await viewer.load(url);
+    console.timeEnd('viewer.load');
+    console.log('✅ Load successful!');
+  } catch(err) {
+    console.error('❌ Load failed:', err);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+})();
+</script>

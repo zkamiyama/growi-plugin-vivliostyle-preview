@@ -14,7 +14,7 @@ const VivliostyleFrame = forwardRef<HTMLIFrameElement, Props>((props, ref) => {
       title="Vivliostyle Viewer"
       srcDoc={memoSrcDoc}
       style={{ width: '100%', height: '100%', border: 0 }}
-      sandbox="allow-scripts"
+      sandbox="allow-scripts allow-same-origin"
     />
   );
 });
