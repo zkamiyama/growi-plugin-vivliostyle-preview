@@ -32,6 +32,21 @@ const PreviewShell: React.FC = () => {
     updateViewer(nextHtml);
   }, [markdown, isOpen, updateViewer]);
 
+  React.useEffect(() => {
+    const originalPreviewBody = document.querySelector('.page-editor-preview-body') as HTMLElement | null;
+    if (!originalPreviewBody) return;
+
+    if (isOpen) {
+      originalPreviewBody.style.visibility = 'hidden';
+    } else {
+      originalPreviewBody.style.visibility = 'visible';
+    }
+
+    return () => { // クリーンアップ
+      originalPreviewBody.style.visibility = 'visible';
+    };
+  }, [isOpen]);
+
   return (
     <div className={`vivlio-preview ${isOpen ? 'is-open' : 'is-closed'}`}>
       <div className="vivlio-toolbar">
