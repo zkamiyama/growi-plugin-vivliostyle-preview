@@ -61,6 +61,78 @@ function findAnchorOnce(): HTMLElement | null {
   return queryAnchorBySelectors() || heuristicScan();
 }
 
+// --- color helpers (simple RGB/HEX -> HSL complement) ---
+function parseToRgb(input: string): { r: number; g: number; b: number } | null {
+  if (!input) return null;
+  const hex = input.trim();
+  const rgbm = hex.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+  if (rgbm) {
+    return { r: Number(rgbm[1]), g: Number(rgbm[2]), b: Number(rgbm[3]) };
+  }
+  const hexm = hex.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hexm) {
+    let h = hexm[1];
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const intVal = parseInt(h, 16);
+    return { r: (intVal >> 16) & 255, g: (intVal >> 8) & 255, b: intVal & 255 };
+  }
+  return null;
+}
+
+function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b); const min = Math.min(r, g, b);
+  let h = 0; let s = 0; const l = (max + min) / 2;
+  const d = max - min;
+  if (d !== 0) {
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+      default: break;
+    }
+    h /= 6;
+  }
+  return { h: h * 360, s: s * 100, l: l * 100 };
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  h /= 360; s /= 100; l /= 100;
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1; if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  let r: number; let g: number; let b: number;
+  if (s === 0) { r = g = b = l; } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1 / 3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1 / 3);
+  }
+  const toHex = (x: number) => {
+    const v = Math.round(x * 255).toString(16).padStart(2, '0');
+    return v;
+  };
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function computeComplement(color: string): { bg: string; fg: string } | null {
+  const rgb = parseToRgb(color);
+  if (!rgb) return null;
+  const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+  const compH = (hsl.h + 180) % 360;
+  const compHex = hslToHex(compH, hsl.s, hsl.l);
+  // 簡易輝度で前景色選択
+  const luminance = (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255;
+  const fg = luminance > 0.55 ? '#000' : '#fff';
+  return { bg: compHex, fg };
+}
+
 export const ExternalToggle: React.FC = () => {
   const { isOpen, toggle } = useAppContext();
   const [wrapperEl, setWrapperEl] = React.useState<HTMLElement | null>(null);
@@ -83,6 +155,28 @@ export const ExternalToggle: React.FC = () => {
       }
       // アンカーのクラスをコピーして同一スキームに揃える
       setAnchorClasses(anchor.className || '');
+      // 補色計算: anchor 背景 or 文字色（背景が透過の場合）
+      try {
+        const cs = window.getComputedStyle(anchor);
+        let baseColor = cs.backgroundColor;
+        if (!baseColor || /rgba\(0, 0, 0, 0\)/.test(baseColor) || baseColor === 'transparent') {
+          baseColor = cs.color;
+        }
+        const comp = computeComplement(baseColor);
+        if (comp) {
+          wrapper.style.setProperty('--vivlio-active-bg', comp.bg);
+          wrapper.style.setProperty('--vivlio-active-fg', comp.fg);
+          // eslint-disable-next-line no-console
+          console.debug('[VivlioDBG][ExternalToggle] complement color computed', { baseColor, comp });
+        } else {
+          // eslint-disable-next-line no-console
+          console.debug('[VivlioDBG][ExternalToggle] complement color skipped (parse failed)', { baseColor });
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[VivlioDBG][ExternalToggle] complement compute error', e);
+      }
+
       setWrapperEl(wrapper);
       resolvedRef.current = true;
       if (observerRef.current) {
@@ -162,7 +256,7 @@ export const ExternalToggle: React.FC = () => {
     .split(/\s+/)
     .filter(c => c && c !== 'active')
     .join(' ');
-  const finalClassName = `${baseClasses} vivlio-toggle-btn${isOpen ? ' active' : ''}${isOverflow ? ' is-overflowing' : ''}`.trim();
+  const finalClassName = `${baseClasses} vivlio-toggle-btn vivlio-complement${isOpen ? ' active' : ''}${isOverflow ? ' is-overflowing' : ''}`.trim();
 
   return createPortal(
     <button
