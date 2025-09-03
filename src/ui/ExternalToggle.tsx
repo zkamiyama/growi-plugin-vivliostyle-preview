@@ -222,6 +222,15 @@ export const ExternalToggle: React.FC = () => {
       }
     }
 
+
+    // プレビューコンテナが存在しない場合は何もしない（編集画面以外ではボタンを挿入しない）
+    const previewContainer = document.querySelector('.page-editor-preview-container, .grw-editor-preview, [data-testid="page-editor-preview"]');
+    if (!previewContainer) {
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][ExternalToggle] preview container not found, skip button insert');
+      return () => {};
+    }
+
     // 1) 即時試行
     const immediate = findAnchorOnce();
     if (immediate) {
