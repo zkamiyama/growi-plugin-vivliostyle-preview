@@ -4,11 +4,12 @@ import { defineConfig } from 'vite';
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  base: './',
   build: {
     manifest: true,
     rollupOptions: {
       input: ['/client-entry.tsx'],
-  external: ['react', 'react-dom']
+      external: ['react', 'react-dom'],
     },
   },
 });

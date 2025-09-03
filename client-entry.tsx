@@ -9,6 +9,7 @@ import { createRoot } from 'react-dom/client';
 // 逆にビルド後の出力階層簡潔化のため 'src/ui/PreviewShell' のエントリを維持しつつ Vite のルート=プロジェクトルートなので 'src/...' 形式に変更する。
 import PreviewShell from './src/ui/PreviewShell';
 import ExternalToggle from './src/ui/ExternalToggle';
+import FloatingToggle from './src/ui/FloatingToggle';
 import config from './package.json';
 
 // GROWIのスクリプトプラグイン規約：activate/deactivateのみ担当
@@ -31,6 +32,7 @@ function mount() {
   root.render(<>
     <PreviewShell />
     <ExternalToggle />
+    <FloatingToggle />
   </>);
   (window as any).__vivlio_root = root; // 後でunmount用に保持
 }
