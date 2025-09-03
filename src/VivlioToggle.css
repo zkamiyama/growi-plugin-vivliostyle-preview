@@ -34,7 +34,11 @@
 }
 
 .vivlio-inline-toggle .vivlio-toggle-btn.is-active:hover {
-  filter: brightness(1.08);
+  /* ON状態hoverでOFF色（アウトライン風）に戻し、クリックでOFFへ遷移する意図を視覚化 */
+  background: transparent;
+  color: var(--bs-secondary-color, #6c757d);
+  border-color: var(--bs-secondary, #6c757d);
+  filter: none;
 }
 
 /* If the label still overflows, shrink font slightly */
