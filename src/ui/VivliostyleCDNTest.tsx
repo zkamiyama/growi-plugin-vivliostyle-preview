@@ -28,14 +28,10 @@ export const VivliostyleCDNTest: React.FC = () => {
 </html>
   `)}`;
 
-  // 複数のCDNオプションを試してみます
-  const cdnOptions = [
-    `https://vivliostyle.org/viewer/#x=${encodeURIComponent(testHtmlDataUrl)}`,
-    `https://cdn.jsdelivr.net/npm/@vivliostyle/viewer@2.34.1/lib/vivliostyle-viewer.html#x=${encodeURIComponent(testHtmlDataUrl)}`,
-    `https://unpkg.com/@vivliostyle/viewer@2.34.1/lib/vivliostyle-viewer.html#x=${encodeURIComponent(testHtmlDataUrl)}`
-  ];
+  // 実際に動作するCDN URLを使用
+  const cdnViewerUrl = `https://unpkg.com/@vivliostyle/viewer@2.34.1/lib/vivliostyle-viewer.html#x=${encodeURIComponent(testHtmlDataUrl)}`;
   
-  const cdnViewerUrl = cdnOptions[0]; // まず公式サイトを試す
+  // vivliostyle.orgの公式サイトではdata URLは処理できないため、npmのCDNを使用
 
   return (
     <div
