@@ -41,21 +41,16 @@ describe('PreviewShell (with AppContext)', () => {
       isOpen: false,
       toggle: mockToggle,
       markdown: '# Hello',
-      html: '',
-      updateViewer: mockUpdateViewer,
     });
     expect(screen.queryByTitle(/Vivliostyle Viewer/i)).not.toBeInTheDocument();
   });
 
-  it('open state: iframe present and updateViewer called', () => {
+  it('open state: iframe present', () => {
     renderWithContext({
       isOpen: true,
       toggle: mockToggle,
       markdown: '# Hello',
-      html: '',
-      updateViewer: mockUpdateViewer,
     });
     expect(screen.getByTitle(/Vivliostyle Viewer/i)).toBeInTheDocument();
-    expect(mockUpdateViewer).toHaveBeenCalledWith('<h1>Hello</h1>\n');
   });
 });
