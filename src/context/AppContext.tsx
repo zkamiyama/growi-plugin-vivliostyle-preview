@@ -11,6 +11,7 @@ export type AppContextType = {
   isOpen: boolean;
   toggle: () => void;
   markdown: string;
+  forceUpdateMarkdown: (md: string) => void;
 };
 
 const AppContext = React.createContext<AppContextType | null>(null);
@@ -18,6 +19,7 @@ const AppContext = React.createContext<AppContextType | null>(null);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isVivliostyleActive, setIsVivliostyleActive] = React.useState(false);
   const { markdown } = useEditorMarkdown({ debounceMs: 250 });
+  const [forced, setForced] = React.useState<string | null>(null);
 
   const toggle = React.useCallback(() => {
     // eslint-disable-next-line no-console
@@ -37,7 +39,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsVivliostyleActive,
     isOpen: isVivliostyleActive, // alias
     toggle,
-    markdown,
+    markdown: forced ?? markdown,
+    forceUpdateMarkdown: (md: string) => {
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG] forceUpdateMarkdown', { length: md.length });
+      setForced(md);
+    },
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

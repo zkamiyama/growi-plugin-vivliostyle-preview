@@ -13,7 +13,8 @@ const MDCtor: any = (MarkdownIt as any).default || (MarkdownIt as any);
 const md = new MDCtor();
 
 const PreviewShell: React.FC = () => {
-  const { isOpen, markdown } = useAppContext();
+  const { isOpen, markdown, forceUpdateMarkdown } = useAppContext();
+  const [debugText, setDebugText] = React.useState<string>('# Debug\n\nSample paragraph.');
 
   // トグル変化時: 元プレビューの表示/非表示も復活
   React.useEffect(() => {
@@ -90,11 +91,25 @@ const PreviewShell: React.FC = () => {
   return (
     <div
       data-vivlio-shell
-      style={{ width: '100%', height: '100%', position: 'relative' }}
+      style={{ width: '100%', height: '100%', position: 'relative', display: isOpen ? 'flex' : 'none', flexDirection: 'column', border: '1px solid #ddd' }}
       aria-hidden={!isOpen}
     >
       {isOpen && (
-        <VivliostyleFrame />
+        <>
+          <div style={{ display: 'flex', gap: 8, padding: '4px 6px', background: '#f5f5f5', borderBottom: '1px solid #ccc', alignItems: 'center' }}>
+            <strong style={{ fontSize: 12 }}>Vivliostyle Preview Debug</strong>
+            <span style={{ fontSize: 11, color: '#555' }}>live md len: {markdown.length}</span>
+            <textarea
+              value={debugText}
+              onChange={(e) => setDebugText(e.target.value)}
+              style={{ fontFamily: 'monospace', fontSize: 11, height: 54, flex: 1, resize: 'vertical' }}
+            />
+            <button type="button" className="btn btn-sm btn-secondary" onClick={() => forceUpdateMarkdown(debugText)}>Force Inject</button>
+          </div>
+          <div style={{ flex: 1 }}>
+            <VivliostyleFrame />
+          </div>
+        </>
       )}
     </div>
   );
