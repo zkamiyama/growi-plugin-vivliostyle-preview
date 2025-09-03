@@ -17,27 +17,45 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
 
   useEffect(() => {
     if (!isVisible) return;
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG][Preview] effect start', { mdLen: markdown.length, time: Date.now() });
     if (!markdown) {
       setDataUrl('');
       setErrorMsg(null);
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][Preview] empty markdown');
       return;
     }
     try {
-  const fullHtml = stringify(markdown);
-  setHtmlLen(fullHtml.length);
-  // base64 方式 (URL 長縮小 & 一部環境での 4K 付近トリム対策)
-  const base64 = btoa(unescape(encodeURIComponent(fullHtml)));
-  const url = `data:text/html;base64,${base64}`;
-  setEncodedLen(url.length);
-  setDataUrl(url);
+      const fullHtml = stringify(markdown);
+      setHtmlLen(fullHtml.length);
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][Preview] html generated', { htmlLen: fullHtml.length, sample: fullHtml.slice(0, 120) });
+      const base64 = btoa(unescape(encodeURIComponent(fullHtml)));
+      const url = `data:text/html;base64,${base64}`;
+      setEncodedLen(url.length);
+      setDataUrl(url);
       setErrorMsg(null);
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][Preview] dataUrl ready', { encodedLen: url.length });
     } catch (e) {
       // eslint-disable-next-line no-console
-      console.error('[VivlioDBG] stringify failed', e);
+      console.error('[VivlioDBG][Preview] stringify failed', e);
       setErrorMsg((e as Error).message);
       setDataUrl('');
     }
   }, [markdown, isVisible]);
+
+  useEffect(() => {
+    if (!isVisible) return;
+    // 初回レンダー/アンマウントログ
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG][Preview] mount', { time: Date.now() });
+    return () => {
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][Preview] unmount', { time: Date.now() });
+    };
+  }, [isVisible]);
 
   if (!isVisible) return null;
 
@@ -56,7 +74,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             VFM Error: {errorMsg}
           </div>
         )}
-        {source ? (
+  {source ? (
           <Renderer
             /* key を固定し再マウントを避けパフォ改善 */
             source={source as string}

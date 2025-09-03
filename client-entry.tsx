@@ -21,9 +21,11 @@ function mount() {
 
   // --- プレビュー & トグル単一ルートマウント ---
   const previewContainer = document.querySelector('.page-editor-preview-container');
+  // eslint-disable-next-line no-console
+  console.debug('[VivlioDBG][mount] query preview container', { found: !!previewContainer });
   if (!previewContainer) {
-    // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG] previewContainer not found, retry scheduling');
+  // eslint-disable-next-line no-console
+  console.debug('[VivlioDBG][mount] previewContainer not found, retry scheduling');
     setTimeout(mount, 200); // リトライ
     return;
   }
@@ -37,13 +39,13 @@ function mount() {
   host.style.position = 'relative';
   host.style.display = 'none';
     previewContainer.appendChild(host);
-    // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG] host container created and appended');
+  // eslint-disable-next-line no-console
+  console.debug('[VivlioDBG][mount] host container created and appended');
   }
 
   const root = createRoot(host);
   // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG] React root created, rendering...');
+  console.debug('[VivlioDBG][mount] React root created, rendering...', { hasHost: !!host });
   root.render(
     <React.StrictMode>
       <AppProvider>
@@ -55,18 +57,18 @@ function mount() {
   (window as any).__vivlio_root = root; // 後でunmount用に保持
 
   // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG] mount finished');
+  console.debug('[VivlioDBG][mount] mount finished');
 }
 
 function unmount() {
   // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG] unmount called');
+  console.debug('[VivlioDBG][unmount] called');
   const root = (window as any).__vivlio_root;
   if (root) {
     root.unmount();
     delete (window as any).__vivlio_root;
     // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG] root unmounted');
+  console.debug('[VivlioDBG][unmount] root unmounted');
   }
   const host = document.getElementById(CONTAINER_ID);
   if (host?.parentNode) host.parentNode.removeChild(host);

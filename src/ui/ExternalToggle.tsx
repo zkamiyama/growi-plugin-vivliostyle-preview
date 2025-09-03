@@ -76,6 +76,8 @@ export const ExternalToggle: React.FC = () => {
         wrapper.className = 'vivlio-inline-toggle';
         wrapper.style.marginLeft = '6px';
         anchor.parentElement.insertBefore(wrapper, anchor.nextSibling);
+            // eslint-disable-next-line no-console
+            console.debug('[VivlioDBG][ExternalToggle] wrapper created & inserted', { time: Date.now(), parent: anchor.parentElement.className, anchorText: normalizeLabel(anchor) });
       }
       setWrapperEl(wrapper);
       resolvedRef.current = true;
@@ -83,6 +85,8 @@ export const ExternalToggle: React.FC = () => {
         observerRef.current.disconnect();
         observerRef.current = null;
       }
+          // eslint-disable-next-line no-console
+          console.debug('[VivlioDBG][ExternalToggle] attached to anchor', { anchorSel: anchor.className, text: normalizeLabel(anchor) });
     }
 
     // 1) 即時試行
@@ -111,7 +115,7 @@ export const ExternalToggle: React.FC = () => {
     }, pollInterval);
 
     // 3) MutationObserver (最終手段) - body 配下を監視して候補が追加されたら即 attach
-    observerRef.current = new MutationObserver((mutations) => {
+  observerRef.current = new MutationObserver((mutations) => {
       if (resolvedRef.current) return;
       for (const m of mutations) {
         if (!m.addedNodes?.length) continue;
@@ -142,7 +146,11 @@ export const ExternalToggle: React.FC = () => {
     <button
       type="button"
       className={`btn btn-sm ${isOpen ? 'btn-secondary' : 'btn-outline-secondary'}`}
-      onClick={toggle}
+      onClick={(e) => {
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][ExternalToggle] click', { isOpenBefore: isOpen, time: Date.now() });
+        toggle();
+      }}
       aria-pressed={isOpen}
       title="Toggle Vivliostyle Preview"
       data-vivlio-toggle="true"

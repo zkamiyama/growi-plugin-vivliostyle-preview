@@ -9,29 +9,55 @@ import { useAppContext } from '../context/AppContext';
 const PreviewShell: React.FC = () => {
   const { isOpen, markdown } = useAppContext();
 
+  // 初回マウントログ
+  React.useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG][PreviewShell] mount', { time: Date.now() });
+    return () => {
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][PreviewShell] unmount', { time: Date.now() });
+    };
+  }, []);
+
   React.useEffect(() => {
     const host = document.getElementById('vivlio-preview-container');
     const originalPreviewBody = document.querySelector('.page-editor-preview-body') as HTMLElement | null;
-    if (host) {
-      host.style.display = isOpen ? 'block' : 'none';
-      if (isOpen) {
-        host.style.position = 'relative';
-        host.style.width = '100%';
-        host.style.height = '100%';
-        host.style.overflow = 'auto';
-        // 高さが親で管理されない場合のフォールバック
-        if (!host.style.minHeight) host.style.minHeight = '400px';
-      }
+    if (!host) {
+      // eslint-disable-next-line no-console
+      console.warn('[VivlioDBG][PreviewShell] host container missing when toggling', { isOpen });
+      return;
+    }
+    host.dataset.vivlioMount = 'true';
+    host.style.display = isOpen ? 'block' : 'none';
+    if (isOpen) {
+      host.style.position = 'relative';
+      host.style.width = '100%';
+      host.style.height = '100%';
+      host.style.overflow = 'auto';
+      if (!host.style.minHeight) host.style.minHeight = '400px';
     }
     if (originalPreviewBody) {
       originalPreviewBody.style.display = isOpen ? 'none' : 'block';
     }
     // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG] inline replace effect', { isOpen, hasHost: !!host, hiddenOriginal: !!originalPreviewBody });
-  }, [isOpen]);
+    console.debug('[VivlioDBG][PreviewShell] toggle effect', {
+      isOpen,
+      hasHost: !!host,
+      hiddenOriginal: !!originalPreviewBody && originalPreviewBody.style.display === 'none',
+      markdownLen: markdown.length,
+      hostChildren: host.childElementCount,
+    });
+  }, [isOpen, markdown.length]);
 
   // Host (#vivlio-preview-container) 内にマウントされるのでラッパ不要
-  return isOpen ? <VivliostylePreview markdown={markdown} isVisible={isOpen} /> : null;
+  if (!isOpen) {
+    return null;
+  }
+  return (
+    <div data-vivlio-shell-root>
+      <VivliostylePreview markdown={markdown} isVisible={isOpen} />
+    </div>
+  );
 };
 
 export default PreviewShell;
