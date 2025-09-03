@@ -24,7 +24,7 @@ if (typeof MarkdownItCtor !== 'function') {
 const md = new MarkdownItCtor({ html: true, linkify: true });
 
 const PreviewShell: React.FC = () => {
-  const { isOpen, toggle, markdown, updateViewer } = useAppContext();
+  const { isOpen, markdown, updateViewer } = useAppContext();
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -33,25 +33,34 @@ const PreviewShell: React.FC = () => {
   }, [markdown, isOpen, updateViewer]);
 
   React.useEffect(() => {
-    const originalPreviewBody = document.querySelector('.page-editor-preview-body') as HTMLElement | null;
-    if (!originalPreviewBody) return;
+    const originalPreviewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
+    const vivlioHost = document.getElementById('vivlio-preview-container');
+    if (!originalPreviewContainer || !vivlioHost) return;
+
+    const origDisplay = originalPreviewContainer.style.display;
+    const vivlioDisplay = vivlioHost.style.display;
 
     if (isOpen) {
-      originalPreviewBody.style.visibility = 'hidden';
+      originalPreviewContainer.style.display = 'none';
+      vivlioHost.style.display = 'flex';
     } else {
-      originalPreviewBody.style.visibility = 'visible';
+      originalPreviewContainer.style.display = origDisplay || '';
+      vivlioHost.style.display = 'none';
     }
 
-    return () => { // クリーンアップ
-      originalPreviewBody.style.visibility = 'visible';
+    return () => {
+      originalPreviewContainer.style.display = origDisplay || '';
+      vivlioHost.style.display = vivlioDisplay || 'none';
     };
   }, [isOpen]);
 
   return (
-    <div className={`vivlio-preview ${isOpen ? 'is-open' : 'is-closed'}`}>
-      <div className="vivlio-body" role="region" aria-label="Vivliostyle preview">
-        {isOpen && <VivliostyleFrame />}
-      </div>
+    <div className="vivlio-preview" role="region" aria-label="Vivliostyle preview">
+      {isOpen && (
+        <div className="vivlio-body">
+          <VivliostyleFrame />
+        </div>
+      )}
     </div>
   );
 };
