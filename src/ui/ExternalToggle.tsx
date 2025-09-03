@@ -73,65 +73,87 @@ export const ExternalToggle: React.FC = () => {
   const lastBaseColorRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
-    function attach(anchor: HTMLElement) {
+    function attach(initialAnchor: HTMLElement) {
       if (resolvedRef.current) return; // 冪等
-      if (!anchor.parentElement) return;
-      let wrapper = anchor.parentElement.querySelector('.vivlio-inline-toggle') as HTMLElement | null;
+      if (!initialAnchor.parentElement) return;
+      let wrapper = initialAnchor.parentElement.querySelector('.vivlio-inline-toggle') as HTMLElement | null;
       if (!wrapper) {
         wrapper = document.createElement('span');
         wrapper.className = 'vivlio-inline-toggle';
         wrapper.style.marginLeft = '6px';
-        anchor.parentElement.insertBefore(wrapper, anchor.nextSibling);
+        initialAnchor.parentElement.insertBefore(wrapper, initialAnchor.nextSibling);
             // eslint-disable-next-line no-console
-            console.debug('[VivlioDBG][ExternalToggle] wrapper created & inserted', { time: Date.now(), parent: anchor.parentElement.className, anchorText: normalizeLabel(anchor) });
+            console.debug('[VivlioDBG][ExternalToggle] wrapper created & inserted', { time: Date.now(), parent: initialAnchor.parentElement.className, anchorText: normalizeLabel(initialAnchor) });
       }
-      // View ボタンと同じ外観にしたいので、兄弟要素から "view" を含むラベルを優先してクラス複製
-      let viewBtn: HTMLElement | undefined;
-      try {
-        const siblings = Array.from(anchor.parentElement.children) as HTMLElement[];
-        viewBtn = siblings.find(el => /\bview\b/i.test(normalizeLabel(el))) || undefined;
-      } catch { /* ignore */ }
-      setAnchorClasses(viewBtn?.className || anchor.className || '');
-      // ---- 補色+彩度1.5倍計算 ----
-      const computeVividComplement = (baseColor: string): { compHex: string; fg: string } | null => {
+      // リポジショニング + 色計算共通処理
+      const isTransparent = (c: string) => !c || c === 'transparent' || /rgba\(\s*0+\s*,\s*0+\s*,\s*0+\s*,\s*0?\.?0*\s*\)/i.test(c);
+      const computePureComplement = (baseColor: string): { compHex: string; fg: string } | null => {
         const rgbMatch = baseColor.match(/^rgba?\((\d+),(\d+),(\d+)/i);
         const hexMatch = baseColor.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
         let r: number | null = null; let g: number | null = null; let b: number | null = null;
         if (rgbMatch) { r = +rgbMatch[1]; g = +rgbMatch[2]; b = +rgbMatch[3]; }
         else if (hexMatch) { let h = hexMatch[1]; if (h.length === 3) h = h.split('').map(c=>c+c).join(''); const iv = parseInt(h,16); r=(iv>>16)&255; g=(iv>>8)&255; b=iv&255; }
         if (r==null||g==null||b==null) return null;
-        let R=r/255, G=g/255, B=b/255; const max=Math.max(R,G,B), min=Math.min(R,G,B); let h=0, s=0; const l=(max+min)/2; const d=max-min;
-        if (d!==0) { s = l>0.5 ? d/(2-max-min) : d/(max+min); if (max===R) h=(G-B)/d+(G<B?6:0); else if (max===G) h=(B-R)/d+2; else h=(R-G)/d+4; h/=6; }
-        h = (h*360+180)%360; // complement hue
-        s = Math.min(1, s * 1.5); // 彩度1.5倍 (上限1.0)
+        let R=r/255, G=g/255, B=b/255; const max=Math.max(R,G,B), min=Math.min(R,G,B); let h=0; const d=max-min;
+        if (d!==0) { if (max===R) h=(G-B)/d+(G<B?6:0); else if (max===G) h=(B-R)/d+2; else h=(R-G)/d+4; h/=6; }
+        h = (h*360 + 180) % 360; // hue 反転
+        const s = 1; // 彩度100%
+        const l = 0.5; // 明度50% (純色)
         const hue2rgb=(p:number,q:number,t:number)=>{ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; };
-        const q=l<0.5?l*(1+s):l+s-l*s; const p=2*l-q;
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s; const p = 2 * l - q;
         const r2=Math.round(hue2rgb(p,q,(h/360)+1/3)*255); const g2=Math.round(hue2rgb(p,q,(h/360))*255); const b2=Math.round(hue2rgb(p,q,(h/360)-1/3)*255);
         const toHex=(x:number)=>x.toString(16).padStart(2,'0');
         const compHex=`#${toHex(r2)}${toHex(g2)}${toHex(b2)}`;
         const luminance=(0.2126*r2+0.7152*g2+0.0722*b2)/255; const fg=luminance>0.55?'#000':'#fff';
-        return { compHex, fg }; };
-      try {
-        const cs = window.getComputedStyle(viewBtn || anchor);
-        const isTransparent = (c: string) => !c || c === 'transparent' || /rgba\(\s*0+\s*,\s*0+\s*,\s*0+\s*,\s*0?\.?0*\s*\)/i.test(c);
-        let baseColor = cs.borderColor;
-        if (isTransparent(baseColor)) baseColor = cs.backgroundColor;
-        if (isTransparent(baseColor)) baseColor = cs.color;
-        if (baseColor && baseColor !== lastBaseColorRef.current) {
-          const res = computeVividComplement(baseColor);
-          if (res) {
-            wrapper.style.setProperty('--vivlio-comp-color', res.compHex);
-            wrapper.style.setProperty('--vivlio-comp-fg', res.fg);
-            lastBaseColorRef.current = baseColor;
-            // eslint-disable-next-line no-console
-            console.debug('[VivlioDBG][ExternalToggle] vivid complement', { baseColor, res });
-          }
+        return { compHex, fg };
+      };
+
+      const pickButtons = (parent: HTMLElement) => {
+        const kids = Array.from(parent.children) as HTMLElement[];
+        const view = kids.find(el => /\bview\b/i.test(normalizeLabel(el)) && el !== wrapper) || null;
+        const edit = kids.find(el => /\bedit\b/i.test(normalizeLabel(el)) && el !== wrapper) || null;
+        return { view, edit };
+      };
+
+      const isVisible = (el: HTMLElement | null): boolean => !!el && el.offsetParent !== null;
+
+      const repositionAndRecolor = () => {
+        const parent = wrapper!.parentElement;
+        if (!parent) return;
+        const { view, edit } = pickButtons(parent);
+        const anchor = (isVisible(edit) ? edit : null) || (isVisible(view) ? view : null) || initialAnchor;
+        if (anchor && anchor.nextSibling !== wrapper) {
+          parent.insertBefore(wrapper!, anchor.nextSibling);
+          // eslint-disable-next-line no-console
+          console.debug('[VivlioDBG][ExternalToggle] reposition (cycle)', { anchor: normalizeLabel(anchor) });
         }
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn('[VivlioDBG][ExternalToggle] vivid complement error', err);
-      }
-      primaryAnchorRef.current = anchor;
+        // クラス継承 (表示基準 anchor)
+        if (anchor) setAnchorClasses(anchor.className);
+        // 色計算
+        try {
+          const cs = window.getComputedStyle(anchor || initialAnchor);
+          let baseColor = cs.borderColor;
+          if (isTransparent(baseColor)) baseColor = cs.backgroundColor;
+          if (isTransparent(baseColor)) baseColor = cs.color;
+          if (baseColor && baseColor !== lastBaseColorRef.current) {
+            const res = computePureComplement(baseColor);
+            if (res) {
+              wrapper!.style.setProperty('--vivlio-comp-color', res.compHex);
+              wrapper!.style.setProperty('--vivlio-comp-fg', res.fg);
+              lastBaseColorRef.current = baseColor;
+              // eslint-disable-next-line no-console
+              console.debug('[VivlioDBG][ExternalToggle] color recomputed', { baseColor, res });
+            }
+          }
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn('[VivlioDBG][ExternalToggle] color compute error', e);
+        }
+      };
+
+      // 初回計算
+      repositionAndRecolor();
+      primaryAnchorRef.current = initialAnchor;
       setWrapperEl(wrapper);
       resolvedRef.current = true;
       if (observerRef.current) {
@@ -139,48 +161,21 @@ export const ExternalToggle: React.FC = () => {
         observerRef.current = null;
       }
           // eslint-disable-next-line no-console
-          console.debug('[VivlioDBG][ExternalToggle] attached to anchor', { anchorSel: anchor.className, text: normalizeLabel(anchor) });
+          console.debug('[VivlioDBG][ExternalToggle] attached to anchor', { anchorSel: initialAnchor.className, text: normalizeLabel(initialAnchor) });
 
-      // 親の子要素変化を監視して再配置 & 色再計算
+      // 親の子要素 + 属性変化を監視 (表示/非表示, class変更)
       if (wrapper.parentElement && !reorderObserverRef.current) {
         const parent = wrapper.parentElement;
-        reorderObserverRef.current = new MutationObserver(() => {
-          if (!wrapper || !parent) return;
-          const children = Array.from(parent.children) as HTMLElement[];
-          // view / edit ラベルを持つ最後の要素を探す（wrapper自身は除外）
-          const target = [...children].reverse().find(el => el !== wrapper && /\b(edit|view)\b/i.test(normalizeLabel(el)));
-          if (target && target.nextSibling !== wrapper) {
-            parent.insertBefore(wrapper, target.nextSibling);
-            // eslint-disable-next-line no-console
-            console.debug('[VivlioDBG][ExternalToggle] reposition wrapper after resize', { target: normalizeLabel(target) });
-          }
-          // anchor 要素が差し替わった場合、色再計算
-          const newAnchor = children.find(el => el !== wrapper && /\bedit\b/i.test(normalizeLabel(el)));
-          if (newAnchor && newAnchor !== primaryAnchorRef.current) {
-            primaryAnchorRef.current = newAnchor;
-            try {
-              const cs2 = window.getComputedStyle(newAnchor);
-              let baseColor2 = cs2.borderColor;
-              const isTr = (c: string) => !c || c === 'transparent' || /rgba\(\s*0+\s*,\s*0+\s*,\s*0+\s*,\s*0?\.?0*\s*\)/i.test(c);
-              if (isTr(baseColor2)) baseColor2 = cs2.backgroundColor;
-              if (isTr(baseColor2)) baseColor2 = cs2.color;
-              if (baseColor2 && baseColor2 !== lastBaseColorRef.current) {
-                const res = computeVividComplement(baseColor2);
-                if (res) {
-                  wrapper.style.setProperty('--vivlio-comp-color', res.compHex);
-                  wrapper.style.setProperty('--vivlio-comp-fg', res.fg);
-                  lastBaseColorRef.current = baseColor2;
-                  // eslint-disable-next-line no-console
-                  console.debug('[VivlioDBG][ExternalToggle] vivid complement recalculated', { baseColor2, res });
-                }
-              }
-            } catch (e) {
-              // eslint-disable-next-line no-console
-              console.warn('[VivlioDBG][ExternalToggle] recolor error', e);
-            }
-          }
-        });
-        reorderObserverRef.current.observe(parent, { childList: true });
+        let rafId: number | null = null;
+        const schedule = () => {
+          if (rafId != null) return;
+          rafId = window.requestAnimationFrame(() => {
+            rafId = null;
+            repositionAndRecolor();
+          });
+        };
+        reorderObserverRef.current = new MutationObserver(schedule);
+        reorderObserverRef.current.observe(parent, { childList: true, subtree: true, attributes: true, attributeFilter: ['style','class'] });
       }
     }
 
