@@ -126,7 +126,8 @@ export const ExternalToggle: React.FC = () => {
         const rgb = parseToRgb(color);
         if (!rgb) return null;
         const { h, s, l } = rgbToHsl(rgb.r, rgb.g, rgb.b);
-        const compHex = hslToHex((h+180)%360, s, l);
+        // H+180°, S強制的に0.8 (80%), L保持
+        const compHex = hslToHex((h+180)%360, 80, l);
         const luminance = (0.2126*rgb.r + 0.7152*rgb.g + 0.0722*rgb.b)/255;
         const fg = luminance>0.55 ? '#000' : '#fff';
         return { compHex, fg };
@@ -146,13 +147,28 @@ export const ExternalToggle: React.FC = () => {
         if (!parent) return;
         const { view, edit } = pickButtons(parent);
         const anchor = (isVisible(edit) ? edit : null) || (isVisible(view) ? view : null) || initialAnchor;
-        // 無限再配置を防ぐため、現在位置と違う場合のみ移動
-        // anchorの直後にwrapperがあるか (要素ノードのみ) を確認し、異なれば再配置
-        if (anchor && wrapper!.previousElementSibling !== anchor) {
-          parent.insertBefore(wrapper!, anchor.nextElementSibling);
-          // eslint-disable-next-line no-console
-          console.debug('[VivlioDBG][ExternalToggle] reposition (cycle)', { anchor: normalizeLabel(anchor) });
+        
+        // より厳密な再配置判定: anchor が存在し、かつ wrapper が anchor の直後にない場合のみ移動
+        const currentPosition = wrapper!.previousElementSibling;
+        const needsReposition = anchor && currentPosition !== anchor;
+        
+        if (needsReposition) {
+          // 無限ループ防止: 同じ anchor への移動を短時間で繰り返さない
+          const now = Date.now();
+          const lastMoveKey = `${normalizeLabel(anchor)}`;
+          const lastMoveTime = (repositionAndRecolor as any).lastMoveMap?.[lastMoveKey] || 0;
+          
+          if (now - lastMoveTime > 100) { // 100ms のデバウンス
+            parent.insertBefore(wrapper!, anchor.nextElementSibling);
+            // eslint-disable-next-line no-console
+            console.debug('[VivlioDBG][ExternalToggle] reposition (cycle)', { anchor: normalizeLabel(anchor) });
+            
+            // 移動時刻を記録
+            if (!(repositionAndRecolor as any).lastMoveMap) (repositionAndRecolor as any).lastMoveMap = {};
+            (repositionAndRecolor as any).lastMoveMap[lastMoveKey] = now;
+          }
         }
+        
         // クラス継承 (表示基準 anchor)
         if (anchor) setAnchorClasses(anchor.className);
         // 色計算
