@@ -267,6 +267,29 @@ export const ExternalToggle: React.FC = () => {
     window.addEventListener('hashchange', checkHashAndAttach);
     window.addEventListener('popstate', checkHashAndAttach);
 
+    // SPA や動的レンダリングで hash/popstate が発生しない遷移を検知するための DOM 監視
+    // DOM の変化があれば軽く debounce して判定を再実行する。
+    let navObserver: MutationObserver | null = null;
+    let navRaf: number | null = null;
+    const scheduleNavCheck = () => {
+      if (navRaf != null) return;
+      navRaf = window.requestAnimationFrame(() => {
+        navRaf = null;
+        try { checkHashAndAttach(); } catch (e) { /* ignore */ }
+      });
+    };
+    try {
+      navObserver = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          if (m.type === 'childList' && (m.addedNodes?.length || m.removedNodes?.length)) { scheduleNavCheck(); break; }
+          if (m.type === 'attributes') { scheduleNavCheck(); break; }
+        }
+      });
+      navObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class','style'] });
+    } catch (e) {
+      // ignore in restricted environments
+    }
+
     // ポーリング/observer を管理するヘルパ
     let pollTimer: number | null = null;
     let pollCount = 0;
@@ -321,6 +344,8 @@ export const ExternalToggle: React.FC = () => {
     return () => {
       window.removeEventListener('hashchange', checkHashAndAttach);
       window.removeEventListener('popstate', checkHashAndAttach);
+  try { if (navObserver) { navObserver.disconnect(); navObserver = null; } } catch {}
+  try { if (navRaf != null) { cancelAnimationFrame(navRaf); navRaf = null; } } catch {}
       // ensure full cleanup
       detachIfAttached();
       stopPollingAndObserver();
