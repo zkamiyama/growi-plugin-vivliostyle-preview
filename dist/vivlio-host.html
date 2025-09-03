@@ -32,9 +32,8 @@
     // 親ウィンドウからのメッセージを待つ
     window.addEventListener('message', (event) => {
       // 安全のためオリジンをチェックすべきだが、デバッグ中は一旦省略
-      const { type, html } = event.data || {};
-
-      if (type === 'update' && typeof html === 'string') {
+  const { type, html } = event.data || {};
+  if (type === 'markdown:update' && typeof html === 'string') {
         // Vivliostyle.js があれば、それを使ってロードする
         if (window.Vivliostyle) {
           // 既存のビューをクリーンアップ
@@ -55,7 +54,7 @@
 
     // 親ウィンドウに準備完了を通知
     if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: 'ready' }, '*');
+      window.parent.postMessage({ type: 'vivlio:ready' }, '*');
     }
   </script>
 </body>

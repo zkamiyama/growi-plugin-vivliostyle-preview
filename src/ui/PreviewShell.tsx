@@ -31,8 +31,9 @@ const PreviewShell: React.FC = () => {
     iframe.contentWindow.postMessage({ type: 'markdown:update', html }, '*');
   }, [markdown]);
 
+  if (!isOpen) return null; // 最低限: ボタン押下時のみ挿入
   return (
-    <div style={{ width: '100%', height: '100%' }}>
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <VivliostyleFrame />
     </div>
   );
