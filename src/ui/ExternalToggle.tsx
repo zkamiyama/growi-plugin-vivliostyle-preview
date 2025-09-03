@@ -147,7 +147,7 @@ export const ExternalToggle: React.FC = () => {
       title="Toggle Vivliostyle Preview"
       data-vivlio-toggle="true"
     >
-      {isOpen ? 'Close Vivliostyle' : 'Vivliostyle Preview'}
+      Vivliostyle
     </button>,
     wrapperEl
   );

@@ -49,11 +49,6 @@ const PreviewShell: React.FC = () => {
 
   return (
     <div className={`vivlio-preview ${isOpen ? 'is-open' : 'is-closed'}`}>
-      <div className="vivlio-toolbar">
-        <button onClick={toggle} aria-expanded={isOpen}>
-          {isOpen ? 'Close Vivliostyle' : 'Open Vivliostyle'}
-        </button>
-      </div>
       <div className="vivlio-body" role="region" aria-label="Vivliostyle preview">
         {isOpen && <VivliostyleFrame />}
       </div>

@@ -28,7 +28,7 @@ export const FloatingToggle: React.FC = () => {
       style={btnStyle}
       title="Vivliostyle Preview"
     >
-      {isOpen ? 'Close Vivliostyle' : 'Vivliostyle'}
+      Vivliostyle
     </button>
   );
 };

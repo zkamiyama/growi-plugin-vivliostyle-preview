@@ -36,7 +36,7 @@ describe('PreviewShell (with AppContext)', () => {
     return render(<PreviewShell />);
   };
 
-  it('closed state: button renders and iframe absent', () => {
+  it('closed state: internal preview shell has no iframe', () => {
     renderWithContext({
       isOpen: false,
       toggle: mockToggle,
@@ -44,22 +44,7 @@ describe('PreviewShell (with AppContext)', () => {
       html: '',
       updateViewer: mockUpdateViewer,
     });
-    const button = screen.getByRole('button', { name: /Open Vivliostyle/i });
-    expect(button).toBeInTheDocument();
     expect(screen.queryByTitle(/Vivliostyle Viewer/i)).not.toBeInTheDocument();
-  });
-
-  it('click toggles when closed', () => {
-    renderWithContext({
-      isOpen: false,
-      toggle: mockToggle,
-      markdown: '# Hello',
-      html: '',
-      updateViewer: mockUpdateViewer,
-    });
-    const button = screen.getByRole('button', { name: /Open Vivliostyle/i });
-    fireEvent.click(button);
-    expect(mockToggle).toHaveBeenCalledTimes(1);
   });
 
   it('open state: iframe present and updateViewer called', () => {
@@ -70,8 +55,6 @@ describe('PreviewShell (with AppContext)', () => {
       html: '',
       updateViewer: mockUpdateViewer,
     });
-    const button = screen.getByRole('button', { name: /Close Vivliostyle/i });
-    expect(button).toBeInTheDocument();
     expect(screen.getByTitle(/Vivliostyle Viewer/i)).toBeInTheDocument();
     expect(mockUpdateViewer).toHaveBeenCalledWith('<h1>Hello</h1>\n');
   });
