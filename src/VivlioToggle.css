@@ -4,9 +4,9 @@
  * - Active state uses inverted (filled) style
  */
 .vivlio-inline-toggle .vivlio-toggle-btn {
-  font-size: 12px;
-  line-height: 1.1;
-  padding: 2px 8px;
+  font-size: 0.875rem; /* 多くのテーマの btn-sm 相当 */
+  line-height: 1.25;
+  padding: 4px 10px; /* View/Edit ボタンと高さ感を揃える */
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
@@ -16,7 +16,9 @@
   background: var(--vivlio-off-bg, transparent);
   color: var(--vivlio-off-color, var(--bs-secondary-color, #6c757d));
   max-width: 120px; /* safety */
-  transition: background-color .15s, color .15s, border-color .15s;
+  transition: background-color .15s, color .15s, border-color .15s, box-shadow .15s;
+  box-sizing: border-box;
+  vertical-align: middle;
 }
 
 .vivlio-inline-toggle .vivlio-toggle-btn:focus-visible {
@@ -29,12 +31,14 @@
   background: var(--vivlio-off-bg, transparent);
   color: var(--vivlio-off-color, var(--bs-secondary-color, #6c757d));
   border-color: var(--vivlio-off-border, var(--bs-secondary, #6c757d));
+  text-decoration: none;
 }
 
 .vivlio-inline-toggle .vivlio-toggle-btn.is-active {
   background: var(--bs-primary, #0d6efd);
   color: #fff;
   border-color: var(--bs-primary, #0d6efd);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.15) inset;
 }
 
 .vivlio-inline-toggle .vivlio-toggle-btn.is-active:hover {
