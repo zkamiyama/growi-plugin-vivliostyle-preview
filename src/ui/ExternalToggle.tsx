@@ -3,6 +3,7 @@
 // DOM 構造に強く依存しないよう、特定の既知クラスを探索し最初に見つかった要素の直後に差し込む。
 import * as React from 'react';
 import { useAppContext } from '../context/AppContext';
+import '../VivlioToggle.css';
 import { createPortal } from 'react-dom';
 
 /**
@@ -141,11 +142,23 @@ export const ExternalToggle: React.FC = () => {
     };
   }, []);
 
+  // ラベル溢れ検出用
+  const btnRef = React.useRef<HTMLButtonElement | null>(null);
+  const [isOverflow, setIsOverflow] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!btnRef.current) return;
+    const el = btnRef.current;
+    const overflow = el.scrollWidth > el.clientWidth;
+    if (overflow !== isOverflow) setIsOverflow(overflow);
+  }, [isOpen, wrapperEl]);
+
   if (!wrapperEl) return null;
   return createPortal(
     <button
+      ref={btnRef}
       type="button"
-      className={`btn btn-sm ${isOpen ? 'btn-secondary' : 'btn-outline-secondary'}`}
+      className={`vivlio-toggle-btn btn btn-sm ${isOpen ? 'is-active' : ''} ${isOverflow ? 'is-overflowing' : ''}`}
       onClick={(e) => {
         // eslint-disable-next-line no-console
         console.debug('[VivlioDBG][ExternalToggle] click', { isOpenBefore: isOpen, time: Date.now() });
