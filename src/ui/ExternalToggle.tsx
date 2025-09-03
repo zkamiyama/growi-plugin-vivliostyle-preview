@@ -262,63 +262,68 @@ export const ExternalToggle: React.FC = () => {
       }
     };
 
-    // 初回チェックと hashchange 監視
+    // 初回チェックと hash/popstate 監視
     checkHashAndAttach();
     window.addEventListener('hashchange', checkHashAndAttach);
+    window.addEventListener('popstate', checkHashAndAttach);
 
-    return () => {
-      window.removeEventListener('hashchange', checkHashAndAttach);
-      // ensure full cleanup
-      detachIfAttached();
-    };
-
-    // 2) ポーリング (早期 DOM 未構築ケース) + 3回
+    // ポーリング/observer を管理するヘルパ
+    let pollTimer: number | null = null;
     let pollCount = 0;
     const maxPoll = 3;
     const pollInterval = 400;
-    const pollTimer = setInterval(() => {
-      if (resolvedRef.current) return;
-      const found = findAnchorOnce();
-      if (found) {
-        attach(found);
-        clearInterval(pollTimer);
-        return;
-      }
-      pollCount += 1;
-      if (pollCount >= maxPoll) {
-        clearInterval(pollTimer);
-      }
-    }, pollInterval);
 
-    // 3) MutationObserver (最終手段) - body 配下を監視して候補が追加されたら即 attach
-  const obs = new MutationObserver((mutations) => {
-      if (resolvedRef.current) return;
-      for (const m of mutations) {
-        if (!m.addedNodes?.length) continue;
-        for (const node of Array.from(m.addedNodes)) {
-          if (!(node instanceof HTMLElement)) continue;
-            // 追加ノード自体 or 子孫に anchor が含まれるか
+    const startPollingAndObserver = () => {
+      // 既に開始済みなら何もしない
+      if (pollTimer != null || observerRef.current) return;
+      pollCount = 0;
+      pollTimer = window.setInterval(() => {
+        if (resolvedRef.current) { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } return; }
+        const found = findAnchorOnce();
+        if (found) {
+          attach(found);
+          if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+          return;
+        }
+        pollCount += 1;
+        if (pollCount >= maxPoll) {
+          if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        }
+      }, pollInterval);
+
+      const obs = new MutationObserver((mutations) => {
+        if (resolvedRef.current) return;
+        for (const m of mutations) {
+          if (!m.addedNodes?.length) continue;
+          for (const node of Array.from(m.addedNodes)) {
+            if (!(node instanceof HTMLElement)) continue;
             const direct = findAnchorOnce();
             if (direct) {
               attach(direct);
               return;
             }
+          }
         }
-      }
-    });
-    observerRef.current = obs;
-    obs.observe(document.body, { subtree: true, childList: true });
+      });
+      observerRef.current = obs;
+      obs.observe(document.body, { subtree: true, childList: true });
+    };
+
+    const stopPollingAndObserver = () => {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      if (observerRef.current) { try { observerRef.current.disconnect(); } catch {} observerRef.current = null; }
+    };
+
+    // checkHashAndAttach 内で attach された場合にポーリング/observer を止める
+    // ただしハッシュがある状態でまだ attach されていない可能性があるため、ハッシュ有効時は開始
+    if (hasEditHash()) startPollingAndObserver();
 
     return () => {
-      clearInterval(pollTimer);
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-        observerRef.current = null;
-      }
-      if (reorderObserverRef.current) {
-        reorderObserverRef.current.disconnect();
-        reorderObserverRef.current = null;
-      }
+      window.removeEventListener('hashchange', checkHashAndAttach);
+      window.removeEventListener('popstate', checkHashAndAttach);
+      // ensure full cleanup
+      detachIfAttached();
+      stopPollingAndObserver();
     };
   }, []);
 
