@@ -76,8 +76,10 @@ function mount() {
   root.render(
     <React.StrictMode>
       <AppProvider>
-        <PreviewShell />
-        <ExternalToggle />
+        <div style={{ display: 'contents' }}>
+          <PreviewShell />
+          <ExternalToggle />
+        </div>
       </AppProvider>
     </React.StrictMode>
   );
