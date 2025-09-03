@@ -126,10 +126,10 @@ export const ExternalToggle: React.FC = () => {
         const rgb = parseToRgb(color);
         if (!rgb) return null;
         const { h, s, l } = rgbToHsl(rgb.r, rgb.g, rgb.b);
-        // H+180°, S強制的に0.8 (80%), L保持
-        const compHex = hslToHex((h+180)%360, 80, l);
-        const luminance = (0.2126*rgb.r + 0.7152*rgb.g + 0.0722*rgb.b)/255;
-        const fg = luminance>0.55 ? '#000' : '#fff';
+        // H+180°, S強制的に0.8 (80%), L を明度高め (70%) に設定してView風に
+        const compHex = hslToHex((h+180)%360, 80, 70);
+        // 明度が高いので前景色は黒
+        const fg = '#000';
         return { compHex, fg };
       }
 
