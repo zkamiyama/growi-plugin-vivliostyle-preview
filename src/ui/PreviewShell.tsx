@@ -33,34 +33,32 @@ const PreviewShell: React.FC = () => {
   }, [markdown, isOpen, updateViewer]);
 
   React.useEffect(() => {
-    const originalPreviewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
+    // 既存プレビュー本体 (中身) のみを消す
+    const originalPreviewBody = document.querySelector('.page-editor-preview-body') as HTMLElement | null;
     const vivlioHost = document.getElementById('vivlio-preview-container');
-    if (!originalPreviewContainer || !vivlioHost) return;
-
-    const origDisplay = originalPreviewContainer.style.display;
-    const vivlioDisplay = vivlioHost.style.display;
+    if (!vivlioHost) return;
+    const originalBodyDisplay = originalPreviewBody?.style.display || '';
 
     if (isOpen) {
-      originalPreviewContainer.style.display = 'none';
+      if (originalPreviewBody) originalPreviewBody.style.display = 'none';
       vivlioHost.style.display = 'flex';
     } else {
-      originalPreviewContainer.style.display = origDisplay || '';
+      if (originalPreviewBody) originalPreviewBody.style.display = originalBodyDisplay || '';
       vivlioHost.style.display = 'none';
     }
 
     return () => {
-      originalPreviewContainer.style.display = origDisplay || '';
-      vivlioHost.style.display = vivlioDisplay || 'none';
+      if (originalPreviewBody) originalPreviewBody.style.display = originalBodyDisplay || '';
+      vivlioHost.style.display = 'none';
     };
   }, [isOpen]);
 
+  if (!isOpen) return null;
   return (
     <div className="vivlio-preview" role="region" aria-label="Vivliostyle preview">
-      {isOpen && (
-        <div className="vivlio-body">
-          <VivliostyleFrame />
-        </div>
-      )}
+      <div className="vivlio-body">
+        <VivliostyleFrame />
+      </div>
     </div>
   );
 };

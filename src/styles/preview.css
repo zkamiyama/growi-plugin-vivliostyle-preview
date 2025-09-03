@@ -1,7 +1,8 @@
 /* styles/preview.css (container replacement mode) */
 
 #vivlio-preview-container {
-  /* client-entry で初期 display:none。open 時に flex に */
+  /* previewコンテナ内部で置換される領域 */
+  position: relative;
   width: 100%;
   height: 100%;
 }

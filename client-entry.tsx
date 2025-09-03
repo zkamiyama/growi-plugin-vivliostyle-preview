@@ -22,18 +22,13 @@ function mount() {
     setTimeout(mount, 200); // リトライ
     return;
   }
-  const parent = previewContainer.parentElement;
-  if (!parent) {
-    console.warn('[vivlio] preview container has no parent');
-    return;
-  }
   let host = document.getElementById(CONTAINER_ID);
   if (!host) {
     host = document.createElement('div');
     host.id = CONTAINER_ID;
-    host.style.display = 'none'; // 初期は非表示
-    // 既存プレビュー直後に挿入
-    parent.insertBefore(host, previewContainer.nextSibling);
+    host.style.display = 'none'; // 初期は非表示（Vivliostyle閉）
+    // 既存プレビューコンテナ内部に配置（置換対象領域を限定）
+    previewContainer.appendChild(host);
   }
 
   const root = createRoot(host);
