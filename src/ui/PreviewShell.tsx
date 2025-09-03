@@ -4,37 +4,54 @@ import VivliostyleFrame from './VivliostyleFrame';
 import { useAppContext } from '../context/AppContext';
 
 // simple markdown -> html (temporary; will be replaced by VFM pipeline)
-import MarkdownIt from 'markdown-it';
-const md = new MarkdownIt();
+// NOTE: Jest (CJS) と ESM の相互運用の差異で default が存在しないケースに対応
+// eslint-disable-next-line import/no-namespace
+import * as MarkdownIt from 'markdown-it';
+// markdown-it の型は default export 前提だが * as で受け取るためコンストラクタを取り出す
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const MDCtor: any = (MarkdownIt as any).default || (MarkdownIt as any);
+const md = new MDCtor();
 
 const PreviewShell: React.FC = () => {
   const { isOpen, markdown } = useAppContext();
 
+  // デバッグ: トグル変化を記録 (既存プレビューは触らず)  
   React.useEffect(() => {
     const previewContainer = document.getElementById('vivlio-preview-container');
-    const originalPreview = document.querySelector('.page-editor-preview-body');
-    if (!previewContainer || !originalPreview) return;
-    if (isOpen) {
-      previewContainer.style.display = 'block';
-      (originalPreview as HTMLElement).style.display = 'none';
-    } else {
-      previewContainer.style.display = 'none';
-      (originalPreview as HTMLElement).style.display = 'block';
+    if (previewContainer) {
+      // 単純化: isOpen のときだけ自分を表示、閉じたら非表示
+      previewContainer.style.display = isOpen ? 'block' : 'none';
     }
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG] isOpen effect fired', { isOpen, hasContainer: !!previewContainer });
   }, [isOpen]);
 
-  // send rendered HTML to iframe
+  // markdown 更新時 iframe へ反映 (開いている時のみ送れば十分だが単純化)
   React.useEffect(() => {
     const iframe = document.getElementById('vivlio-iframe') as HTMLIFrameElement | null;
-    if (!iframe || !iframe.contentWindow) return;
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG] markdown effect', { length: markdown?.length, isOpen, hasIframe: !!iframe });
+    if (!isOpen) return;
+    if (!iframe || !iframe.contentWindow) {
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG] iframe not ready yet');
+      return;
+    }
     const html = md.render(markdown || '');
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG] posting message to iframe', { htmlPreview: html.slice(0, 60) });
     iframe.contentWindow.postMessage({ type: 'markdown:update', html }, '*');
-  }, [markdown]);
+  }, [markdown, isOpen]);
 
-  if (!isOpen) return null; // 最低限: ボタン押下時のみ挿入
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-      <VivliostyleFrame />
+    <div
+      data-vivlio-shell
+      style={{ width: '100%', height: '100%', position: 'relative' }}
+      aria-hidden={!isOpen}
+    >
+      {isOpen && (
+        <VivliostyleFrame />
+      )}
     </div>
   );
 };

@@ -18,13 +18,17 @@ export function useEditorMarkdown(opts: Options = {}) {
     // TODO: GROWIの正規APIで購読に置き換え
     const textarea = document.querySelector<HTMLTextAreaElement>('textarea.editor') 
       || document.querySelector<HTMLTextAreaElement>('#page-editor textarea');
+  // eslint-disable-next-line no-console
+  console.debug('[VivlioDBG] useEditorMarkdown: textarea lookup', { found: !!textarea });
 
     const handler = () => {
       const val = textarea?.value ?? '';
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG] useEditorMarkdown: input event', { length: val.length });
       setDebounced(val);
     };
 
-    handler(); // 初期取得
+  handler(); // 初期取得
     textarea?.addEventListener('input', handler);
     return () => {
       textarea?.removeEventListener('input', handler);

@@ -36,12 +36,14 @@ describe('PreviewShell (with AppContext)', () => {
     return render(<PreviewShell />);
   };
 
-  it('closed state: internal preview shell has no iframe', () => {
+  it('closed state: shell exists but iframe not rendered', () => {
     renderWithContext({
       isOpen: false,
       toggle: mockToggle,
       markdown: '# Hello',
     });
+    // コンテナは data-vivlio-shell 属性で判別
+    expect(document.querySelector('[data-vivlio-shell]')).toBeTruthy();
     expect(screen.queryByTitle(/Vivliostyle Viewer/i)).not.toBeInTheDocument();
   });
 

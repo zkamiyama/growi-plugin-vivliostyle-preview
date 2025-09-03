@@ -11,6 +11,8 @@ const PLUGIN_ID = config.name;
 const CONTAINER_ID = 'vivlio-preview-container';
 
 function mount() {
+  // eslint-disable-next-line no-console
+  console.debug('[VivlioDBG] activate -> mount called, readyState=', document.readyState);
   if (document.readyState === 'loading') {
     // GROWI の遅延ロードタイミングで body 未準備だと失敗することがあるため待機
     document.addEventListener('DOMContentLoaded', () => mount(), { once: true });
@@ -20,6 +22,8 @@ function mount() {
   // --- プレビュー & トグル単一ルートマウント ---
   const previewContainer = document.querySelector('.page-editor-preview-container');
   if (!previewContainer) {
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG] previewContainer not found, retry scheduling');
     setTimeout(mount, 200); // リトライ
     return;
   }
@@ -27,11 +31,15 @@ function mount() {
   if (!host) {
     host = document.createElement('div');
     host.id = CONTAINER_ID;
-    host.style.display = 'none'; // 初期は非表示
+    // 初期表示は既存プレビューと同じ扱い。実際の表示切替は PreviewShell の副作用で行う。
     previewContainer.appendChild(host);
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG] host container created and appended');
   }
 
   const root = createRoot(host);
+  // eslint-disable-next-line no-console
+  console.debug('[VivlioDBG] React root created, rendering...');
   root.render(
     <React.StrictMode>
       <AppProvider>
@@ -41,23 +49,33 @@ function mount() {
     </React.StrictMode>
   );
   (window as any).__vivlio_root = root; // 後でunmount用に保持
+  // eslint-disable-next-line no-console
+  console.debug('[VivlioDBG] mount finished');
 }
 
 function unmount() {
+  // eslint-disable-next-line no-console
+  console.debug('[VivlioDBG] unmount called');
   const root = (window as any).__vivlio_root;
   if (root) {
     root.unmount();
     delete (window as any).__vivlio_root;
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG] root unmounted');
   }
   const host = document.getElementById(CONTAINER_ID);
   if (host?.parentNode) host.parentNode.removeChild(host);
 }
 
 const activate = () => {
+  // eslint-disable-next-line no-console
+  console.debug('[VivlioDBG] activate() invoked');
   mount();
 };
 
 const deactivate = () => {
+  // eslint-disable-next-line no-console
+  console.debug('[VivlioDBG] deactivate() invoked');
   unmount();
 };
 
