@@ -12,10 +12,11 @@
   align-items: center;
   gap: 4px;
   border-radius: 4px;
-  border: 1px solid var(--bs-secondary, #6c757d);
-  background: transparent;
-  color: var(--bs-secondary-color, #6c757d);
+  border: 1px solid var(--vivlio-off-border, var(--bs-secondary, #6c757d));
+  background: var(--vivlio-off-bg, transparent);
+  color: var(--vivlio-off-color, var(--bs-secondary-color, #6c757d));
   max-width: 120px; /* safety */
+  transition: background-color .15s, color .15s, border-color .15s;
 }
 
 .vivlio-inline-toggle .vivlio-toggle-btn:focus-visible {
@@ -24,7 +25,10 @@
 }
 
 .vivlio-inline-toggle .vivlio-toggle-btn:hover:not(.is-active) {
-  background: rgba(0,0,0,0.06);
+  /* Edit ボタンと同一感を維持するため背景色を維持 */
+  background: var(--vivlio-off-bg, transparent);
+  color: var(--vivlio-off-color, var(--bs-secondary-color, #6c757d));
+  border-color: var(--vivlio-off-border, var(--bs-secondary, #6c757d));
 }
 
 .vivlio-inline-toggle .vivlio-toggle-btn.is-active {

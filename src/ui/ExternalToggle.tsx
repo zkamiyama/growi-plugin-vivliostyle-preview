@@ -80,6 +80,32 @@ export const ExternalToggle: React.FC = () => {
             // eslint-disable-next-line no-console
             console.debug('[VivlioDBG][ExternalToggle] wrapper created & inserted', { time: Date.now(), parent: anchor.parentElement.className, anchorText: normalizeLabel(anchor) });
       }
+
+      // OFF状態配色を Edit ボタンと揃える: anchor から算出スタイルを取得し CSS 変数として付与
+      try {
+        const targetForStyle = (() => {
+          // 明示的に "edit" を含むボタンを優先探索
+          const explicitEdit = Array.from(document.querySelectorAll('button, a'))
+            .find(el => /\bedit\b/i.test(normalizeLabel(el)) && el instanceof HTMLElement) as HTMLElement | undefined;
+          return explicitEdit || anchor;
+        })();
+        const cs = window.getComputedStyle(targetForStyle);
+        wrapper.style.setProperty('--vivlio-off-bg', cs.backgroundColor || 'transparent');
+        wrapper.style.setProperty('--vivlio-off-color', cs.color || '#6c757d');
+        // 枠線色 (borderColor は結合色の場合があるので優先度順にピック)
+        const borderColor = cs.borderColor && cs.borderColor !== 'rgba(0, 0, 0, 0)' ? cs.borderColor : '#6c757d';
+        wrapper.style.setProperty('--vivlio-off-border', borderColor);
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][ExternalToggle] captured edit style', {
+          fromEdit: targetForStyle !== anchor,
+          bg: cs.backgroundColor,
+          color: cs.color,
+          border: borderColor,
+        });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[VivlioDBG][ExternalToggle] failed to capture style', e);
+      }
       setWrapperEl(wrapper);
       resolvedRef.current = true;
       if (observerRef.current) {
