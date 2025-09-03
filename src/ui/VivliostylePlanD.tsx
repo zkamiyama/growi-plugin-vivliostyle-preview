@@ -9,15 +9,20 @@ interface VivliostylePlanDProps {
 }
 
 export const VivliostylePlanD: React.FC<VivliostylePlanDProps> = ({ markdown, isVisible }) => {
-  const [html, setHtml] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
 
   useEffect(() => {
     if (markdown && isVisible) {
       const fullHtml = stringify(markdown);
-      // <base> タグを追加して相対パスを解決
-      const baseHref = window.location.origin + '/';
-      const finalHtml = fullHtml.replace('<head>', `<head><base href="${baseHref}">`);
-      setHtml(finalHtml);
+      const blob = new Blob([fullHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      setSourceUrl(url);
+
+      // クリーンアップ関数
+      return () => {
+        URL.revokeObjectURL(url);
+        setSourceUrl('');
+      };
     }
   }, [markdown, isVisible]);
 
@@ -50,12 +55,12 @@ export const VivliostylePlanD: React.FC<VivliostylePlanDProps> = ({ markdown, is
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontWeight: 'bold', color: '#155724' }}>🚀 PLAN D</span>
-          <span style={{ color: '#666' }}>@vivliostyle/react</span>
+          <span style={{ color: '#666' }}>@vivliostyle/react (Blob URL)</span>
         </div>
       </div>
       <div style={{ flex: 1, overflow: 'auto' }}>
-        {html ? (
-          <Renderer source={html} />
+        {sourceUrl ? (
+          <Renderer source={sourceUrl} />
         ) : (
           <div style={{ padding: '2em', textAlign: 'center', color: '#666' }}>
             Markdownコンテンツを待っています...
