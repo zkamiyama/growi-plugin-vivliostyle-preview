@@ -5,7 +5,7 @@
 
 // (renamed copy note) 元ファイル内容。build が参照していない可能性が高い。
 // TEMP: will refactor; import auxiliary minimal plugin (renders non-paginated HTML via growiFacade when available)
-// import './src/plugin.ts';  // Disabled mini scaffold plugin to avoid persistent placeholder
+// import './src/plugin.ts';  // Disabled mini plugin to avoid persistent placeholder
 import MarkdownIt from 'markdown-it';
 // @ts-ignore
 import markdownItRuby from 'markdown-it-ruby';
@@ -311,18 +311,26 @@ function ensureVivlioPanel(){
   if(vivlioPanel && vivlioPanel.isConnected) return vivlioPanel;
   const bodyEl=resolvePreviewBody();
   if(!bodyEl) return null;
-  const host=bodyEl.parentElement||document.body;
+  const host = bodyEl.parentElement; // The container
+  if (!host) return null;
+
+  // Make host a positioning context
+  if (getComputedStyle(host).position === 'static') {
+    host.style.position = 'relative';
+  }
+
   vivlioPanel=document.createElement('div');
   vivlioPanel.className='vivlio-panel';
   Object.assign(vivlioPanel.style,{
-    display:'none',
-    width:'100%',
-    height:'100%',
-    overflow:'auto',
-    background:'#fff',
-    position:'relative'
+    position: 'absolute',
+    inset: '0',
+    width: '100%',
+    height: '100%',
+    overflow: 'auto',
+    background: '#fff',
+    visibility: 'hidden', // Initially hidden
   });
-  host.insertBefore(vivlioPanel, bodyEl.nextSibling);
+  host.appendChild(vivlioPanel); // Append to host, not after bodyEl
   return vivlioPanel;
 }
 
@@ -480,15 +488,16 @@ function updateToggleActive() {
     toggleBtn.classList.toggle('btn-primary', currentMode === 'vivlio');
     toggleBtn.classList.toggle('btn-outline-secondary', currentMode !== 'vivlio');
   }
-  const bodyEl=resolvePreviewBody();
-  if(bodyEl){
-    if(currentMode==='markdown'){
-      bodyEl.style.display='';
-      if(vivlioPanel) vivlioPanel.style.display='none';
+  const bodyEl = resolvePreviewBody();
+  if (bodyEl) {
+    // 'display' から 'visibility' に変更してレイアウトを維持
+    if (currentMode === 'markdown') {
+      bodyEl.style.visibility = 'visible';
+      if (vivlioPanel) vivlioPanel.style.visibility = 'hidden';
     } else {
       ensureVivlioPanel();
-      if(vivlioPanel) vivlioPanel.style.display='block';
-      bodyEl.style.display='none';
+      bodyEl.style.visibility = 'hidden';
+      if (vivlioPanel) vivlioPanel.style.visibility = 'visible';
     }
   }
 }
