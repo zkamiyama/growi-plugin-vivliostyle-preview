@@ -43,10 +43,22 @@ function mount() {
   console.debug('[VivlioDBG][mount] query preview container', { found: !!previewContainer, candidates: PREVIEW_CONTAINER_CANDIDATES });
   if (!previewContainer) {
   // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][mount] previewContainer not found, retry scheduling (200ms)');
-    setTimeout(() => {
-      if (!(window as any).__vivlio_root) mount();
-    }, 200); // リトライ
+    console.debug('[VivlioDBG][mount] previewContainer not found, will retry on navigation (hash/popstate) or DOMContentLoaded');
+    // Avoid busy-loop retries. Retry once when navigation/hash changes or when DOMContentLoaded fires.
+    const retryHandler = () => {
+      try {
+        if (!(window as any).__vivlio_root) mount();
+      } finally {
+        window.removeEventListener('hashchange', retryHandler as EventListener);
+        window.removeEventListener('popstate', retryHandler as EventListener);
+        document.removeEventListener('DOMContentLoaded', retryHandler as EventListener);
+      }
+    };
+    window.addEventListener('hashchange', retryHandler as EventListener, { once: true });
+    // popstate may be fired by SPA navigations; ensure we remove it after first invocation
+    window.addEventListener('popstate', retryHandler as EventListener);
+    // If document wasn't ready earlier, also retry on DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', retryHandler as EventListener, { once: true });
     return;
   }
   let host = document.getElementById(CONTAINER_ID);
@@ -119,19 +131,7 @@ if ((window as any).pluginActivators == null) (window as any).pluginActivators =
 // eslint-disable-next-line no-console
 console.debug('[VivlioDBG][entry] pluginActivators registered', { id: PLUGIN_ID });
 
-// デバッグ: 3秒後に自動起動 (本来 GROWI が activate を呼ぶが呼ばれないケース調査用)
-if (!(window as any).__vivlio_autoActivateTimer) {
-  (window as any).__vivlio_autoActivateTimer = setTimeout(() => {
-    if (!(window as any).__vivlio_root) {
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][entry] auto activating (fallback)');
-      activate();
-    } else {
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][entry] skip auto activate root already present');
-    }
-  }, 3000);
-}
+// (removed automatic 3s auto-activate fallback to avoid unsolicited activation/log spam)
 
 // 手動強制呼び出し用フック
 (window as any).__vivlio_forceActivate = activate;
