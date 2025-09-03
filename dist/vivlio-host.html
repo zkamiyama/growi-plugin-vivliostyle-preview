@@ -28,6 +28,9 @@
     function log(msg, obj){ console.debug('[VivlioDBG][iframe]', msg, obj||''); }
 
     let lastMarkdownHash = null;
+    let viewerInstance = null;
+    let ready = false;
+    let queuedMarkdown = null; // 直近のみ保持（将来バッファ拡張可）
 
     function hash(str){
       let h = 0, i=0, len = str.length;
@@ -35,24 +38,42 @@
       return (h>>>0).toString(16);
     }
 
+    async function ensureInit(){
+      if(ready) return true;
+      if(!window.Vivliostyle || !window.vfm){ return false; }
+      try {
+        viewerInstance = window.Vivliostyle.viewer.create(viewerRoot);
+        ready = true;
+        setStatus('ready');
+        log('viewer instance created');
+        // 親へ ready 通知（初期化完了後）
+        if (window.parent && window.parent !== window) {
+          log('posting ready');
+          window.parent.postMessage({ type: 'vivlio:ready' }, '*');
+        }
+        if(queuedMarkdown){
+          const md = queuedMarkdown; queuedMarkdown = null;
+          renderMarkdown(md); // flush
+        }
+      } catch(e){
+        console.error('[VivlioDBG][iframe] viewer create failed', e);
+        setStatus('init error');
+      }
+      return ready;
+    }
+
     async function renderMarkdown(md){
-      if(!window.Vivliostyle){ setStatus('viewer not ready'); return; }
-      if(!window.vfm){ setStatus('vfm not ready'); return; }
+      if(!await ensureInit()) { queuedMarkdown = md; return; }
       const currentHash = hash(md);
       if(currentHash === lastMarkdownHash){ log('skip same hash', currentHash); return; }
       lastMarkdownHash = currentHash;
       setStatus('parsing');
       try {
         const htmlBody = window.vfm.render(md || '');
-        // Vivliostyle viewer expects a document source
         const docHtml = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>preview</title></head><body>${htmlBody}</body></html>`;
-        // cleanup previous
-        viewerRoot.querySelectorAll('.vivliostyle-viewer-container').forEach(n=>n.remove());
-        setStatus('loading viewer');
-        await window.Vivliostyle.viewer.load({
-          source: new Blob([docHtml], { type: 'text/html' }),
-          profile: 'vivliostyle/profiles/default.js'
-        }, viewerRoot);
+        setStatus('loading');
+        const blobUrl = URL.createObjectURL(new Blob([docHtml], { type: 'text/html' }));
+        await viewerInstance.load(blobUrl);
         setStatus('ok');
       } catch(e){
         console.error('[VivlioDBG][iframe] render error', e);
@@ -69,11 +90,13 @@
       }
     });
 
-    // 親へ ready 通知
-    if (window.parent && window.parent !== window) {
-      log('posting ready');
-      window.parent.postMessage({ type: 'vivlio:ready' }, '*');
-    }
+    // 初期化リトライ（Vivliostyle / vfm スクリプトロード待機）
+    const initInterval = setInterval(() => {
+      if(ready) { clearInterval(initInterval); return; }
+      ensureInit();
+    }, 100);
+    // 安全解除: 10秒で諦め
+    setTimeout(()=>{ if(!ready){ clearInterval(initInterval); setStatus('timeout'); } }, 10000);
   </script>
 </body>
 </html>
