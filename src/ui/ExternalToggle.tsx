@@ -92,7 +92,7 @@ export const ExternalToggle: React.FC = () => {
         viewBtn = siblings.find(el => /\bview\b/i.test(normalizeLabel(el))) || undefined;
       } catch { /* ignore */ }
       setAnchorClasses(viewBtn?.className || anchor.className || '');
-      // ---- 高彩度補色計算 (L/S 固定でパステル化回避) ----
+      // ---- 補色+彩度1.5倍計算 ----
       const computeVividComplement = (baseColor: string): { compHex: string; fg: string } | null => {
         const rgbMatch = baseColor.match(/^rgba?\((\d+),(\d+),(\d+)/i);
         const hexMatch = baseColor.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
@@ -100,11 +100,10 @@ export const ExternalToggle: React.FC = () => {
         if (rgbMatch) { r = +rgbMatch[1]; g = +rgbMatch[2]; b = +rgbMatch[3]; }
         else if (hexMatch) { let h = hexMatch[1]; if (h.length === 3) h = h.split('').map(c=>c+c).join(''); const iv = parseInt(h,16); r=(iv>>16)&255; g=(iv>>8)&255; b=iv&255; }
         if (r==null||g==null||b==null) return null;
-        let R=r/255, G=g/255, B=b/255; const max=Math.max(R,G,B), min=Math.min(R,G,B); let h=0; const d=max-min;
-        if (d!==0) { if (max===R) h=(G-B)/d+(G<B?6:0); else if (max===G) h=(B-R)/d+2; else h=(R-G)/d+4; h/=6; }
+        let R=r/255, G=g/255, B=b/255; const max=Math.max(R,G,B), min=Math.min(R,G,B); let h=0, s=0; const l=(max+min)/2; const d=max-min;
+        if (d!==0) { s = l>0.5 ? d/(2-max-min) : d/(max+min); if (max===R) h=(G-B)/d+(G<B?6:0); else if (max===G) h=(B-R)/d+2; else h=(R-G)/d+4; h/=6; }
         h = (h*360+180)%360; // complement hue
-        // vivid fixed saturation/lightness (mid-lightness to stay vivid)
-        const s=0.9; const l=0.46; // fixed to avoid washed-out pastel
+        s = Math.min(1, s * 1.5); // 彩度1.5倍 (上限1.0)
         const hue2rgb=(p:number,q:number,t:number)=>{ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; };
         const q=l<0.5?l*(1+s):l+s-l*s; const p=2*l-q;
         const r2=Math.round(hue2rgb(p,q,(h/360)+1/3)*255); const g2=Math.round(hue2rgb(p,q,(h/360))*255); const b2=Math.round(hue2rgb(p,q,(h/360)-1/3)*255);
@@ -146,12 +145,12 @@ export const ExternalToggle: React.FC = () => {
       if (wrapper.parentElement && !reorderObserverRef.current) {
         const parent = wrapper.parentElement;
         reorderObserverRef.current = new MutationObserver(() => {
-          if (!wrapperEl || !parent) return;
+          if (!wrapper || !parent) return;
           const children = Array.from(parent.children) as HTMLElement[];
-          // view / edit ラベルを持つ最後の要素の直後に置く
-          const target = [...children].reverse().find(el => /\b(edit|view)\b/i.test(normalizeLabel(el)));
+          // view / edit ラベルを持つ最後の要素を探す（wrapper自身は除外）
+          const target = [...children].reverse().find(el => el !== wrapper && /\b(edit|view)\b/i.test(normalizeLabel(el)));
           if (target && target.nextSibling !== wrapper) {
-            target.parentElement!.insertBefore(wrapper, target.nextSibling);
+            parent.insertBefore(wrapper, target.nextSibling);
             // eslint-disable-next-line no-console
             console.debug('[VivlioDBG][ExternalToggle] reposition wrapper after resize', { target: normalizeLabel(target) });
           }
@@ -166,8 +165,6 @@ export const ExternalToggle: React.FC = () => {
               if (isTr(baseColor2)) baseColor2 = cs2.backgroundColor;
               if (isTr(baseColor2)) baseColor2 = cs2.color;
               if (baseColor2 && baseColor2 !== lastBaseColorRef.current) {
-                const res2 = (baseColor2) ? ((): any => { const m=baseColor2; const tmp = ((): any => { /* reuse compute */ return null; })(); return computeVividComplement(m); })() : null;
-                // 上の即席 IIFE は型回避用 (簡略)
                 const res = computeVividComplement(baseColor2);
                 if (res) {
                   wrapper.style.setProperty('--vivlio-comp-color', res.compHex);
