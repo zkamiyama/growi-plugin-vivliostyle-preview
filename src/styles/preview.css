@@ -1,27 +1,31 @@
 /* styles/preview.css */
 /* 他と干渉しないよう "vivlio-preview" 配下に限定 */
 .vivlio-preview {
-  /* 先頭バー(トグルボタン)は常に見えるよう、閉じているときはツールバー分だけ残す */
+  /* 閉じているときは完全に非表示、開いているときだけ表示 */
   --vivlio-toolbar-height: 42px;
   position: fixed;
   left: 0; right: 0;
   top: 0;
   height: 40vh;
-  /* 閉じているときは全体高さからツールバー高さ分を差し引いた位置まで上へ */
-  transform: translateY(calc(-100% + var(--vivlio-toolbar-height)));
-  transition: transform .2s ease;
   background: #fff;
   border-bottom: 1px solid #ddd;
   z-index: 1000;
   display: flex;
   flex-direction: column;
   box-shadow: 0 2px 4px rgba(0,0,0,.08);
+  /* 閉じているときは完全に隠す */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
 }
-.vivlio-preview.is-open { transform: translateY(0); }
 
-/* 閉じているときは下のUI操作をブロックしない */
-.vivlio-preview.is-closed { pointer-events: none; }
-.vivlio-preview.is-closed .vivlio-toolbar { pointer-events: auto; }
+.vivlio-preview.is-open {
+  /* 開いているときは完全に表示 */
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
 
 .vivlio-toolbar {
   padding: 4px 8px;
