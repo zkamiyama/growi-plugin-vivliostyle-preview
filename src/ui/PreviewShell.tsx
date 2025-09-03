@@ -61,8 +61,11 @@ const PreviewShell: React.FC = () => {
     
     // 元プレビューの隠蔽をより確実にする
     if (originalElement) {
+      const displayBefore = originalElement.style.display;
+      const visibilityBefore = originalElement.style.visibility;
+
       if (isOpen) {
-        originalElement.style.display = 'none';
+        originalElement.style.setProperty('display', 'none', 'important');
         originalElement.style.visibility = 'hidden';
         originalElement.setAttribute('aria-hidden', 'true');
       } else {
@@ -70,6 +73,19 @@ const PreviewShell: React.FC = () => {
         originalElement.style.visibility = '';
         originalElement.removeAttribute('aria-hidden');
       }
+
+      const displayAfter = originalElement.style.display;
+      const visibilityAfter = originalElement.style.visibility;
+      const computedDisplay = window.getComputedStyle(originalElement).display;
+
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][PreviewShell] style change details', {
+        displayBefore,
+        visibilityBefore,
+        displayAfter,
+        visibilityAfter,
+        computedDisplay,
+      });
     }
     
     // eslint-disable-next-line no-console
