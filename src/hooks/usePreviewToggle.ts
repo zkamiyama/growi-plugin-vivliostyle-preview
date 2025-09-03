@@ -13,6 +13,10 @@ export function usePreviewToggle() {
 
   React.useEffect(() => {
     localStorage.setItem('vivlio:isOpen', isOpen ? '1' : '0');
+    // 外部ボタン同期用カスタムイベント
+    try {
+      window.dispatchEvent(new CustomEvent('vivlio:state-changed', { detail: { isOpen } }));
+    } catch { /* ignore */ }
   }, [isOpen]);
 
   return { isOpen, open, close, toggle };
