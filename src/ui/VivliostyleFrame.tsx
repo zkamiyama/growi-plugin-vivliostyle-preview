@@ -1,8 +1,6 @@
 // ui/VivliostyleFrame.tsx
 import React, { forwardRef } from 'react';
-
-// GROWIのプラグインパスのルートからの絶対パスとして指定
-const VIEWER_URL = '/plugins/growi-plugin-vivliostyle-preview/vivlio-host.html';
+import hostHtml from '../../public/vivlio-host.html?raw';
 
 interface Props {}
 
@@ -12,11 +10,9 @@ const VivliostyleFrame = forwardRef<HTMLIFrameElement, Props>((props, ref) => {
       ref={ref}
       id="vivlio-iframe"
       title="Vivliostyle Viewer"
-      src={VIEWER_URL}
+      srcDoc={hostHtml} // srcの代わりにsrcdocを使用
       style={{ width: '100%', height: '100%', border: 0 }}
-      // allow-same-origin を削除し、postMessage通信を前提とする
-      // allow-popups と allow-downloads は印刷やPDF保存機能のために残す
-      sandbox="allow-scripts allow-popups allow-downloads"
+      sandbox="allow-scripts" // スクリプト実行のみ許可
     />
   );
 });

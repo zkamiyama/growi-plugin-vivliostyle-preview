@@ -3,11 +3,20 @@ import * as React from 'react';
 import '../styles/preview.css';
 import VivliostyleFrame from './VivliostyleFrame';
 import { useAppContext } from '../context/AppContext';
+import { useVivliostyleBridge } from '../hooks/useVivliostyleBridge';
+import * as MarkdownIt from 'markdown-it';
+
+const md = new MarkdownIt();
 
 const PreviewShell: React.FC = () => {
-  const { isOpen } = useAppContext();
-  // 最小構成: markdown 送信やロード状態管理を行わず単純表示のみ
+  const { isOpen, markdown } = useAppContext();
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
+
+  // markdown-itでHTMLに変換
+  const html = React.useMemo(() => md.render(markdown), [markdown]);
+
+  // useVivliostyleBridgeフックでiframeと通信
+  const { isReady } = useVivliostyleBridge(iframeRef.current, html);
 
   React.useEffect(() => {
     // 既存プレビュー本体 (中身) のみを消す
@@ -35,6 +44,11 @@ const PreviewShell: React.FC = () => {
     <div className="vivlio-preview" role="region" aria-label="Vivliostyle preview">
       <div className="vivlio-body">
         <VivliostyleFrame ref={iframeRef} />
+        {!isReady && (
+          <div className="vivlio-loading" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
+            Loading Vivliostyle...
+          </div>
+        )}
       </div>
     </div>
   );

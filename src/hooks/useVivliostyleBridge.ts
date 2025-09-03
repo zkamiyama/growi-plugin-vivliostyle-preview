@@ -4,12 +4,12 @@ import { useEffect, useState } from 'react';
 // メッセージの型定義
 export interface VivliostyleMessage {
   type: 'update' | 'ready';
-  markdown?: string;
+  html?: string;
 }
 
 export function useVivliostyleBridge(
   iframe: HTMLIFrameElement | null,
-  markdown: string,
+  html: string,
 ) {
   const [isReady, setIsReady] = useState(false);
 
@@ -34,11 +34,11 @@ export function useVivliostyleBridge(
 
   useEffect(() => {
     if (isReady && iframe?.contentWindow) {
-      const message: VivliostyleMessage = { type: 'update', markdown };
+      const message: VivliostyleMessage = { type: 'update', html };
       // '*' はデモ用。本番では targetOrigin を指定すべき
       iframe.contentWindow.postMessage(message, '*');
     }
-  }, [iframe, markdown, isReady]);
+  }, [iframe, html, isReady]);
 
   return { isReady };
 }
