@@ -1,4 +1,20 @@
 /* Overflow fallback only (他は View ボタンのクラス継承) */
 .vivlio-inline-toggle .vivlio-toggle-btn.is-overflowing { font-size: 11px; }
 
-/* Active 時は元のクラスの active と同じ扱いになる想定なのでここで特別な色指定はしない */
+/* 常時高彩度補色: OFF=アウトライン, ON=塗りつぶし */
+.vivlio-inline-toggle .vivlio-toggle-btn.vivlio-comp:not(.active) {
+	border-color: var(--vivlio-comp-color, currentColor) !important;
+	color: var(--vivlio-comp-color, currentColor) !important;
+	background: transparent !important;
+}
+.vivlio-inline-toggle .vivlio-toggle-btn.vivlio-comp.active {
+	background: var(--vivlio-comp-color, currentColor) !important;
+	color: var(--vivlio-comp-fg, #fff) !important;
+	border-color: var(--vivlio-comp-color, currentColor) !important;
+	filter: saturate(1.1) brightness(1.02);
+}
+.vivlio-inline-toggle .vivlio-toggle-btn.vivlio-comp:not(.active):hover {
+	background: var(--vivlio-comp-color, currentColor) !important;
+	color: var(--vivlio-comp-fg, #fff) !important;
+	border-color: var(--vivlio-comp-color, currentColor) !important;
+}

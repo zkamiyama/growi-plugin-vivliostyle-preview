@@ -89,6 +89,68 @@ export const ExternalToggle: React.FC = () => {
         viewBtn = siblings.find(el => /\bview\b/i.test(normalizeLabel(el))) || undefined;
       } catch { /* ignore */ }
       setAnchorClasses(viewBtn?.className || anchor.className || '');
+
+      // ---- 高彩度補色計算 (outline 用) ----
+      try {
+        const cs = window.getComputedStyle(viewBtn || anchor);
+        // 優先度: border-color > background-color > color
+        let baseColor = cs.borderColor;
+        const isTransparent = (c: string) => !c || c === 'transparent' || /rgba\(\s*0+\s*,\s*0+\s*,\s*0+\s*,\s*0?\.?0*\s*\)/i.test(c);
+        if (isTransparent(baseColor)) baseColor = cs.backgroundColor;
+        if (isTransparent(baseColor)) baseColor = cs.color;
+
+        const rgbMatch = baseColor.match(/^rgba?\((\d+),(\d+),(\d+)/i);
+        const hexMatch = baseColor.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+        let r: number | null = null; let g: number | null = null; let b: number | null = null;
+        if (rgbMatch) {
+          r = +rgbMatch[1]; g = +rgbMatch[2]; b = +rgbMatch[3];
+        } else if (hexMatch) {
+          let h = hexMatch[1];
+            if (h.length === 3) h = h.split('').map(c => c + c).join('');
+            const intVal = parseInt(h, 16);
+            r = (intVal >> 16) & 255; g = (intVal >> 8) & 255; b = intVal & 255;
+        }
+        if (r != null && g != null && b != null) {
+          // RGB -> HSL
+          let R = r / 255; let G = g / 255; let B = b / 255;
+          const max = Math.max(R, G, B); const min = Math.min(R, G, B);
+          let h = 0; let s = 0; const l = (max + min) / 2; const d = max - min;
+          if (d !== 0) {
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+              case R: h = (G - B) / d + (G < B ? 6 : 0); break;
+              case G: h = (B - R) / d + 2; break;
+              case B: h = (R - G) / d + 4; break;
+              default: break;
+            }
+            h /= 6;
+          }
+          h = (h * 360 + 180) % 360; // 補色
+          s = 0.85; // 高彩度固定
+          // l は元のを維持するが明るすぎ/暗すぎ回避でクランプ
+          const lClamped = Math.min(0.72, Math.max(0.28, l));
+          const hue2rgb = (p: number, q: number, t: number) => { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1/6) return p + (q - p) * 6 * t; if (t < 1/2) return q; if (t < 2/3) return p + (q - p)*(2/3 - t)*6; return p; };
+          const q = lClamped < 0.5 ? lClamped * (1 + s) : lClamped + s - lClamped * s;
+          const p = 2 * lClamped - q;
+          const r2 = Math.round(hue2rgb(p,q,(h/360)+1/3) * 255);
+          const g2 = Math.round(hue2rgb(p,q,(h/360)) * 255);
+          const b2 = Math.round(hue2rgb(p,q,(h/360)-1/3) * 255);
+          const toHex = (x: number) => x.toString(16).padStart(2,'0');
+          const compHex = `#${toHex(r2)}${toHex(g2)}${toHex(b2)}`;
+          const luminance = (0.2126*r2 + 0.7152*g2 + 0.0722*b2)/255;
+          const fg = luminance > 0.55 ? '#000' : '#fff';
+          wrapper.style.setProperty('--vivlio-comp-color', compHex);
+          wrapper.style.setProperty('--vivlio-comp-fg', fg);
+            // eslint-disable-next-line no-console
+            console.debug('[VivlioDBG][ExternalToggle] computed complement', { baseColor, compHex, fg });
+        } else {
+            // eslint-disable-next-line no-console
+            console.debug('[VivlioDBG][ExternalToggle] complement skipped (parse fail)', { baseColor });
+        }
+      } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn('[VivlioDBG][ExternalToggle] complement error', err);
+      }
       setWrapperEl(wrapper);
       resolvedRef.current = true;
       if (observerRef.current) {
@@ -168,7 +230,7 @@ export const ExternalToggle: React.FC = () => {
     .split(/\s+/)
     .filter(c => c && c !== 'active')
     .join(' ');
-  const finalClassName = `${baseClasses} vivlio-toggle-btn${isOpen ? ' active' : ''}${isOverflow ? ' is-overflowing' : ''}`.trim();
+  const finalClassName = `${baseClasses} vivlio-toggle-btn vivlio-comp${isOpen ? ' active' : ''}${isOverflow ? ' is-overflowing' : ''}`.trim();
 
   return createPortal(
     <button
