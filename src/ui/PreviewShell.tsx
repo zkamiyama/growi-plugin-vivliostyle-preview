@@ -15,15 +15,26 @@ const md = new MDCtor();
 const PreviewShell: React.FC = () => {
   const { isOpen, markdown } = useAppContext();
 
-  // デバッグ: トグル変化を記録 (既存プレビューは触らず)  
+  // トグル変化時: 元プレビューの表示/非表示も復活
   React.useEffect(() => {
     const previewContainer = document.getElementById('vivlio-preview-container');
+    const originalPreviewBody = document.querySelector('.page-editor-preview-body') as HTMLElement | null;
     if (previewContainer) {
-      // 単純化: isOpen のときだけ自分を表示、閉じたら非表示
       previewContainer.style.display = isOpen ? 'block' : 'none';
+      // 高さが 0 の場合は親プレビュー領域高さをコピー
+      if (isOpen) {
+        const parent = previewContainer.parentElement as HTMLElement | null;
+        const ph = parent?.getBoundingClientRect().height || 0;
+        if (ph > 0 && previewContainer.getBoundingClientRect().height < ph * 0.5) {
+          previewContainer.style.minHeight = ph + 'px';
+        }
+      }
+    }
+    if (originalPreviewBody) {
+      originalPreviewBody.style.display = isOpen ? 'none' : 'block';
     }
     // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG] isOpen effect fired', { isOpen, hasContainer: !!previewContainer });
+    console.debug('[VivlioDBG] isOpen effect fired', { isOpen, hasContainer: !!previewContainer, hiddenOriginal: !!originalPreviewBody });
   }, [isOpen]);
 
   // markdown 更新時 iframe へ反映 (開いている時のみ送れば十分だが単純化)
@@ -58,7 +69,8 @@ const PreviewShell: React.FC = () => {
     // eslint-disable-next-line no-console
     console.debug('[VivlioDBG] markdown effect', { length: markdown?.length, isOpen, hasIframe: !!iframe, ready: readyRef.current });
     if (!isOpen) return;
-    const html = md.render(markdown || '<p><em>(empty)</em></p>');
+  // markdown-it は空文字で空HTMLになるので簡易プレースホルダ
+  const html = md.render(markdown && markdown.trim().length > 0 ? markdown : '*_(empty)_*');
     if (!iframe || !iframe.contentWindow) {
       // eslint-disable-next-line no-console
       console.debug('[VivlioDBG] iframe not ready yet (no element or no contentWindow)');

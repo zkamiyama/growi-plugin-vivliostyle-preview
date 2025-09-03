@@ -31,7 +31,11 @@ function mount() {
   if (!host) {
     host = document.createElement('div');
     host.id = CONTAINER_ID;
-    // 初期表示は既存プレビューと同じ扱い。実際の表示切替は PreviewShell の副作用で行う。
+  // ベーススタイル: 親と同幅/高さ (高さは後で補正)。display は PreviewShell が制御。
+  host.style.width = '100%';
+  host.style.height = '100%';
+  host.style.position = 'relative';
+  host.style.display = 'none';
     previewContainer.appendChild(host);
     // eslint-disable-next-line no-console
     console.debug('[VivlioDBG] host container created and appended');

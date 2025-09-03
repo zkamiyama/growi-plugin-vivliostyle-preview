@@ -15,21 +15,57 @@ export function useEditorMarkdown(opts: Options = {}) {
   }, [debounceMs]);
 
   React.useEffect(() => {
-    // TODO: GROWIの正規APIで購読に置き換え
-    const textarea = document.querySelector<HTMLTextAreaElement>('textarea.editor') 
-      || document.querySelector<HTMLTextAreaElement>('#page-editor textarea');
-  // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG] useEditorMarkdown: textarea lookup', { found: !!textarea });
+    const SELECTOR_CANDIDATES = [
+      'textarea.editor',
+      '#page-editor textarea',
+      '.CodeMirror textarea',
+      '[data-testid="editor-textarea"]',
+      '.page-editor textarea',
+    ];
+    let textarea: HTMLTextAreaElement | null = null;
+    function findOnce() {
+      for (const sel of SELECTOR_CANDIDATES) {
+        const el = document.querySelector<HTMLTextAreaElement>(sel);
+        if (el) {
+          textarea = el;
+          return el;
+        }
+      }
+      return null;
+    }
 
-    const handler = () => {
+    textarea = findOnce();
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG] useEditorMarkdown: textarea lookup', { found: !!textarea });
+    if (!textarea) {
+      let retry = 0;
+      const maxRetry = 10;
+      const timer = window.setInterval(() => {
+        if (textarea) { window.clearInterval(timer); return; }
+        retry += 1;
+        textarea = findOnce();
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG] useEditorMarkdown: retry lookup', { retry, found: !!textarea });
+        if (textarea) {
+          handler();
+          textarea.addEventListener('input', handler);
+          window.clearInterval(timer);
+        }
+        if (retry >= maxRetry) window.clearInterval(timer);
+      }, 400);
+    }
+
+  const handler = () => {
       const val = textarea?.value ?? '';
       // eslint-disable-next-line no-console
       console.debug('[VivlioDBG] useEditorMarkdown: input event', { length: val.length });
       setDebounced(val);
     };
 
-  handler(); // 初期取得
-    textarea?.addEventListener('input', handler);
+    if (textarea) {
+      handler(); // 初期取得
+      textarea.addEventListener('input', handler);
+    }
     return () => {
       textarea?.removeEventListener('input', handler);
       if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
