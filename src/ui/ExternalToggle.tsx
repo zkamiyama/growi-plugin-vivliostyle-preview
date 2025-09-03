@@ -87,24 +87,50 @@ export const ExternalToggle: React.FC = () => {
       }
       // リポジショニング + 色計算共通処理
       const isTransparent = (c: string) => !c || c === 'transparent' || /rgba\(\s*0+\s*,\s*0+\s*,\s*0+\s*,\s*0?\.?0*\s*\)/i.test(c);
-      const computePureComplement = (baseColor: string): { compHex: string; fg: string } | null => {
-        const rgbMatch = baseColor.match(/^rgba?\((\d+),(\d+),(\d+)/i);
-        const hexMatch = baseColor.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
-        let r: number | null = null; let g: number | null = null; let b: number | null = null;
-        if (rgbMatch) { r = +rgbMatch[1]; g = +rgbMatch[2]; b = +rgbMatch[3]; }
-        else if (hexMatch) { let h = hexMatch[1]; if (h.length === 3) h = h.split('').map(c=>c+c).join(''); const iv = parseInt(h,16); r=(iv>>16)&255; g=(iv>>8)&255; b=iv&255; }
-        if (r==null||g==null||b==null) return null;
-        let R=r/255, G=g/255, B=b/255; const max=Math.max(R,G,B), min=Math.min(R,G,B); let h=0, s=0, l=(max+min)/2; const d=max-min;
-        if (d!==0) { s = l > 0.5 ? d / (2 - max - min) : d / (max + min); if (max===R) h=(G-B)/d+(G<B?6:0); else if (max===G) h=(B-R)/d+2; else h=(R-G)/d+4; h/=6; }
-        h = (h*360 + 180) % 360; // hue 反転のみ
-        const hue2rgb=(p:number,q:number,t:number)=>{ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; };
-        const q = l < 0.5 ? l * (1 + s) : l + s - l * s; const p = 2 * l - q;
-        const r2=Math.round(hue2rgb(p,q,(h/360)+1/3)*255); const g2=Math.round(hue2rgb(p,q,(h/360))*255); const b2=Math.round(hue2rgb(p,q,(h/360)-1/3)*255);
-        const toHex=(x:number)=>x.toString(16).padStart(2,'0');
-        const compHex=`#${toHex(r2)}${toHex(g2)}${toHex(b2)}`;
-        const luminance=(0.2126*r2+0.7152*g2+0.0722*b2)/255; const fg=luminance>0.55?'#000':'#fff';
+      // --- HSL補色計算: Hのみ+180°, S/L保持 ---
+      function parseToRgb(input: string): { r: number; g: number; b: number } | null {
+        const m = input.trim().match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+        if (m) return { r: +m[1], g: +m[2], b: +m[3] };
+        const hm = input.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+        if (hm) {
+          let h = hm[1]; if (h.length===3) h = h.split('').map(c=>c+c).join('');
+          const iv = parseInt(h,16);
+          return { r: (iv>>16)&255, g:(iv>>8)&255, b:iv&255 };
+        }
+        return null;
+      }
+      function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
+        r/=255; g/=255; b/=255;
+        const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max-min;
+        let h=0, s=0, l=(max+min)/2;
+        if (d!==0) {
+          s = d/(1 - Math.abs(2*l-1));
+          if (max===r) h = ((g-b)/d + (g<b?6:0))/6;
+          else if (max===g) h = ((b-r)/d + 2)/6;
+          else h = ((r-g)/d + 4)/6;
+        }
+        return { h: h*360, s: s*100, l: l*100 };
+      }
+      function hslToHex(h: number, s: number, l: number): string {
+        h/=360; s/=100; l/=100;
+        const hue2rgb=(p:number,q:number,t:number)=>{ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6) return p+(q-p)*6*t; if(t<1/2) return q; if(t<2/3) return p+(q-p)*(2/3-t)*6; return p; };
+        const q = l<0.5 ? l*(1+s) : l+s-l*s;
+        const p = 2*l-q;
+        const r2 = hue2rgb(p,q,h+1/3);
+        const g2 = hue2rgb(p,q,h);
+        const b2 = hue2rgb(p,q,h-1/3);
+        const toHex=(x:number)=> Math.round(x*255).toString(16).padStart(2,'0');
+        return `#${toHex(r2)}${toHex(g2)}${toHex(b2)}`;
+      }
+      function computeComplement(color: string): { compHex: string; fg: string } | null {
+        const rgb = parseToRgb(color);
+        if (!rgb) return null;
+        const { h, s, l } = rgbToHsl(rgb.r, rgb.g, rgb.b);
+        const compHex = hslToHex((h+180)%360, s, l);
+        const luminance = (0.2126*rgb.r + 0.7152*rgb.g + 0.0722*rgb.b)/255;
+        const fg = luminance>0.55 ? '#000' : '#fff';
         return { compHex, fg };
-      };
+      }
 
       const pickButtons = (parent: HTMLElement) => {
         const kids = Array.from(parent.children) as HTMLElement[];
@@ -121,9 +147,8 @@ export const ExternalToggle: React.FC = () => {
         const { view, edit } = pickButtons(parent);
         const anchor = (isVisible(edit) ? edit : null) || (isVisible(view) ? view : null) || initialAnchor;
         // 無限再配置を防ぐため、現在位置と違う場合のみ移動
-        // 要素ノードの隣接チェックのみで再配置判定
-        const needsRepositioning = anchor && anchor.nextElementSibling !== wrapper;
-        if (needsRepositioning) {
+        // anchorの直後にwrapperがあるか (要素ノードのみ) を確認し、異なれば再配置
+        if (anchor && wrapper!.previousElementSibling !== anchor) {
           parent.insertBefore(wrapper!, anchor.nextElementSibling);
           // eslint-disable-next-line no-console
           console.debug('[VivlioDBG][ExternalToggle] reposition (cycle)', { anchor: normalizeLabel(anchor) });
@@ -138,7 +163,7 @@ export const ExternalToggle: React.FC = () => {
           if (isTransparent(baseColor)) baseColor = cs.borderColor;
           if (isTransparent(baseColor)) baseColor = cs.color;
           if (baseColor && baseColor !== lastBaseColorRef.current) {
-            const res = computePureComplement(baseColor);
+            const res = computeComplement(baseColor);
             if (res) {
               wrapper!.style.setProperty('--vivlio-comp-color', res.compHex);
               wrapper!.style.setProperty('--vivlio-comp-fg', res.fg);
