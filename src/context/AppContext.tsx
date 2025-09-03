@@ -23,11 +23,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const toggle = React.useCallback(() => {
     // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG] toggle() called (before change)');
+    console.debug('[VivlioDBG][AppContext] toggle() invoked', { time: Date.now() });
     setIsVivliostyleActive(prev => {
       const next = !prev;
       // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG] toggle() state transition', { from: prev, to: next, stack: new Error().stack?.split('\n').slice(0,4) });
+      console.debug('[VivlioDBG][AppContext] state transition', { from: prev, to: next, stack: new Error().stack?.split('\n').slice(0,4) });
       (window as any).__vivlio_debug = (window as any).__vivlio_debug || { toggles: [] };
       (window as any).__vivlio_debug.toggles.push({ at: Date.now(), from: prev, to: next });
       return next;
