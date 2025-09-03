@@ -5,10 +5,10 @@ import VivliostyleFrame from './VivliostyleFrame';
 import { useEditorMarkdown } from '../hooks/useEditorMarkdown';
 import { useVivliostyleBridge } from '../hooks/useVivliostyleBridge';
 import { usePreviewToggle } from '../hooks/usePreviewToggle';
-// markdown-it の型定義は export = 形式のため、ts-jest (esModuleInterop: false) 下では require で扱う
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const MarkdownIt = require('markdown-it');
-const md: import('markdown-it') = new MarkdownIt({ html: true, linkify: true });
+// markdown-it (CommonJS) を ESM で扱う: デフォルト互換を考慮
+import MarkdownItCjs from 'markdown-it';
+// tsconfig の esModuleInterop:false でも Vite 側が CJS を default export として解決する
+const md = new (MarkdownItCjs as unknown as typeof import('markdown-it'))({ html: true, linkify: true });
 
 const PreviewShell: React.FC = () => {
   const { isOpen, toggle } = usePreviewToggle();
