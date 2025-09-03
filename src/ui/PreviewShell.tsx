@@ -3,59 +3,35 @@ import * as React from 'react';
 import { VivliostylePreview } from './VivliostylePreview';
 import { useAppContext } from '../context/AppContext';
 
+// 元の `.page-editor-preview-container` 内に生成した #vivlio-preview-container を
+// トグルで表示/非表示し、従来の preview body (.page-editor-preview-body) を隠すだけの
+// シンプルな差し替え方式。ポップアップは廃止。
 const PreviewShell: React.FC = () => {
   const { isOpen, markdown } = useAppContext();
 
   React.useEffect(() => {
-    const previewContainer = document.getElementById('vivlio-preview-container');
+    const host = document.getElementById('vivlio-preview-container');
     const originalPreviewBody = document.querySelector('.page-editor-preview-body') as HTMLElement | null;
-    if (previewContainer) {
-      previewContainer.style.display = isOpen ? 'block' : 'none';
+    if (host) {
+      host.style.display = isOpen ? 'block' : 'none';
       if (isOpen) {
-        const parent = previewContainer.parentElement as HTMLElement | null;
-        const ph = parent?.getBoundingClientRect().height || 0;
-        if (ph > 0 && previewContainer.getBoundingClientRect().height < ph * 0.5) {
-          previewContainer.style.minHeight = ph + 'px';
-        }
+        host.style.position = 'relative';
+        host.style.width = '100%';
+        host.style.height = '100%';
+        host.style.overflow = 'auto';
+        // 高さが親で管理されない場合のフォールバック
+        if (!host.style.minHeight) host.style.minHeight = '400px';
       }
     }
     if (originalPreviewBody) {
       originalPreviewBody.style.display = isOpen ? 'none' : 'block';
     }
     // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG] isOpen effect fired', { isOpen, hasContainer: !!previewContainer, hiddenOriginal: !!originalPreviewBody });
+    console.debug('[VivlioDBG] inline replace effect', { isOpen, hasHost: !!host, hiddenOriginal: !!originalPreviewBody });
   }, [isOpen]);
 
-  return (
-    <>
-      {/* 既存領域(将来拡張用 / 今は非表示運用) */}
-      <div data-vivlio-shell style={{ display: 'none' }} aria-hidden />
-      {/* 右下ポップアップ */}
-      {isOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            right: 16,
-            bottom: 16,
-            width: '420px',
-            height: '60vh',
-            maxHeight: '720px',
-            minHeight: '360px',
-            background: '#fff',
-            border: '1px solid #ccc',
-            borderRadius: 8,
-            boxShadow: '0 8px 28px rgba(0,0,0,.18)',
-            display: 'flex',
-            flexDirection: 'column',
-            zIndex: 2147483000,
-            overflow: 'hidden'
-          }}
-        >
-          <VivliostylePreview markdown={markdown} isVisible={isOpen} />
-        </div>
-      )}
-    </>
-  );
+  // Host (#vivlio-preview-container) 内にマウントされるのでラッパ不要
+  return isOpen ? <VivliostylePreview markdown={markdown} isVisible={isOpen} /> : null;
 };
 
 export default PreviewShell;

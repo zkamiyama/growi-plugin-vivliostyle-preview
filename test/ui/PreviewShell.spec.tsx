@@ -1,8 +1,13 @@
 // test/ui/PreviewShell.spec.tsx
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import PreviewShell from '../../src/ui/PreviewShell';
+// VivliostylePreview は内部で vfm -> rehype-format -> ESM 依存を辿り Jest が生で解釈できないためモック
+jest.mock('../../src/ui/VivliostylePreview', () => ({
+  VivliostylePreview: (props: any) => <div data-testid="vivlio-preview-mock">Vivliostyle Preview (mock)</div>,
+  __esModule: true,
+}));
 import { AppProvider } from '../../src/context/AppContext';
 import * as AppContextModule from '../../src/context/AppContext';
 
@@ -18,7 +23,7 @@ const TestProvider: React.FC<{ value: any; children: React.ReactNode }> = ({ val
 // useAppContext をスパイして任意値を返す
 const useAppContextSpy = jest.spyOn(AppContextModule, 'useAppContext');
 
-describe('PreviewShell (with AppContext)', () => {
+describe('PreviewShell (inline replace mode)', () => {
   let mockToggle: jest.Mock;
   let mockUpdateViewer: jest.Mock;
 
@@ -36,27 +41,23 @@ describe('PreviewShell (with AppContext)', () => {
     return render(<PreviewShell />);
   };
 
-  it('closed state: iframe exists but shell hidden', () => {
+  it('closed state: no Vivliostyle wrapper rendered', () => {
     renderWithContext({
       isOpen: false,
       toggle: mockToggle,
       markdown: '# Hello',
     });
-    // コンテナは data-vivlio-shell 属性で判別
-    const shell = document.querySelector('[data-vivlio-shell]') as HTMLElement | null;
-    expect(shell).toBeTruthy();
-    const iframe = screen.getByTitle(/Vivliostyle Viewer/i);
-    // 非表示: 親シェルの display が none
-    expect(shell!.style.display).toBe('none');
-    expect(iframe).toBeInTheDocument();
+    // 閉じているときは VivliostylePreview 自体描画されない
+    expect(screen.queryByText(/Vivliostyle Preview/i)).toBeNull();
   });
 
-  it('open state: iframe present', () => {
+  it('open state: Vivliostyle header bar rendered', () => {
     renderWithContext({
       isOpen: true,
       toggle: mockToggle,
       markdown: '# Hello',
     });
-    expect(screen.getByTitle(/Vivliostyle Viewer/i)).toBeInTheDocument();
+    // ヘッダーバーのタイトル確認
+    expect(screen.getByText(/Vivliostyle Preview/i)).toBeInTheDocument();
   });
 });
