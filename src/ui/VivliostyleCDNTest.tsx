@@ -28,10 +28,10 @@ export const VivliostyleCDNTest: React.FC = () => {
 </html>
   `)}`;
 
-  // 実際に動作するCDN URLを使用
-  const cdnViewerUrl = `https://unpkg.com/@vivliostyle/viewer@2.34.1/lib/vivliostyle-viewer.html#x=${encodeURIComponent(testHtmlDataUrl)}`;
+  // 正しいnpm CDN URLを使用 (調査結果より)
+  const cdnViewerUrl = `https://unpkg.com/@vivliostyle/viewer@2.34.1/lib/index.html#x=${encodeURIComponent(testHtmlDataUrl)}`;
   
-  // vivliostyle.orgの公式サイトではdata URLは処理できないため、npmのCDNを使用
+  // unpkg.comの正しいパス: /lib/index.html (vivliostyle-viewer.htmlではない)
 
   return (
     <div
