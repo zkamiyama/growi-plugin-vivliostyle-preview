@@ -2,36 +2,13 @@
 import React from 'react';
 
 export const VivliostyleCDNTest: React.FC = () => {
-  // 一時的なテスト用HTML (Data URL形式)
-  const testHtmlDataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(`
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>CDN Test</title>
-  <style>
-    @page { size: A5; margin: 12mm; }
-    body { font-family: system-ui, sans-serif; line-height: 1.5; margin: 2em; }
-    h1 { color: #333; }
-  </style>
-</head>
-<body>
-  <h1>CDN Viewer Test</h1>
-  <p>This is a test document to verify that the Vivliostyle viewer loads properly from CDN.</p>
-  <p>Current time: ${new Date().toLocaleString()}</p>
-  <ul>
-    <li>CDN loading test</li>
-    <li>Basic rendering test</li>
-    <li>A5 page format test</li>
-  </ul>
-</body>
-</html>
-  `)}`;
-
-  // 正しいnpm CDN URLを使用 (調査結果より)
-  const cdnViewerUrl = `https://unpkg.com/@vivliostyle/viewer@2.34.1/lib/index.html#x=${encodeURIComponent(testHtmlDataUrl)}`;
+  // CDNビューワーはdata URLの直接フェッチを許可しない（403エラー）
+  // 代わりに公開されているサンプルHTMLを使用してテスト
+  const testUrl = 'https://vivliostyle.github.io/vivliostyle_doc/samples/wood/index.html';
   
-  // unpkg.comの正しいパス: /lib/index.html (vivliostyle-viewer.htmlではない)
+  const cdnViewerUrl = `https://unpkg.com/@vivliostyle/viewer@2.34.1/lib/index.html#x=${encodeURIComponent(testUrl)}`;
+  
+  // 403エラー回避: HTTPアクセス可能な実際のHTML文書を使用
 
   return (
     <div
@@ -60,7 +37,7 @@ export const VivliostyleCDNTest: React.FC = () => {
           borderRadius: '6px 0 0 0'
         }}
       >
-        🔍 CDN Viewer Test (右下常時表示)
+        🔍 CDN Viewer Test - Wood Sample (右下常時表示)
       </div>
       <iframe
         src={cdnViewerUrl}
