@@ -20,7 +20,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const { markdown } = useEditorMarkdown({ debounceMs: 250 });
 
   const toggle = React.useCallback(() => {
-    setIsVivliostyleActive(prev => !prev);
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG] toggle() called (before change)');
+    setIsVivliostyleActive(prev => {
+      const next = !prev;
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG] toggle() state transition', { from: prev, to: next, stack: new Error().stack?.split('\n').slice(0,4) });
+      (window as any).__vivlio_debug = (window as any).__vivlio_debug || { toggles: [] };
+      (window as any).__vivlio_debug.toggles.push({ at: Date.now(), from: prev, to: next });
+      return next;
+    });
   }, []);
 
   const value: AppContextType = {

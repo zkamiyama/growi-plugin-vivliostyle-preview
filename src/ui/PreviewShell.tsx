@@ -27,17 +27,49 @@ const PreviewShell: React.FC = () => {
   }, [isOpen]);
 
   // markdown 更新時 iframe へ反映 (開いている時のみ送れば十分だが単純化)
+  // iframe ready 管理
+  const readyRef = React.useRef(false);
+  const pendingHtmlRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    function handleMessage(ev: MessageEvent) {
+      if (!ev?.data) return;
+      if (ev.data.type === 'vivlio:ready') {
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG] iframe reported ready');
+        readyRef.current = true;
+        if (pendingHtmlRef.current) {
+          const iframe = document.getElementById('vivlio-iframe') as HTMLIFrameElement | null;
+          if (iframe?.contentWindow) {
+            iframe.contentWindow.postMessage({ type: 'markdown:update', html: pendingHtmlRef.current }, '*');
+            // eslint-disable-next-line no-console
+            console.debug('[VivlioDBG] flushed pending html (on ready)');
+          }
+          pendingHtmlRef.current = null;
+        }
+      }
+    }
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   React.useEffect(() => {
     const iframe = document.getElementById('vivlio-iframe') as HTMLIFrameElement | null;
     // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG] markdown effect', { length: markdown?.length, isOpen, hasIframe: !!iframe });
+    console.debug('[VivlioDBG] markdown effect', { length: markdown?.length, isOpen, hasIframe: !!iframe, ready: readyRef.current });
     if (!isOpen) return;
+    const html = md.render(markdown || '<p><em>(empty)</em></p>');
     if (!iframe || !iframe.contentWindow) {
       // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG] iframe not ready yet');
+      console.debug('[VivlioDBG] iframe not ready yet (no element or no contentWindow)');
       return;
     }
-    const html = md.render(markdown || '');
+    if (!readyRef.current) {
+      pendingHtmlRef.current = html;
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG] queued html until ready');
+      return;
+    }
     // eslint-disable-next-line no-console
     console.debug('[VivlioDBG] posting message to iframe', { htmlPreview: html.slice(0, 60) });
     iframe.contentWindow.postMessage({ type: 'markdown:update', html }, '*');

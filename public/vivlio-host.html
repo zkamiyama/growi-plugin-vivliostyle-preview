@@ -31,6 +31,8 @@
 
     // 親ウィンドウからのメッセージを待つ
     window.addEventListener('message', (event) => {
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][iframe] message received', event.data);
       // 安全のためオリジンをチェックすべきだが、デバッグ中は一旦省略
   const { type, html } = event.data || {};
   if (type === 'markdown:update' && typeof html === 'string') {
@@ -54,6 +56,8 @@
 
     // 親ウィンドウに準備完了を通知
     if (window.parent && window.parent !== window) {
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][iframe] posting ready');
       window.parent.postMessage({ type: 'vivlio:ready' }, '*');
     }
   </script>
