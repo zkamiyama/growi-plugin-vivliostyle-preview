@@ -9,6 +9,7 @@ import config from './package.json';
 // GROWIのスクリプトプラグイン規約：activate/deactivateのみ担当
 const PLUGIN_ID = config.name;
 const CONTAINER_ID = 'vivlio-preview-container';
+const TOGGLE_CONTAINER_ID = 'vivlio-toggle-container';
 
 function mount() {
   if (document.readyState === 'loading') {
@@ -17,6 +18,7 @@ function mount() {
     return;
   }
 
+  // --- プレビュー本体のマウント ---
   const previewContainer = document.querySelector('.page-editor-preview-container');
   if (!previewContainer) {
     setTimeout(mount, 200); // リトライ
@@ -26,8 +28,7 @@ function mount() {
   if (!host) {
     host = document.createElement('div');
     host.id = CONTAINER_ID;
-    host.style.display = 'none'; // 初期は非表示（Vivliostyle閉）
-    // 既存プレビューコンテナ内部に配置（置換対象領域を限定）
+    host.style.display = 'none'; // 初期は非表示
     previewContainer.appendChild(host);
   }
 
@@ -36,11 +37,32 @@ function mount() {
     <React.StrictMode>
       <AppProvider>
         <PreviewShell />
-        <ExternalToggle />
       </AppProvider>
     </React.StrictMode>
   );
   (window as any).__vivlio_root = root; // 後でunmount用に保持
+
+  // --- トグルボタンのマウント ---
+  const editorNavbar = document.querySelector('.page-editor-navbar-bottom');
+  if (editorNavbar) {
+    let toggleHost = document.getElementById(TOGGLE_CONTAINER_ID);
+    if (!toggleHost) {
+      toggleHost = document.createElement('div');
+      toggleHost.id = TOGGLE_CONTAINER_ID;
+      toggleHost.classList.add('ml-2'); // for margin
+      editorNavbar.appendChild(toggleHost);
+    }
+
+    const toggleRoot = createRoot(toggleHost);
+    toggleRoot.render(
+      <React.StrictMode>
+        <AppProvider>
+          <ExternalToggle />
+        </AppProvider>
+      </React.StrictMode>
+    );
+    (window as any).__vivlio_toggle_root = toggleRoot;
+  }
 }
 
 function unmount() {
@@ -51,6 +73,14 @@ function unmount() {
   }
   const host = document.getElementById(CONTAINER_ID);
   if (host?.parentNode) host.parentNode.removeChild(host);
+
+  const toggleRoot = (window as any).__vivlio_toggle_root;
+  if (toggleRoot) {
+    toggleRoot.unmount();
+    delete (window as any).__vivlio_toggle_root;
+  }
+  const toggleHost = document.getElementById(TOGGLE_CONTAINER_ID);
+  if (toggleHost?.parentNode) toggleHost.parentNode.removeChild(toggleHost);
 }
 
 const activate = () => {
