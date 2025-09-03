@@ -1,6 +1,6 @@
 // ui/PreviewShell.tsx
 import * as React from 'react';
-import { VivliostylePlanD } from './VivliostylePlanD';
+import { VivliostylePreview } from './VivliostylePreview';
 import { useAppContext } from '../context/AppContext';
 
 const PreviewShell: React.FC = () => {
@@ -32,7 +32,7 @@ const PreviewShell: React.FC = () => {
       style={{ width: '100%', height: '100%', position: 'relative', display: isOpen ? 'flex' : 'none', flexDirection: 'column' }}
       aria-hidden={!isOpen}
     >
-      <VivliostylePlanD markdown={markdown} isVisible={isOpen} />
+  <VivliostylePreview markdown={markdown} isVisible={isOpen} />
     </div>
   );
 };
