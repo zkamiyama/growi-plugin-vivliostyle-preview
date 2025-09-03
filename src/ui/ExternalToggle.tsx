@@ -255,10 +255,14 @@ export const ExternalToggle: React.FC = () => {
             attach(immediate);
             // eslint-disable-next-line no-console
             console.debug('[VivlioDBG][ExternalToggle] attached on #edit');
+          } else {
+            // start polling/observer to wait for anchor to appear
+            try { startPollingAndObserver(); } catch (e) { /* ignore if not ready */ }
           }
         }
       } else {
         detachIfAttached();
+        try { stopPollingAndObserver(); } catch (e) { /* ignore */ }
       }
     };
 
