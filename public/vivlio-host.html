@@ -5,59 +5,73 @@
   <title>Vivliostyle Preview Host</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body { margin: 0; }
-    #content { width: 100%; height: 100vh; }
-    .error-pane {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-      background-color: #f8d7da;
-      color: #721c24;
-      border: 1px solid #f5c6cb;
-      padding: 20px;
-      box-sizing: border-box;
-    }
+    html,body { margin:0; padding:0; height:100%; }
+    body { font-family: system-ui, sans-serif; line-height:1.5; }
+    #viewer-root { width:100%; height:100%; position:relative; overflow:auto; }
+    #status { position:absolute; top:4px; right:8px; background:rgba(0,0,0,.6); color:#fff; font-size:11px; padding:2px 6px; border-radius:4px; z-index:10; }
+    .error { color:#c00; }
+    pre.log { font-size:11px; background:#111; color:#eee; padding:6px; margin:8px; max-height:40%; overflow:auto; }
   </style>
+  <!-- 固定バージョン (例) NOTE: integrity 値は本番で計測し直す -->
+  <script src="https://unpkg.com/@vivliostyle/viewer@2.34.1/dist/vivliostyle-viewer.js"></script>
+  <script src="https://unpkg.com/@vivliostyle/vfm@2.2.1/dist/vfm.min.js"></script>
 </head>
 <body>
-  <div id="content">
-    <p>Waiting for content...</p>
+  <div id="viewer-root">
+    <div id="status">loading</div>
+    <div id="log" style="display:none"></div>
   </div>
-
   <script>
-    const contentEl = document.getElementById('content');
+    const statusEl = document.getElementById('status');
+    const viewerRoot = document.getElementById('viewer-root');
+    function setStatus(msg){ statusEl.textContent = msg; }
+    function log(msg, obj){ console.debug('[VivlioDBG][iframe]', msg, obj||''); }
 
-    // 親ウィンドウからのメッセージを待つ
-    window.addEventListener('message', (event) => {
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][iframe] message received', event.data);
-      // 安全のためオリジンをチェックすべきだが、デバッグ中は一旦省略
-  const { type, html } = event.data || {};
-  if (type === 'markdown:update' && typeof html === 'string') {
-        // Vivliostyle.js があれば、それを使ってロードする
-        if (window.Vivliostyle) {
-          // 既存のビューをクリーンアップ
-          contentEl.innerHTML = '';
-          window.Vivliostyle.viewer.load(
-            {
-              source: new Blob([html], { type: 'text/html' }),
-              profile: 'vivliostyle/profiles/default.js' // デフォルトプロファイル
-            },
-            contentEl
-          );
-        } else {
-          // Vivliostyle.js がない場合は、単純にHTMLを挿入
-          contentEl.innerHTML = html;
-        }
+    let lastMarkdownHash = null;
+
+    function hash(str){
+      let h = 0, i=0, len = str.length;
+      while(i < len){ h = (h*31 + str.charCodeAt(i++))|0; }
+      return (h>>>0).toString(16);
+    }
+
+    async function renderMarkdown(md){
+      if(!window.Vivliostyle){ setStatus('viewer not ready'); return; }
+      if(!window.vfm){ setStatus('vfm not ready'); return; }
+      const currentHash = hash(md);
+      if(currentHash === lastMarkdownHash){ log('skip same hash', currentHash); return; }
+      lastMarkdownHash = currentHash;
+      setStatus('parsing');
+      try {
+        const htmlBody = window.vfm.render(md || '');
+        // Vivliostyle viewer expects a document source
+        const docHtml = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>preview</title></head><body>${htmlBody}</body></html>`;
+        // cleanup previous
+        viewerRoot.querySelectorAll('.vivliostyle-viewer-container').forEach(n=>n.remove());
+        setStatus('loading viewer');
+        await window.Vivliostyle.viewer.load({
+          source: new Blob([docHtml], { type: 'text/html' }),
+          profile: 'vivliostyle/profiles/default.js'
+        }, viewerRoot);
+        setStatus('ok');
+      } catch(e){
+        console.error('[VivlioDBG][iframe] render error', e);
+        setStatus('error');
+        viewerRoot.insertAdjacentHTML('beforeend', `<pre class="log">${String(e).replace(/</g,'&lt;')}</pre>`);
+      }
+    }
+
+    window.addEventListener('message', (ev)=>{
+      const { type, markdown } = ev.data || {};
+      if(type === 'markdown:update-raw'){
+        log('receive raw markdown', { length: (markdown||'').length });
+        renderMarkdown(markdown||'');
       }
     });
 
-    // 親ウィンドウに準備完了を通知
+    // 親へ ready 通知
     if (window.parent && window.parent !== window) {
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][iframe] posting ready');
+      log('posting ready');
       window.parent.postMessage({ type: 'vivlio:ready' }, '*');
     }
   </script>

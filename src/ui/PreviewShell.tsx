@@ -6,11 +6,7 @@ import { useAppContext } from '../context/AppContext';
 // simple markdown -> html (temporary; will be replaced by VFM pipeline)
 // NOTE: Jest (CJS) と ESM の相互運用の差異で default が存在しないケースに対応
 // eslint-disable-next-line import/no-namespace
-import * as MarkdownIt from 'markdown-it';
-// markdown-it の型は default export 前提だが * as で受け取るためコンストラクタを取り出す
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const MDCtor: any = (MarkdownIt as any).default || (MarkdownIt as any);
-const md = new MDCtor();
+// markdown-it 削除: Viewer 側で VFM による変換を行う方針に移行
 
 const PreviewShell: React.FC = () => {
   const { isOpen, markdown, forceUpdateMarkdown } = useAppContext();
@@ -71,21 +67,21 @@ const PreviewShell: React.FC = () => {
     console.debug('[VivlioDBG] markdown effect', { length: markdown?.length, isOpen, hasIframe: !!iframe, ready: readyRef.current });
     if (!isOpen) return;
   // markdown-it は空文字で空HTMLになるので簡易プレースホルダ
-  const html = md.render(markdown && markdown.trim().length > 0 ? markdown : '*_(empty)_*');
+  const raw = (markdown && markdown.trim().length > 0 ? markdown : '_(empty)_');
     if (!iframe || !iframe.contentWindow) {
       // eslint-disable-next-line no-console
       console.debug('[VivlioDBG] iframe not ready yet (no element or no contentWindow)');
       return;
     }
     if (!readyRef.current) {
-      pendingHtmlRef.current = html;
+  pendingHtmlRef.current = raw;
       // eslint-disable-next-line no-console
       console.debug('[VivlioDBG] queued html until ready');
       return;
     }
     // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG] posting message to iframe', { htmlPreview: html.slice(0, 60) });
-    iframe.contentWindow.postMessage({ type: 'markdown:update', html }, '*');
+  console.debug('[VivlioDBG] posting raw markdown to iframe', { preview: raw.slice(0, 60) });
+  iframe.contentWindow.postMessage({ type: 'markdown:update-raw', markdown: raw }, '*');
   }, [markdown, isOpen]);
 
   return (
