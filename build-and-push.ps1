@@ -20,13 +20,18 @@ if ($LASTEXITCODE -ne 0) {
     Write-Error "Git add failed"
     exit 1
 }
-
-# コミット
-Write-Host "Committing with message: $CommitMessage"
-git commit -m $CommitMessage
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Commit failed"
-    exit 1
+# コミット（変更がなければスキップ）
+Write-Host "Checking staged changes..."
+$staged = git diff --cached --name-only
+if (-not $staged) {
+    Write-Host "No changes to commit. Skipping commit."
+} else {
+    Write-Host "Committing with message: $CommitMessage"
+    git commit -m $CommitMessage
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Commit failed"
+        exit 1
+    }
 }
 
 # プッシュ
