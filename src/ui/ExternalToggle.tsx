@@ -197,6 +197,9 @@ export const ExternalToggle: React.FC = () => {
   const offBg = `${radialOff}, ${activeBg}`;
   // apply bg depending on state
   btn.style.setProperty('background', isOpen ? activeBg : offBg, 'important');
+  // animate background scroll by toggling background-position
+  const pos = isOpen ? '100% 50%' : '0% 50%';
+  btn.style.setProperty('background-position', pos, 'important');
   // text color: white when active, muted gray when off
   btn.style.setProperty('color', isOpen ? '#ffffff' : '#9aa0a6', 'important');
   // remove global filter; darkness handled by radial overlay and inset shadow
@@ -267,6 +270,10 @@ export const ExternalToggle: React.FC = () => {
     verticalAlign: 'middle',
     // ensure CSS custom props don't override visible color
     WebkitAppearance: 'none',
+  // make background scrollable and animate position
+  backgroundSize: '200% 100%',
+  backgroundPosition: '0% 50%',
+  transition: 'background-position 0.33s ease, color 0.33s ease, box-shadow 0.33s ease, border-color 0.33s ease',
   };
 
   return createPortal(
