@@ -30,40 +30,73 @@ function ensureState() {
   return window[PLUGIN_EDIT_FLAG]!;
 }
 function activateEditModeDetector() {
-  if (
-    typeof growiFacade === 'undefined' ||
-    !growiFacade.markdownRenderer ||
-    !growiFacade.markdownRenderer.optionsGenerators
-  ) {
-    return;
-  }
-  const { optionsGenerators } = growiFacade.markdownRenderer;
-  originalCustomGenerateViewOptions = optionsGenerators.customGenerateViewOptions;
-  originalCustomGeneratePreviewOptions = optionsGenerators.customGeneratePreviewOptions;
-  optionsGenerators.customGenerateViewOptions = (...args: any[]) => {
-    const state = ensureState();
-    state.isEditPreview = false;
-    state.lastMode = 'view';
-    const base = originalCustomGenerateViewOptions ?? optionsGenerators.generateViewOptions;
-    const viewOptions = base ? base(...args) : {};
-    // 状態変更を通知
-    try { window.dispatchEvent(new CustomEvent('vivlio:edit-mode-changed', { detail: { isEditPreview: state.isEditPreview } })); } catch (e) {}
-    // 通常画面ではアンマウント（ボタンを隠す）
-    unmount();
-    return viewOptions;
+  const tryActivate = () => {
+    if (
+      typeof growiFacade === 'undefined' ||
+      !growiFacade.markdownRenderer ||
+      !growiFacade.markdownRenderer.optionsGenerators
+    ) {
+      return false; // 未準備
+    }
+    const { optionsGenerators } = growiFacade.markdownRenderer;
+    // 多重差し込み防止: 既に差し込まれていたらスキップ
+    if (optionsGenerators.customGenerateViewOptions === originalCustomGenerateViewOptions &&
+        optionsGenerators.customGeneratePreviewOptions === originalCustomGeneratePreviewOptions) {
+      return true; // 既に正しい
+    }
+    originalCustomGenerateViewOptions = optionsGenerators.customGenerateViewOptions;
+    originalCustomGeneratePreviewOptions = optionsGenerators.customGeneratePreviewOptions;
+    optionsGenerators.customGenerateViewOptions = (...args: any[]) => {
+      const state = ensureState();
+      state.isEditPreview = false;
+      state.lastMode = 'view';
+      const base = originalCustomGenerateViewOptions ?? optionsGenerators.generateViewOptions;
+      const viewOptions = base ? base(...args) : {};
+      // 状態変更を通知
+      try { window.dispatchEvent(new CustomEvent('vivlio:edit-mode-changed', { detail: { isEditPreview: state.isEditPreview } })); } catch (e) {}
+      // 通常画面でもmount()を呼んで、編集到達時に再試行が効くようにする
+      mount();
+      return viewOptions;
+    };
+    optionsGenerators.customGeneratePreviewOptions = (...args: any[]) => {
+      const state = ensureState();
+      state.isEditPreview = true;
+      state.lastMode = 'preview';
+      const base = originalCustomGeneratePreviewOptions ?? optionsGenerators.generatePreviewOptions;
+      const previewOptions = base ? base(...args) : {};
+      // 状態変更を通知
+      try { window.dispatchEvent(new CustomEvent('vivlio:edit-mode-changed', { detail: { isEditPreview: state.isEditPreview } })); } catch (e) {}
+      // 編集プレビュー時にもmount()（重複呼び出しは内部で防がれる）
+      mount();
+      return previewOptions;
+    };
+    return true; // 成功
   };
-  optionsGenerators.customGeneratePreviewOptions = (...args: any[]) => {
-    const state = ensureState();
-    state.isEditPreview = true;
-    state.lastMode = 'preview';
-    const base = originalCustomGeneratePreviewOptions ?? optionsGenerators.generatePreviewOptions;
-    const previewOptions = base ? base(...args) : {};
-    // 状態変更を通知
-    try { window.dispatchEvent(new CustomEvent('vivlio:edit-mode-changed', { detail: { isEditPreview: state.isEditPreview } })); } catch (e) {}
-    // 編集プレビュー時のみマウント（ボタンを表示）
-    mount();
-    return previewOptions;
+
+  // 即時試行
+  if (tryActivate()) return;
+
+  // 遅延試行: 数秒で停止
+  let attempts = 0;
+  const maxAttempts = 50; // 5秒 (100ms * 50)
+  const intervalId = setInterval(() => {
+    attempts++;
+    if (tryActivate() || attempts >= maxAttempts) {
+      clearInterval(intervalId);
+    }
+  }, 100);
+
+  // DOMイベントでも試行
+  const retryOnEvent = () => {
+    if (tryActivate()) {
+      window.removeEventListener('hashchange', retryOnEvent);
+      window.removeEventListener('popstate', retryOnEvent);
+      document.removeEventListener('DOMContentLoaded', retryOnEvent);
+    }
   };
+  window.addEventListener('hashchange', retryOnEvent);
+  window.addEventListener('popstate', retryOnEvent);
+  document.addEventListener('DOMContentLoaded', retryOnEvent);
 }
 function deactivateEditModeDetector() {
   if (
