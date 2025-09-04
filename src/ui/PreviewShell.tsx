@@ -26,7 +26,7 @@ const PreviewShell: React.FC = () => {
     console.debug('[VivlioDBG][PreviewShell] isOpen changed', { isOpen, markdownLen: markdown.length });
   }, [isOpen, markdown]);
 
-  const previewContainer = React.useMemo(() => {
+  const [previewContainer, setPreviewContainer] = React.useState<HTMLElement | null>(() => {
     const candidates = [
       '.page-editor-preview-container',
       '#page-editor-preview-container',
@@ -34,7 +34,7 @@ const PreviewShell: React.FC = () => {
       '.page-editor-preview-body',
     ];
     for (const sel of candidates) {
-      const el = document.querySelector(sel);
+      const el = document.querySelector(sel) as HTMLElement | null;
       if (el) {
         // eslint-disable-next-line no-console
         console.debug('[VivlioDBG][PreviewShell] found previewContainer', { sel, el, className: el.className });
@@ -44,15 +44,58 @@ const PreviewShell: React.FC = () => {
     // eslint-disable-next-line no-console
     console.debug('[VivlioDBG][PreviewShell] no previewContainer found', { candidates });
     return null;
-  }, []);
+  });
+
+  // previewContainerが見つからない場合、定期的に探す
+  React.useEffect(() => {
+    if (previewContainer) return; // 既にみつかっている場合は何もしない
+
+    const findContainer = () => {
+      const candidates = [
+        '.page-editor-preview-container',
+        '#page-editor-preview-container',
+        '.page-editor-preview',
+        '.page-editor-preview-body',
+      ];
+      for (const sel of candidates) {
+        const el = document.querySelector(sel) as HTMLElement | null;
+        if (el) {
+          // eslint-disable-next-line no-console
+          console.debug('[VivlioDBG][PreviewShell] found previewContainer (delayed)', { sel, el, className: el.className });
+          setPreviewContainer(el);
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // 即時実行
+    if (findContainer()) return;
+
+    // 見つからない場合、定期的に探す
+    const interval = setInterval(() => {
+      if (findContainer()) {
+        clearInterval(interval);
+      }
+    }, 500); // 500msごとにチェック
+
+    // 最大10秒でタイムアウト
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+      // eslint-disable-next-line no-console
+      console.warn('[VivlioDBG][PreviewShell] previewContainer not found after 10 seconds');
+    }, 10000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [previewContainer]);
 
   // eslint-disable-next-line no-console
   console.debug('[VivlioDBG][PreviewShell] render', { isOpen, hasPreviewContainer: !!previewContainer, markdownLen: markdown.length });
 
-  if (!previewContainer) {
-    return null;
-  }
-
+  // previewContainerが見つからない場合でも、ホスト作成は試みる
   const host = document.getElementById('vivlio-preview-container');
   if (!host) {
     const newHost = document.createElement('div');
@@ -63,6 +106,11 @@ const PreviewShell: React.FC = () => {
     newHost.style.display = 'none';
     if (previewContainer) {
       previewContainer.appendChild(newHost);
+    } else {
+      // previewContainerが見つからない場合、bodyに追加
+      document.body.appendChild(newHost);
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][PreviewShell] host appended to body (no previewContainer)');
     }
   }
 
