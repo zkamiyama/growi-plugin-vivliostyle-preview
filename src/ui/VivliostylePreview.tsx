@@ -82,6 +82,76 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   if (!isVisible) return null;
 
   const source = dataUrl || null; // bookMode=false で loadDocument() を利用
+  // Extract user CSS from markdown code block labeled ```vivliocss
+  const extractUserCss = (md: string) => {
+    const m = md.match(/```vivliocss\s*([\s\S]*?)```/i);
+    return m ? m[1].trim() : '';
+  };
+
+  const userCss = extractUserCss(markdown || '');
+
+  // Determine page size: prefer @page in userCss, else fallback to A4 portrait no-margin
+  const detectPageSizeFromCss = (css: string) => {
+    // match @page{...size: <w> <h>;...}
+    const pageMatch = css.match(/@page[^{]*{([\s\S]*?)}/i);
+    if (pageMatch) {
+      const inside = pageMatch[1];
+      const sizeMatch = inside.match(/size:\s*([^;]+);?/i);
+      if (sizeMatch) {
+        const parts = sizeMatch[1].trim().split(/\s+/);
+        if (parts.length >= 2) return { width: parts[0], height: parts[1], margin: null };
+        return { width: parts[0], height: null, margin: null };
+      }
+      const marginMatch = inside.match(/margin:\s*([^;]+);?/i);
+      return { width: null, height: null, margin: marginMatch ? marginMatch[1].trim() : null };
+    }
+    return { width: null, height: null, margin: null };
+  };
+
+  const pageSpec = detectPageSizeFromCss(userCss);
+  const pageWidth = pageSpec.width || '210mm';
+  const pageHeight = pageSpec.height || '297mm';
+  const pageMargin = pageSpec.margin || '0mm';
+
+  // Build final stylesheet to pass into Renderer. If user provided CSS, use it verbatim (user controls all CSS).
+  // If none provided, provide fallback A4 portrait no-margin + vertical writing-mode.
+  const finalUserStyleSheet = userCss
+    ? userCss
+    : `@page{size:${pageWidth} ${pageHeight}; margin:${pageMargin};} html,body{background:#fff !important;color:#222 !important;-webkit-font-smoothing:antialiased;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Meiryo',sans-serif; height:100%; overflow:hidden !important;} body{writing-mode:vertical-rl !important; text-orientation:upright !important;} h1,h2,h3,h4,h5{color:#111 !important;} p{color:#222 !important;} a{color:#0645ad !important;}`;
+
+  // Refs for measuring and scaling
+  const viewerRef = React.useRef<HTMLDivElement | null>(null);
+  const sheetRef = React.useRef<HTMLDivElement | null>(null);
+  const rendererWrapRef = React.useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = React.useState<number>(1);
+
+  // Compute fit-to-container scale so the entire sheet is visible (never upscale beyond 1)
+  React.useLayoutEffect(() => {
+    function recompute() {
+      const viewer = viewerRef.current;
+      const sheet = sheetRef.current;
+      if (!viewer || !sheet) return;
+      const vRect = viewer.getBoundingClientRect();
+      const sRect = sheet.getBoundingClientRect();
+      // available space inside viewer (padding included)
+      const availW = vRect.width - 0; // no extra padding
+      const availH = vRect.height - 0;
+      if (sRect.width <= 0 || sRect.height <= 0) return;
+      const fit = Math.min(availW / sRect.width, availH / sRect.height, 1);
+      setScale(Number(fit.toFixed(4)));
+      // apply transform to renderer wrap if exists
+      if (rendererWrapRef.current) {
+        rendererWrapRef.current.style.transform = `scale(${fit})`;
+        rendererWrapRef.current.style.transformOrigin = 'top left';
+      }
+    }
+    recompute();
+    window.addEventListener('resize', recompute);
+    const ro = new ResizeObserver(recompute);
+    if (viewerRef.current) ro.observe(viewerRef.current);
+    if (sheetRef.current) ro.observe(sheetRef.current);
+    return () => { window.removeEventListener('resize', recompute); ro.disconnect(); };
+  }, [source, userCss, pageWidth, pageHeight]);
 
   return (
     <div style={{
@@ -95,28 +165,25 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       alignItems: 'center',
       justifyContent: 'center'
     }}>
-      <div style={{ padding: 24, overflow: 'auto', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {/* Fixed-size A5 preview sheet (portrait). Uses mm units so layout doesn't respond to window size. */}
-        <div style={{ width: '148mm', height: '210mm', background: '#fff', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', border: '1px solid #ddd', overflow: 'hidden' }}>
+        <div ref={viewerRef} style={{ padding: 24, overflow: 'auto', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {/* Fixed-size preview sheet. Page size comes from user CSS @page if provided, else A4 fallback. */}
+          <div ref={sheetRef} style={{ width: pageWidth, height: pageHeight, background: '#fff', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', border: '1px solid #ddd', overflow: 'hidden', position: 'relative' }}>
           {errorMsg && (
             <div style={{ position: 'absolute', top: 8, right: 8, left: 8, padding: '8px 10px', background: '#ffeeee', border: '1px solid #e99', color: '#a00', fontSize: 12, borderRadius: 4 }}>
               VFM Error: {errorMsg}
             </div>
           )}
           {source ? (
-            <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
-              <Renderer
-                /* keep stable mounting */
-                source={source as string}
-                bookMode={false}
-                userStyleSheet={`@page{size:148mm 210mm; margin:12mm;} html,body{background:#fff !important;color:#222 !important;-webkit-font-smoothing:antialiased;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Meiryo',sans-serif; height:100%; overflow:hidden !important;}
-                  /* Force vertical writing mode for A5 portrait print-like preview */
-                  body{writing-mode:vertical-rl !important; text-orientation:upright !important;}
-                  h1,h2,h3,h4,h5{color:#111 !important;}
-                  p{color:#222 !important;}
-                  a{color:#0645ad !important;}
-                `}
-              />
+            <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
+              {/* rendererWrapRef is scaled to fit the sheet into viewer */}
+              <div ref={rendererWrapRef} style={{ width: '100%', height: '100%', overflow: 'hidden', willChange: 'transform' }}>
+                <Renderer
+                  /* keep stable mounting */
+                  source={source as string}
+                  bookMode={false}
+                  userStyleSheet={finalUserStyleSheet}
+                />
+              </div>
             </div>
           ) : !errorMsg ? (
             <div style={{ padding: '2em', textAlign: 'center', color: '#666' }}>Markdownを入力してください...</div>
