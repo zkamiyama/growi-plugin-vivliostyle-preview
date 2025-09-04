@@ -165,7 +165,12 @@ export function useEditorMarkdown(opts: Options = {}) {
           };
           read();
           try {
-            if (EditorView.updateListener && typeof EditorView.updateListener.of === 'function') {
+            // Defensive: EditorView may be undefined in some hosts/bundles.
+            // Log presence to help diagnose whether updateListener can be used.
+            // eslint-disable-next-line no-console
+            console.debug('[VivlioDBG] useEditorMarkdown: EditorView presence', { hasEditorView: !!EditorView, editorViewType: typeof EditorView });
+
+            if (EditorView && EditorView.updateListener && typeof EditorView.updateListener.of === 'function') {
               // create listener that logs when fired and delegates to `read` on doc changes
               const listener = EditorView.updateListener.of((u: any) => {
                 try {
