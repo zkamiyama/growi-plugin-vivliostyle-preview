@@ -1,44 +1,16 @@
 // hooks/useVivliostyleBridge.ts
-import { useEffect, useState } from 'react';
+import * as React from 'react';
 
-// メッセージの型定義
-export interface VivliostyleMessage {
-  type: 'update' | 'ready';
-  html?: string;
-}
+export function useVivliostyleBridge() {
+  const [html, setHtml] = React.useState<string>('');
 
-export function useVivliostyleBridge(
-  iframe: HTMLIFrameElement | null,
-  html: string,
-) {
-  const [isReady, setIsReady] = useState(false);
+  const updateViewer = React.useCallback((nextHtml: string) => {
+    setHtml(nextHtml);
 
-  useEffect(() => {
-    if (!iframe?.contentWindow) return;
+    // iframeへpostMessage（同一オリジンのviewer/index.html側で受信し、Blob化して#srcを更新）
+    const iframe = document.querySelector<HTMLIFrameElement>('#vivlio-iframe');
+    iframe?.contentWindow?.postMessage({ type: 'vivlio:update', html: nextHtml }, '*');
+  }, []);
 
-    const target = iframe.contentWindow;
-
-    // iframeの準備完了を待ってから最初のデータを送る
-    const handleReady = (event: MessageEvent<VivliostyleMessage>) => {
-      if (event.source === target && event.data.type === 'ready') {
-        setIsReady(true);
-      }
-    };
-
-    window.addEventListener('message', handleReady);
-
-    return () => {
-      window.removeEventListener('message', handleReady);
-    };
-  }, [iframe]);
-
-  useEffect(() => {
-    if (isReady && iframe?.contentWindow) {
-      const message: VivliostyleMessage = { type: 'update', html };
-      // '*' はデモ用。本番では targetOrigin を指定すべき
-      iframe.contentWindow.postMessage(message, '*');
-    }
-  }, [iframe, html, isReady]);
-
-  return { isReady };
+  return { html, updateViewer };
 }
