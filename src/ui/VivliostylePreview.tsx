@@ -15,6 +15,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [htmlLen, setHtmlLen] = useState(0);
   const [encodedLen, setEncodedLen] = useState(0);
   const [fullHtml, setFullHtml] = useState('');
+  const blobUrlRef = React.useRef<string | null>(null);
   const [editorMd, setEditorMd] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [pageInfo, setPageInfo] = useState<{ size?: string|null; margins?: string[]; pageRuleFound: boolean }>({ pageRuleFound: false });
@@ -54,13 +55,27 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       } catch (e) {
         setPageInfo({ pageRuleFound: false });
       }
-      const base64 = btoa(unescape(encodeURIComponent(generated)));
-      const url = `data:text/html;base64,${base64}`;
-      setEncodedLen(url.length);
-      setDataUrl(url);
+      // Use Blob URL instead of base64 data URL to avoid heavy base64 encoding on large HTML
+      try {
+        const blob = new Blob([generated], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        // revoke previous blob URL if any
+        if (blobUrlRef.current) {
+          try { URL.revokeObjectURL(blobUrlRef.current); } catch (e) { /* ignore */ }
+        }
+        blobUrlRef.current = url;
+        setEncodedLen(generated.length);
+        setDataUrl(url);
+      } catch (e) {
+        // fallback to data URL if Blob/URL.createObjectURL not available
+        const base64 = btoa(unescape(encodeURIComponent(generated)));
+        const url = `data:text/html;base64,${base64}`;
+        setEncodedLen(url.length);
+        setDataUrl(url);
+      }
       setErrorMsg(null);
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][Preview] dataUrl ready', { encodedLen: url.length });
+  // eslint-disable-next-line no-console
+  console.debug('[VivlioDBG][Preview] dataUrl ready', { encodedLen: generated.length });
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error('[VivlioDBG][Preview] stringify failed', e);
@@ -143,10 +158,21 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         }
         setFullHtml(generated);
         setHtmlLen(generated.length);
-        const base64 = btoa(unescape(encodeURIComponent(generated)));
-        const url = `data:text/html;base64,${base64}`;
-        setEncodedLen(url.length);
-        setDataUrl(url);
+        try {
+          const blob = new Blob([generated], { type: 'text/html' });
+          const url = URL.createObjectURL(blob);
+          if (blobUrlRef.current) {
+            try { URL.revokeObjectURL(blobUrlRef.current); } catch (e) { /* ignore */ }
+          }
+          blobUrlRef.current = url;
+          setEncodedLen(generated.length);
+          setDataUrl(url);
+        } catch (e) {
+          const base64 = btoa(unescape(encodeURIComponent(generated)));
+          const url = `data:text/html;base64,${base64}`;
+          setEncodedLen(url.length);
+          setDataUrl(url);
+        }
         setErrorMsg(null);
         // debug log
         // eslint-disable-next-line no-console
@@ -165,7 +191,8 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
 
   // Use data URL as the Renderer source so the viewer loads inline HTML and
   // does not attempt to fetch the string as a remote URL (which causes CORS/fetch errors).
-  const rendererSource = dataUrl || (fullHtml ? `data:text/html;base64,${btoa(unescape(encodeURIComponent(fullHtml)))}` : null);
+  // rendererSource must be a URL string (prefer Blob/data URL stored in state). Do not recreate base64 inline here.
+  const rendererSource = dataUrl || null;
   // Extract user CSS from markdown code block labeled ```vivliocss
   // Also support cases where the editor folds code and produces
   // <pre class="language-vivliocss…"> truncated forms in the generated HTML.
@@ -255,6 +282,16 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     if (sheetRef.current) ro.observe(sheetRef.current);
     return () => { window.removeEventListener('resize', recompute); ro.disconnect(); };
   }, [fullHtml, dataUrl, userCss, pageWidth, pageHeight]);
+
+  // cleanup blob URL on unmount
+  React.useEffect(() => {
+    return () => {
+      if (blobUrlRef.current) {
+        try { URL.revokeObjectURL(blobUrlRef.current); } catch (e) { /* ignore */ }
+        blobUrlRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div style={{
