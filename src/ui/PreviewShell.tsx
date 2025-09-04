@@ -68,14 +68,15 @@ const PreviewShell: React.FC = () => {
   }, [isOpen, markdown]);
 
   const [tabBar, setTabBar] = React.useState<HTMLElement | null>(() => {
-    // タブバーを探す - 上部のナビゲーション部分
+    // タブバーを探す - ul.nav.nav-tabsを最優先
     const tabBarSelectors = [
+      '.page-editor-preview-container ul.nav.nav-tabs',
+      '#page-editor-preview-container ul.nav.nav-tabs',
+      'ul.nav.nav-tabs',
       '.page-editor-preview-container .nav',
       '.page-editor-preview-container .nav-tabs',
-      '.page-editor-preview-container .tab-content',
       '.page-editor-preview-container',
     ];
-    
     for (const sel of tabBarSelectors) {
       const el = document.querySelector(sel) as HTMLElement | null;
       if (el) {
@@ -84,7 +85,6 @@ const PreviewShell: React.FC = () => {
         return el;
       }
     }
-    
     // eslint-disable-next-line no-console
     console.debug('[VivlioDBG][PreviewShell] no tabBar found', { tabBarSelectors });
     return null;
@@ -126,12 +126,13 @@ const PreviewShell: React.FC = () => {
 
     const findTabBar = () => {
       const tabBarSelectors = [
+        '.page-editor-preview-container ul.nav.nav-tabs',
+        '#page-editor-preview-container ul.nav.nav-tabs',
+        'ul.nav.nav-tabs',
         '.page-editor-preview-container .nav',
         '.page-editor-preview-container .nav-tabs',
-        '.page-editor-preview-container .tab-content',
         '.page-editor-preview-container',
       ];
-      
       for (const sel of tabBarSelectors) {
         const el = document.querySelector(sel) as HTMLElement | null;
         if (el) {
@@ -304,21 +305,36 @@ const PreviewShell: React.FC = () => {
     const processed: string[] = [];
 
     const children = Array.from(currentPreviewContainer.children) as HTMLElement[];
+    // タブバー系は絶対に隠さない
+    const tabWhitelist = [
+      'nav', 'ul',
+    ];
+    const tabClassWhitelist = [
+      'nav', 'nav-tabs',
+    ];
+    const tabRoleWhitelist = ['tablist'];
     children.forEach((el, idx) => {
       if (el === host) return; // 自分は対象外
+      // タブバー系は絶対に隠さない
+      const tag = el.tagName.toLowerCase();
+      const classList = Array.from(el.classList);
+      const role = el.getAttribute('role');
+      const isTabBar =
+        (tabWhitelist.includes(tag) && classList.some(c => tabClassWhitelist.includes(c))) ||
+        (role && tabRoleWhitelist.includes(role));
+      if (isTabBar) return;
       processed.push(`${idx}:${el.className || el.id || el.tagName}`);
       if (isOpen) {
-        // 既に保存していなければ元displayを保存
-          if (!el.dataset.vivlioPrevDisplay) {
-            el.dataset.vivlioPrevDisplay = el.style.display || '';
-          }
-          el.style.setProperty('display', 'none', 'important');
-          el.setAttribute('aria-hidden', 'true');
-          hiddenCount += 1;
+        if (!el.dataset.vivlioPrevDisplay) {
+          el.dataset.vivlioPrevDisplay = el.style.display || '';
+        }
+        el.style.setProperty('display', 'none', 'important');
+        el.setAttribute('aria-hidden', 'true');
+        hiddenCount += 1;
       } else {
         if (el.dataset.vivlioPrevDisplay !== undefined) {
           el.style.display = el.dataset.vivlioPrevDisplay;
-          delete el.dataset.vivlioPrevDisplay; // 復帰後クリア
+          delete el.dataset.vivlioPrevDisplay;
         } else {
           el.style.display = '';
         }
