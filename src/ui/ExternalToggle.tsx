@@ -190,7 +190,7 @@ export const ExternalToggle: React.FC = () => {
     try {
   const btn = wrapperEl.querySelector('button.vivlio-toggle-btn') as HTMLElement | null;
   if (!btn) return;
-  btn.style.setProperty('background', 'linear-gradient(135deg, #1a63b8 0%, #1a63b8 33.333%, #d05232 50%, #1a63b8 66.666%, #1a63b8 100%)', 'important');
+  btn.style.setProperty('background', 'linear-gradient(135deg, #1a63b8 0%, #1a63b8 25%, #d05232 25%, #d05232 75%, #1a63b8 75%, #1a63b8 100%)', 'important');
       btn.style.setProperty('color', '#ffffff', 'important');
       btn.style.setProperty('box-shadow', '0 4px 0 rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.12)', 'important');
       btn.style.setProperty('border', 'none', 'important');
@@ -233,7 +233,7 @@ export const ExternalToggle: React.FC = () => {
   // inline style: 立体的なグラデーション（提供画像のブルー→オレンジ系）と白文字を強制
   const buttonStyle: React.CSSProperties = {
     // balanced blue > red > blue areas with smooth transitions
-    background: 'linear-gradient(135deg, #1a63b8 0%, #1a63b8 33.333%, #d05232 50%, #1a63b8 66.666%, #1a63b8 100%)',
+  background: 'linear-gradient(135deg, #1a63b8 0%, #1a63b8 25%, #d05232 25%, #d05232 75%, #1a63b8 75%, #1a63b8 100%)',
     color: '#ffffff',
     border: 'none',
     padding: '6px 10px',
