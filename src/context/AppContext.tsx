@@ -23,7 +23,7 @@ export type AppContextType = {
 const AppContext = React.createContext<AppContextType | null>(null);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isVivliostyleActive, setIsVivliostyleActive] = React.useState(false);
+  const [isVivliostyleActive, setIsVivliostyleActive] = React.useState(true); // 初期値をtrueに設定
   const { markdown } = useEditorMarkdown({ debounceMs: 250 });
   const [forced, setForced] = React.useState<string | null>(null);
   const [activeTab, setActiveTab] = React.useState<'markdown' | 'vivliostyle'>('markdown');

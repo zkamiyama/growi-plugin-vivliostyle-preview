@@ -68,12 +68,12 @@ const PreviewShell: React.FC = () => {
   }, [isOpen, markdown]);
 
   const [tabBar, setTabBar] = React.useState<HTMLElement | null>(() => {
-    // タブバーを探す
+    // タブバーを探す - 上部のナビゲーション部分
     const tabBarSelectors = [
       '.page-editor-preview-container .nav',
       '.page-editor-preview-container .nav-tabs',
       '.page-editor-preview-container .tab-content',
-      '.page-editor-preview-container > div:first-child',
+      '.page-editor-preview-container',
     ];
     
     for (const sel of tabBarSelectors) {
@@ -129,7 +129,7 @@ const PreviewShell: React.FC = () => {
         '.page-editor-preview-container .nav',
         '.page-editor-preview-container .nav-tabs',
         '.page-editor-preview-container .tab-content',
-        '.page-editor-preview-container > div:first-child',
+        '.page-editor-preview-container',
       ];
       
       for (const sel of tabBarSelectors) {
@@ -346,8 +346,20 @@ const PreviewShell: React.FC = () => {
   // タブメニューは常に表示、コンテンツはisOpen次第
   return (
     <>
-      {/* タブメニューをtabBarにポータル */}
-      {tabBar && createPortal(<TabMenu />, tabBar)}
+      {/* タブメニューをtabBarにポータル - 常に表示 */}
+      {tabBar && createPortal(
+        <div style={{ 
+          position: 'sticky', 
+          top: 0, 
+          background: 'white', 
+          borderBottom: '1px solid #ddd', 
+          zIndex: 100,
+          padding: '8px 16px'
+        }}>
+          <TabMenu />
+        </div>, 
+        tabBar
+      )}
       
       {/* コンテンツをfinalHostにポータル */}
       {createPortal(
