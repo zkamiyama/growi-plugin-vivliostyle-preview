@@ -331,36 +331,41 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         </div>
       </div>
       {/* Info button */}
-      <button
-        type="button"
-        aria-label="show vivliostyle preview info"
-        onClick={() => setShowInfo(s => !s)}
-        style={{
-          position: 'absolute',
-          top: 6,
-          right: 6,
-          width: 26,
-          height: 26,
-          borderRadius: '50%',
-          border: '1px solid #999',
-          background: showInfo ? '#0d6efd' : '#fff',
-          color: showInfo ? '#fff' : '#333',
-          fontSize: 14,
-          cursor: 'pointer',
-          lineHeight: '24px',
-          textAlign: 'center',
-          boxShadow: '0 1px 2px rgba(0,0,0,.15)'
-        }}
-        title="Preview info"
-      >i</button>
+          {!showInfo && (
+            <button
+              type="button"
+              aria-label="show vivliostyle preview info"
+              onClick={() => setShowInfo(true)}
+              style={{
+                position: 'absolute',
+                top: 6,
+                right: 6,
+                width: 26,
+                height: 26,
+                borderRadius: '50%',
+                border: '1px solid #999',
+                background: '#fff',
+                color: '#333',
+                fontSize: 14,
+                cursor: 'pointer',
+                lineHeight: '24px',
+                textAlign: 'center',
+                boxShadow: '0 1px 2px rgba(0,0,0,.15)'
+              }}
+              title="Preview info"
+            >i</button>
+          )}
       {showInfo && (
         <div style={{
           position: 'absolute',
-          top: 40,
+          top: 8,
           right: 8,
           width: 320,
-          maxHeight: '60%',
+          maxHeight: '80%',
           overflow: 'auto',
+          resize: 'both',
+          minWidth: 220,
+          minHeight: 120,
           // darker frosted glass / Aero-like
           background: 'rgba(18,20,22,0.56)',
           backdropFilter: 'blur(8px) saturate(120%)',
