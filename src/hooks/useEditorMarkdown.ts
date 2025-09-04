@@ -35,6 +35,8 @@ export function useEditorMarkdown(opts: Options = {}) {
   const debTimerRef = React.useRef<number | null>(null);
   const observerRef = React.useRef<MutationObserver | null>(null);
   const cleanupRef = React.useRef<(() => void) | null>(null);
+  const domHandlersRef = React.useRef<Array<{ target: EventTarget | null; event: string; fn: EventListener }>>([]);
+  const msgHandlerRef = React.useRef<((ev: MessageEvent) => void) | null>(null);
   const retryRef = React.useRef(0);
   const pollTimerRef = React.useRef<number | null>(null);
   const pollFastCountRef = React.useRef(0);
@@ -251,12 +253,13 @@ export function useEditorMarkdown(opts: Options = {}) {
                     host = (view as any).root.dom as HTMLElement;
                   }
                   const textarea = host?.querySelector('textarea');
-                  if (textarea) {
-                    textarea.addEventListener('input', inputHandler);
-                    textareaFound = true;
-                    // eslint-disable-next-line no-console
-                    console.debug('[VivlioDBG] useEditorMarkdown: attached input listener to hidden textarea', { textareaFound: true });
-                  }
+                    if (textarea) {
+                      textarea.addEventListener('input', inputHandler);
+                      domHandlersRef.current.push({ target: textarea, event: 'input', fn: inputHandler });
+                      textareaFound = true;
+                      // eslint-disable-next-line no-console
+                      console.debug('[VivlioDBG] useEditorMarkdown: attached input listener to hidden textarea', { textareaFound: true });
+                    }
                 } catch (e) { /* ignore */ }
 
                 // If no textarea found, attach to a set of likely DOM events on view.dom/cm-content
@@ -270,22 +273,23 @@ export function useEditorMarkdown(opts: Options = {}) {
                       for (const ev of events) {
                         const fn = (e: Event) => {
                           try { read(); } catch (e) { /* ignore */ }
-                          // stop polling and remove all handlers
+                          // stop polling
                           try {
                             if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
                             if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
                           } catch (err) { /* ignore */ }
-                          for (const [k, h] of handlers) { target.removeEventListener(k, h as EventListener); }
                         };
                         handlers.push([ev, fn]);
                         target.addEventListener(ev, fn);
+                        domHandlersRef.current.push({ target, event: ev, fn });
                       }
                       // eslint-disable-next-line no-console
                       console.debug('[VivlioDBG] useEditorMarkdown: attached DOM event handlers to view.dom/cm-content', { eventsAttached: events.length });
                       // ensure cleanup removes handlers
                       const prevCleanup = cleanupRef.current;
                       cleanupRef.current = () => {
-                        try { for (const [k, h] of handlers) { target.removeEventListener(k, h as EventListener); } } catch (e) { /* ignore */ }
+                        try { for (const { target: t, event: k, fn: h } of domHandlersRef.current) { t?.removeEventListener(k, h); } } catch (e) { /* ignore */ }
+                        domHandlersRef.current = [];
                         try { prevCleanup?.(); } catch (e) { /* ignore */ }
                       };
                     }
@@ -332,12 +336,15 @@ export function useEditorMarkdown(opts: Options = {}) {
 
                   msgHandler = (ev: MessageEvent) => { try { read(); } catch (e) { /* ignore */ } };
                   window.addEventListener('message', msgHandler);
+                  msgHandlerRef.current = msgHandler;
                   // eslint-disable-next-line no-console
                   console.debug('[VivlioDBG] useEditorMarkdown: viewer mutation observer and message listener attached');
                 } catch (e) { /* ignore observer setup errors */ }
 
                 const prevCleanup = cleanupRef.current;
                 cleanupRef.current = () => {
+                  try { for (const { target: t, event: k, fn: h } of domHandlersRef.current) { t?.removeEventListener(k, h); } } catch (e) { /* ignore */ }
+                  domHandlersRef.current = [];
                   if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
                   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
                   if (inputListenerRef.current) {
@@ -349,7 +356,7 @@ export function useEditorMarkdown(opts: Options = {}) {
                     inputListenerRef.current = null;
                   }
                   try { observerRef.current?.disconnect(); observerRef.current = null; } catch (e) { /* ignore */ }
-                  if (msgHandler) { try { window.removeEventListener('message', msgHandler); } catch (e) { /* ignore */ } }
+                  if (msgHandlerRef.current) { try { window.removeEventListener('message', msgHandlerRef.current); msgHandlerRef.current = null; } catch (e) { /* ignore */ } }
                   try { prevCleanup?.(); } catch (e) { /* ignore */ }
                 };
               } else {
@@ -415,10 +422,17 @@ export function useEditorMarkdown(opts: Options = {}) {
     tryAttach();
     return () => {
       disposed = true;
-      cleanupRef.current?.();
-      observerRef.current?.disconnect();
-      if (debTimerRef.current) window.clearTimeout(debTimerRef.current);
-      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  // remove dom handlers
+  try { for (const { target: t, event: k, fn: h } of domHandlersRef.current) { t?.removeEventListener(k, h); } } catch (e) { /* ignore */ }
+  domHandlersRef.current = [];
+  // call any additional cleanup
+  cleanupRef.current?.();
+  // observer cleanup
+  try { observerRef.current?.disconnect(); observerRef.current = null; } catch (e) { /* ignore */ }
+  // message handler
+  if (msgHandlerRef.current) { try { window.removeEventListener('message', msgHandlerRef.current); msgHandlerRef.current = null; } catch (e) { /* ignore */ } }
+  if (debTimerRef.current) window.clearTimeout(debTimerRef.current);
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
       // eslint-disable-next-line no-console
       console.debug('[VivlioDBG] useEditorMarkdown: cleanup', { phase: attachPhaseRef.current });
     };
