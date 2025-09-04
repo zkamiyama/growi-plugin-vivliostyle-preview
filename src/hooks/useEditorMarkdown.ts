@@ -36,6 +36,9 @@ export function useEditorMarkdown(opts: Options = {}) {
   const observerRef = React.useRef<MutationObserver | null>(null);
   const cleanupRef = React.useRef<(() => void) | null>(null);
   const retryRef = React.useRef(0);
+  const pollTimerRef = React.useRef<number | null>(null);
+  const pollFastCountRef = React.useRef(0);
+  const inputListenerRef = React.useRef<((e: Event) => void) | null>(null);
 
   const emit = React.useCallback((raw: string) => {
     const before = lastRawRef.current;
@@ -217,11 +220,74 @@ export function useEditorMarkdown(opts: Options = {}) {
               }
 
               if (!appended) {
-                // fallback: periodic polling
+                // fallback: hybrid polling strategy + try to attach to any hidden textarea for immediate input detection
                 // eslint-disable-next-line no-console
-                console.debug('[VivlioDBG] useEditorMarkdown: CM6 polling started (fallback)');
-                pollTimer = window.setInterval(read, 500);
-                cleanupRef.current = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
+                console.debug('[VivlioDBG] useEditorMarkdown: CM6 polling started (fallback, hybrid)');
+
+                // helper to stop polling and cleanup input listener
+                const stopPolling = () => {
+                  if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+                  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                  try {
+                    const ta = (inputListenerRef.current && (view.dom?.querySelector('textarea') || view.dom)) as any;
+                    if (ta && inputListenerRef.current) ta.removeEventListener?.('input', inputListenerRef.current);
+                  } catch (e) { /* ignore */ }
+                };
+
+                // input listener will read once and stop polling immediately
+                const inputHandler = (e: Event) => {
+                  try { read(); } catch (e) { /* ignore */ }
+                  stopPolling();
+                };
+                inputListenerRef.current = inputHandler;
+
+                // try to find a hidden textarea inside view.dom or its parents
+                try {
+                  let host: HTMLElement | null = null;
+                  if (view && (view.dom instanceof HTMLElement)) {
+                    host = view.dom as HTMLElement;
+                  } else if ((view as any).root && (view as any).root.dom) {
+                    host = (view as any).root.dom as HTMLElement;
+                  }
+                  const textarea = host?.querySelector('textarea');
+                  if (textarea) {
+                    textarea.addEventListener('input', inputHandler);
+                    // eslint-disable-next-line no-console
+                    console.debug('[VivlioDBG] useEditorMarkdown: attached input listener to hidden textarea', { textareaFound: true });
+                  }
+                } catch (e) { /* ignore */ }
+
+                // start fast polling initially; we'll increase delay after a few cycles
+                const startHybridPolling = (initialDelay = 180) => {
+                  pollFastCountRef.current = 0;
+                  const tick = () => {
+                    try { read(); } catch (e) { /* ignore */ }
+                    pollFastCountRef.current += 1;
+                    if (pollFastCountRef.current >= 8) {
+                      // switch to normal polling
+                      if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+                      pollTimerRef.current = window.setInterval(read, 500);
+                    }
+                  };
+                  if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+                  pollTimerRef.current = window.setInterval(tick, initialDelay);
+                  pollTimer = pollTimerRef.current;
+                };
+
+                startHybridPolling(180);
+
+                cleanupRef.current = () => {
+                  if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+                  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                  if (inputListenerRef.current) {
+                    try {
+                      const hostNode = view.dom as HTMLElement | null;
+                      const ta = hostNode?.querySelector('textarea');
+                      if (ta) ta.removeEventListener('input', inputListenerRef.current);
+                    } catch (e) { /* ignore */ }
+                    inputListenerRef.current = null;
+                  }
+                };
               } else {
                 // best-effort cleanup (cannot reliably remove appended extension in all hosts)
                 cleanupRef.current = () => { /* no-op */ };
