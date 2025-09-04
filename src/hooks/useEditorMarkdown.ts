@@ -10,9 +10,17 @@ const TEXTAREA_SELECTORS = [
   '[data-testid="editor-textarea"]',
   '.page-editor textarea',
 ];
-const CM6_SELECTORS = [
-  '.cm-editor .cm-content',
-];
+  const CM6_SELECTORS = [
+    '.cm-editor',
+    '.cm-editor .cm-content',
+    '.cm-editor .cm-scroller',
+    '.cm-content[contenteditable="true"]',
+    '.cm-scroller',
+    '.grw-editor',
+    '.editor',
+    '#page-editor',
+    '.page-editor'
+  ];
 const CM5_ROOTS = [
   '.CodeMirror-code',
 ];
@@ -70,13 +78,24 @@ export function useEditorMarkdown(opts: Options = {}) {
       // 2) Try CodeMirror 6 via API (robust against fold/virtualization)
       try {
         const EditorView = (window as any).EditorView || (window as any).CodeMirror?.EditorView;
-        const cmRoot = document.querySelector('.cm-editor') as HTMLElement | null;
-        if (EditorView && cmRoot && typeof EditorView.findFromDOM === 'function') {
-          const view = EditorView.findFromDOM(cmRoot as HTMLElement);
+        if (EditorView && typeof EditorView.findFromDOM === 'function') {
+          // Try multiple selector candidates and attempt findFromDOM on each matched element
+          let foundView: any = null;
+          for (const sel of CM6_SELECTORS) {
+            const nodes = Array.from(document.querySelectorAll<HTMLElement>(sel));
+            for (const node of nodes) {
+              try {
+                const v = EditorView.findFromDOM(node);
+                if (v) { foundView = v; break; }
+              } catch (e) { /* ignore find errors */ }
+            }
+            if (foundView) break;
+          }
+          const view = foundView;
           if (view) {
             attachPhaseRef.current = 'cm6';
             // eslint-disable-next-line no-console
-            console.debug('[VivlioDBG] useEditorMarkdown: CM6 view found', { sel: '.cm-editor', len: (view.state?.doc ? (typeof view.state.doc.toString === 'function' ? view.state.doc.toString().length : (typeof view.state.sliceDoc === 'function' ? view.state.sliceDoc().length : 0)) : 0) });
+            console.debug('[VivlioDBG] useEditorMarkdown: CM6 view found', { sel: 'multiple-candidates', len: (view.state?.doc ? (typeof view.state.doc.toString === 'function' ? view.state.doc.toString().length : (typeof view.state.sliceDoc === 'function' ? view.state.sliceDoc().length : 0)) : 0) });
             const read = () => {
               try {
                 const txt = view.state && view.state.doc && typeof view.state.doc.toString === 'function'
