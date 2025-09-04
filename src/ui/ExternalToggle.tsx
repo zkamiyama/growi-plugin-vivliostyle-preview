@@ -84,29 +84,64 @@ export const ExternalToggle: React.FC = () => {
       // アンカーに適用されている色をそのまま引用する。
       const isTransparent = (c: string) => !c || c === 'transparent' || /rgba\(\s*0+\s*,\s*0+\s*,\s*0?\.?0*\s*\)/i.test(c);
 
+      function findEffectiveColor(elem: Element | null): string | null {
+        if (!elem) return null;
+        const isTransparentLocal = (c: string) => !c || c === 'transparent' || /rgba\(\s*0+\s*,\s*0+\s*,\s*0?\.?0*\s*\)/i.test(c);
+        // 1) CSS custom properties on the element
+        try {
+          const csVars = window.getComputedStyle(elem as Element);
+          const varCandidates = ['--vivlio-comp-color', '--accent-color', '--primary-color', '--color'];
+          for (const v of varCandidates) {
+            const val = csVars.getPropertyValue(v).trim();
+            if (val) return val;
+          }
+        } catch (e) { /* ignore */ }
+        // 2) walk up ancestors to find a non-transparent computed color
+        let node: Element | null = elem as Element;
+        for (let i = 0; node && i < 8; i++, node = node.parentElement) {
+          try {
+            const cs = window.getComputedStyle(node);
+            const props = [cs.backgroundColor, cs.borderColor, cs.color];
+            for (const p of props) {
+              if (!isTransparentLocal(p)) return p;
+            }
+          } catch (e) { /* ignore */ }
+        }
+        // 3) as a last resort, scan descendants for an explicit color
+        try {
+          const children = elem.querySelectorAll('*');
+          for (const ch of Array.from(children)) {
+            try {
+              const cs = window.getComputedStyle(ch as Element);
+              const props = [cs.backgroundColor, cs.borderColor, cs.color];
+              for (const p of props) {
+                if (!isTransparentLocal(p)) return p;
+              }
+            } catch (e) { /* ignore */ }
+          }
+        } catch (e) { /* ignore */ }
+        return null;
+      }
+
       function repositionAndRecolor() {
         try {
-          const cs = window.getComputedStyle(initialAnchor);
-          // 優先順: backgroundColor → borderColor → color
-          let baseColor = cs.backgroundColor;
-          if (isTransparent(baseColor)) baseColor = cs.borderColor;
-          if (isTransparent(baseColor)) baseColor = cs.color;
-          if (baseColor && baseColor !== lastBaseColorRef.current) {
-            // 直接引用: アンカーに適用されている CSS 値をそのまま --vivlio-comp-color に設定
+          const effective = findEffectiveColor(initialAnchor);
+          if (effective && effective !== lastBaseColorRef.current) {
             try {
-              wrapper!.style.setProperty('--vivlio-comp-color', baseColor);
+              wrapper!.style.setProperty('--vivlio-comp-color', effective);
               const btn = wrapper!.querySelector('button') as HTMLElement | null;
-              if (btn) btn.style.setProperty('--vivlio-comp-color', baseColor);
-            } catch (e) {
-              // ignore
-            }
-            lastBaseColorRef.current = baseColor;
+              if (btn) btn.style.setProperty('--vivlio-comp-color', effective);
+            } catch (e) { /* ignore */ }
+            lastBaseColorRef.current = effective;
             // eslint-disable-next-line no-console
-            console.debug('[VivlioDBG][ExternalToggle] color applied from anchor', { baseColor });
+            console.debug('[VivlioDBG][ExternalToggle] applied effective color', { effective });
+          } else {
+            // eslint-disable-next-line no-console
+            console.debug('[VivlioDBG][ExternalToggle] no effective color found', { effective });
           }
         } catch (e) {
           // eslint-disable-next-line no-console
-          console.warn('[VivlioDBG][ExternalToggle] color compute error', e);
+          console.warn('[VivlioDBG][ExternalToggle] error applying effective color', e);
         }
       }
 
