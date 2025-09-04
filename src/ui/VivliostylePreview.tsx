@@ -19,6 +19,9 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [editorMd, setEditorMd] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [pageInfo, setPageInfo] = useState<{ size?: string|null; margins?: string[]; pageRuleFound: boolean }>({ pageRuleFound: false });
+  const infoRef = React.useRef<HTMLDivElement | null>(null);
+  const draggingRef = React.useRef(false);
+  const dragStartRef = React.useRef<{ x: number; y: number; left: number; top: number } | null>(null);
 
   useEffect(() => {
     if (!isVisible) return;
@@ -356,7 +359,45 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             >i</button>
           )}
       {showInfo && (
-        <div style={{
+        <div
+          ref={infoRef}
+          onPointerDown={(ev) => {
+            // ignore if target is interactive element
+            const t = ev.target as HTMLElement | null;
+            if (t && t.closest && t.closest('button,a,input,textarea,select')) return;
+            const el = infoRef.current;
+            if (!el) return;
+            ev.preventDefault();
+            const parent = el.offsetParent as HTMLElement | null;
+            const pRect = parent ? parent.getBoundingClientRect() : { left: 0, top: 0 } as DOMRect;
+            const rect = el.getBoundingClientRect();
+            // switch from right to explicit left if using 'right' initially
+            const left = rect.left - pRect.left;
+            const top = rect.top - pRect.top;
+            el.style.left = `${left}px`;
+            el.style.right = 'auto';
+            el.style.top = `${top}px`;
+            draggingRef.current = true;
+            dragStartRef.current = { x: ev.clientX, y: ev.clientY, left, top };
+            const onMove = (e: PointerEvent) => {
+              if (!draggingRef.current || !dragStartRef.current || !el) return;
+              const dx = e.clientX - dragStartRef.current.x;
+              const dy = e.clientY - dragStartRef.current.y;
+              const newLeft = Math.max(0, dragStartRef.current.left + dx);
+              const newTop = Math.max(0, dragStartRef.current.top + dy);
+              el.style.left = `${newLeft}px`;
+              el.style.top = `${newTop}px`;
+            };
+            const onUp = () => {
+              draggingRef.current = false;
+              dragStartRef.current = null;
+              window.removeEventListener('pointermove', onMove);
+              window.removeEventListener('pointerup', onUp);
+            };
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onUp);
+          }}
+          style={{
           position: 'absolute',
           top: 8,
           right: 8,
@@ -377,7 +418,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           color: '#e6e6e6',
           boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
           zIndex: 20
-        }}>
+  }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
             <strong style={{ fontSize: 13, color: '#f3f4f6' }}>Vivliostyle Preview Info</strong>
             <span style={{ marginLeft: 'auto' }}>
