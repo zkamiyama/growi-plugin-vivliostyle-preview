@@ -73,14 +73,62 @@ export const ExternalToggle: React.FC = () => {
   const lastBaseColorRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
-    // isEditing を定期チェックで更新
-    const intervalId = setInterval(() => {
-      const rootEl = document.querySelector('.layout-root');
-      const editing = rootEl ? rootEl.classList.contains('editing') : false;
-      setIsEditing(editing);
-    }, 200); // 200ms ごとにチェック
+    // 即時チェック & MutationObserver による検知（ポーリングを廃止）
+    const update = () => {
+      try {
+        const rootEl = document.querySelector('.layout-root');
+        const editing = rootEl ? rootEl.classList.contains('editing') : false;
+        setIsEditing(editing);
+      } catch (e) {
+        // ignore
+      }
+    };
 
-    return () => clearInterval(intervalId);
+    update(); // マウント直後に即時反映
+
+    let layoutObserver: MutationObserver | null = null;
+    const observeLayoutRoot = (el: Element | null) => {
+      try {
+        if (layoutObserver) { layoutObserver.disconnect(); layoutObserver = null; }
+        if (!el) return;
+        layoutObserver = new MutationObserver(() => update());
+        layoutObserver.observe(el, { attributes: true, attributeFilter: ['class'] });
+      } catch (e) {
+        if (layoutObserver) { layoutObserver.disconnect(); layoutObserver = null; }
+      }
+    };
+
+    // body 上で .layout-root の追加や属性変化を監視するオブザーバ（MutationObserver のみで対応）
+    let bodyObserver: MutationObserver | null = null;
+    try {
+      bodyObserver = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          if (m.type === 'childList' && (m.addedNodes?.length || m.removedNodes?.length)) {
+            const root = document.querySelector('.layout-root');
+            if (root) {
+              update();
+              observeLayoutRoot(root);
+              return; // まとまって処理されれば十分
+            }
+          }
+          if (m.type === 'attributes') {
+            // attributes の変化が body 内で発生した場合も再評価
+            update();
+          }
+        }
+      });
+      if (document.body) bodyObserver.observe(document.body, { childList: true, subtree: true, attributes: true });
+    } catch (e) {
+      if (bodyObserver) { bodyObserver.disconnect(); bodyObserver = null; }
+    }
+
+    // 初期存在する場合は直接監視を開始
+    try { observeLayoutRoot(document.querySelector('.layout-root')); } catch {}
+
+    return () => {
+      try { if (bodyObserver) { bodyObserver.disconnect(); bodyObserver = null; } } catch {}
+      try { if (layoutObserver) { layoutObserver.disconnect(); layoutObserver = null; } } catch {}
+    };
   }, []);
 
   React.useEffect(() => {
