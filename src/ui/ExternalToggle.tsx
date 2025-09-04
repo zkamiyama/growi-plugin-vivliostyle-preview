@@ -92,6 +92,8 @@ export const ExternalToggle: React.FC = () => {
         const aCs = window.getComputedStyle(initialAnchor);
         setAnchorMetrics({
           height: aCs.height || '',
+          paddingTop: aCs.paddingTop || '',
+          paddingBottom: aCs.paddingBottom || '',
           paddingLeft: aCs.paddingLeft || '',
           paddingRight: aCs.paddingRight || '',
           fontSize: aCs.fontSize || '',
@@ -200,13 +202,17 @@ export const ExternalToggle: React.FC = () => {
         try {
           if (anchorMetrics.height) btn.style.setProperty('height', anchorMetrics.height, 'important');
           if (anchorMetrics.fontSize) btn.style.setProperty('font-size', anchorMetrics.fontSize, 'important');
-          if (anchorMetrics.lineHeight) btn.style.setProperty('line-height', anchorMetrics.lineHeight, 'important');
-          if (anchorMetrics.paddingLeft || anchorMetrics.paddingRight) {
-            const pl = anchorMetrics.paddingLeft || '6px';
-            const pr = anchorMetrics.paddingRight || '10px';
-            btn.style.setProperty('padding', `${pl} ${pr}`, 'important');
-          }
-          if (anchorMetrics.borderRadius) btn.style.setProperty('border-radius', anchorMetrics.borderRadius, 'important');
+          // avoid using anchor line-height directly; keep normal to center text inside inline-flex
+          btn.style.setProperty('line-height', 'normal', 'important');
+          // use top/bottom + left/right padding if available
+          const pt = anchorMetrics.paddingTop || '6px';
+          const pb = anchorMetrics.paddingBottom || '6px';
+          const pl = anchorMetrics.paddingLeft || '10px';
+          const pr = anchorMetrics.paddingRight || '10px';
+          btn.style.setProperty('padding', `${pt} ${pr}`, 'important');
+          // border-radius: if anchor has 0px, fallback to 6px for rounded look
+          const br = (anchorMetrics.borderRadius && anchorMetrics.borderRadius !== '0px') ? anchorMetrics.borderRadius : '6px';
+          btn.style.setProperty('border-radius', br, 'important');
           if (anchorMetrics.minWidth) btn.style.setProperty('min-width', anchorMetrics.minWidth, 'important');
         } catch (e) { /* ignore */ }
       }
