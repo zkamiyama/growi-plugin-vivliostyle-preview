@@ -230,10 +230,10 @@ export const ExternalToggle: React.FC = () => {
       '.grw-editor-preview',
       '[data-testid="page-editor-preview"]'
     ];
-    const findPreviewContainer = (): HTMLElement | null => {
+    const findVisiblePreviewContainer = (): HTMLElement | null => {
       for (const sel of PREVIEW_CONTAINER_SELECTORS) {
         const el = document.querySelector(sel) as HTMLElement | null;
-        if (el) return el;
+        if (el && el.offsetParent !== null) return el; // visible check
       }
       return null;
     };
@@ -244,7 +244,6 @@ export const ExternalToggle: React.FC = () => {
           if (String(location.pathname || '').indexOf('/edit') !== -1) return true;
         }
       } catch (e) {}
-      if (findPreviewContainer()) return true;
       return false;
     };
 
