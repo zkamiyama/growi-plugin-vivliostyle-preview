@@ -243,6 +243,44 @@ export const ExternalToggle: React.FC = () => {
     }
   }, [wrapperEl, isOpen, anchorMetrics]);
 
+  // Show/hide the wrapper depending on whether we're in editing mode.
+  // Avoid polling; use MutationObserver to watch for class changes on the layout root.
+  React.useEffect(() => {
+    if (!wrapperEl) return;
+
+    const getRoot = () => document.querySelector('.layout-root') || document.documentElement;
+
+    const applyVisibility = () => {
+      const root = getRoot();
+      const isEditing = root && root.classList && root.classList.contains('editing');
+      try {
+        wrapperEl.style.display = isEditing ? 'inline-flex' : 'none';
+      } catch (e) { /* ignore */ }
+    };
+
+    // initial
+    applyVisibility();
+
+    const observer = new MutationObserver((mutations) => {
+      // only react to attribute/class changes or subtree changes that may affect layout-root
+      for (const m of mutations) {
+        if (m.type === 'attributes' && m.attributeName === 'class') {
+          applyVisibility();
+          return;
+        }
+        if (m.type === 'childList') {
+          applyVisibility();
+          return;
+        }
+      }
+    });
+
+    // observe the whole document for class/structure changes; lightweight enough for this use
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'], subtree: true, childList: true });
+
+    return () => observer.disconnect();
+  }, [wrapperEl]);
+
   if (!wrapperEl) return null;
   // アンカー基準クラスから active を除去し、状態に応じて付与
   const baseClasses = anchorClasses
