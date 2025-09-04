@@ -15,6 +15,7 @@ export type AppContextType = {
   // New tab state
   activeTab: 'markdown' | 'vivliostyle';
   setActiveTab: React.Dispatch<React.SetStateAction<'markdown' | 'vivliostyle'>>;
+  setActiveTabWithOpen: (tab: 'markdown' | 'vivliostyle') => void;
   // Debug field
   __contextId?: string;
 };
@@ -30,6 +31,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // activeTabが変わったらisVivliostyleActiveを更新
   React.useEffect(() => {
     setIsVivliostyleActive(activeTab === 'vivliostyle');
+    // タブが切り替わったらプレビューを開く
+    if (activeTab !== 'markdown') {
+      // すでに開いている場合は何もしない
+    }
   }, [activeTab]);
   
   // デバッグ: このContextインスタンスにIDを付与
@@ -51,6 +56,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, []);
 
+  const setActiveTabWithOpen = React.useCallback((tab: 'markdown' | 'vivliostyle') => {
+    setActiveTab(tab);
+    // タブが切り替わったらプレビューを開く
+    setIsVivliostyleActive(tab === 'vivliostyle');
+  }, []);
+
   const value: AppContextType = {
     isVivliostyleActive,
     setIsVivliostyleActive,
@@ -64,6 +75,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     },
     activeTab,
     setActiveTab,
+    setActiveTabWithOpen,
     __contextId: contextIdRef.current, // デバッグ用
   };
 

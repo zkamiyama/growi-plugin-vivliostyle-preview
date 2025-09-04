@@ -8,7 +8,48 @@ import { useAppContext } from '../context/AppContext';
 // トグルで表示/非表示し、従来の preview body (.page-editor-preview-body) を隠すだけの
 // シンプルな差し替え方式。ポップアップは廃止。
 const PreviewShell: React.FC = () => {
-  const { isOpen, markdown, activeTab, setActiveTab } = useAppContext();
+  const { isOpen, markdown, activeTab, setActiveTabWithOpen } = useAppContext();
+
+  // タブメニューコンポーネント
+  const TabMenu = () => (
+    <div style={{
+      position: 'sticky',
+      top: 0,
+      background: 'white',
+      borderBottom: '1px solid #ddd',
+      padding: '8px 16px',
+      zIndex: 100,
+      display: 'flex',
+      gap: '8px'
+    }}>
+      <button
+        onClick={() => setActiveTabWithOpen('markdown')}
+        style={{
+          padding: '6px 12px',
+          border: '1px solid #ddd',
+          background: activeTab === 'markdown' ? '#007bff' : 'white',
+          color: activeTab === 'markdown' ? 'white' : 'black',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        }}
+      >
+        Markdown
+      </button>
+      <button
+        onClick={() => setActiveTabWithOpen('vivliostyle')}
+        style={{
+          padding: '6px 12px',
+          border: '1px solid #ddd',
+          background: activeTab === 'vivliostyle' ? '#007bff' : 'white',
+          color: activeTab === 'vivliostyle' ? 'white' : 'black',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        }}
+      >
+        Vivliostyle
+      </button>
+    </div>
+  );
 
   // 初回マウントログ
   React.useEffect(() => {
@@ -287,57 +328,14 @@ const PreviewShell: React.FC = () => {
   }, [isOpen, previewContainer]);
 
   // Host (#vivlio-preview-container) 内にマウントされるのでラッパ不要
-  if (!isOpen) {
-    return null;
-  }
-
-  // タブメニューコンポーネント
-  const TabMenu = () => (
-    <div style={{
-      position: 'sticky',
-      top: 0,
-      background: 'white',
-      borderBottom: '1px solid #ddd',
-      padding: '8px 16px',
-      zIndex: 100,
-      display: 'flex',
-      gap: '8px'
-    }}>
-      <button
-        onClick={() => setActiveTab('markdown')}
-        style={{
-          padding: '6px 12px',
-          border: '1px solid #ddd',
-          background: activeTab === 'markdown' ? '#007bff' : 'white',
-          color: activeTab === 'markdown' ? 'white' : 'black',
-          borderRadius: '4px',
-          cursor: 'pointer'
-        }}
-      >
-        Markdown
-      </button>
-      <button
-        onClick={() => setActiveTab('vivliostyle')}
-        style={{
-          padding: '6px 12px',
-          border: '1px solid #ddd',
-          background: activeTab === 'vivliostyle' ? '#007bff' : 'white',
-          color: activeTab === 'vivliostyle' ? 'white' : 'black',
-          borderRadius: '4px',
-          cursor: 'pointer'
-        }}
-      >
-        Vivliostyle
-      </button>
-    </div>
-  );
-
+  // タブメニューは常に表示、コンテンツはisOpen次第
   return createPortal(
     <div data-vivlio-shell-root>
       <TabMenu />
-      {activeTab === 'vivliostyle' ? (
+      {isOpen && activeTab === 'vivliostyle' && (
         <VivliostylePreview markdown={markdown} isVisible={isOpen} />
-      ) : (
+      )}
+      {isOpen && activeTab === 'markdown' && (
         <div style={{ padding: '16px' }}>
           <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
             {markdown}
