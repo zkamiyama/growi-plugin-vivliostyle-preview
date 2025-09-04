@@ -29,8 +29,14 @@ const PreviewShell: React.FC = () => {
     ];
     for (const sel of candidates) {
       const el = document.querySelector(sel);
-      if (el) return el;
+      if (el) {
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][PreviewShell] found previewContainer', { sel, el });
+        return el;
+      }
     }
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG][PreviewShell] no previewContainer found', { candidates });
     return null;
   }, []);
 
