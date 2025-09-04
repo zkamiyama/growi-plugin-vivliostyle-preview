@@ -224,10 +224,10 @@ const PreviewShell: React.FC = () => {
   }
 
   // previewContainerが見つかった場合のみホストを作成
-  const host = document.getElementById('vivlio-preview-container');
+  const host = document.getElementById('vivlio-preview-host');
   if (!host) {
     const newHost = document.createElement('div');
-    newHost.id = 'vivlio-preview-container';
+    newHost.id = 'vivlio-preview-host';
     newHost.style.width = '100%';
     newHost.style.height = '100%';
     newHost.style.position = 'relative';
@@ -241,7 +241,7 @@ const PreviewShell: React.FC = () => {
     });
   }
 
-  const finalHost = document.getElementById('vivlio-preview-container');
+  const finalHost = document.getElementById('vivlio-preview-host');
   if (!finalHost) {
     // eslint-disable-next-line no-console
     console.warn('[VivlioDBG][PreviewShell] failed to create or find host container');
@@ -249,7 +249,7 @@ const PreviewShell: React.FC = () => {
   }
 
   React.useEffect(() => {
-    const host = document.getElementById('vivlio-preview-container');
+    const host = document.getElementById('vivlio-preview-host');
     const currentPreviewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
 
     if (!host) {

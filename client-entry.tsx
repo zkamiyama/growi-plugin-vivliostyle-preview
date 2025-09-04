@@ -130,7 +130,7 @@ console.debug('[VivlioDBG][entry] script file evaluated', { time: Date.now(), pl
 
 // GROWIのスクリプトプラグイン規約：activate/deactivateのみ担当
 const PLUGIN_ID = config.name;
-const CONTAINER_ID = 'vivlio-preview-container';
+const CONTAINER_ID = 'vivlio-plugin-root';
 const PREVIEW_CONTAINER_CANDIDATES = [
   '.page-editor-preview-container',
   '#page-editor-preview-container',
