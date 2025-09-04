@@ -147,31 +147,34 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           width: 320,
           maxHeight: '60%',
           overflow: 'auto',
-          background: 'rgba(255,255,255,0.95)',
-          backdropFilter: 'blur(2px)',
-          border: '1px solid #ccc',
-          borderRadius: 6,
+          // darker frosted glass / Aero-like
+          background: 'rgba(18,20,22,0.56)',
+          backdropFilter: 'blur(8px) saturate(120%)',
+          border: '1px solid rgba(255,255,255,0.06)',
+          borderRadius: 8,
           padding: '10px 12px',
           fontSize: 12,
           lineHeight: 1.4,
-          boxShadow: '0 4px 14px rgba(0,0,0,.15)',
+          color: '#e6e6e6',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
           zIndex: 20
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <strong style={{ fontSize: 13 }}>Vivliostyle Preview Info</strong>
+            <strong style={{ fontSize: 13, color: '#f3f4f6' }}>Vivliostyle Preview Info</strong>
             <span style={{ marginLeft: 'auto' }}>
               <button
                 type="button"
                 onClick={() => setShowInfo(false)}
                 style={{
-                  border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0, 
-color: '#555'                                                                                                                            }}
+                  border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0,
+                  color: '#d0d4d8'
+                }}
                 aria-label="close info"
               >×</button>
             </span>
           </div>
-          <ul style={{ listStyle: 'disc', paddingLeft: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}
->                                                                                                                                    <li>Markdown chars: {markdown.length}</li>
+          <ul style={{ listStyle: 'disc', paddingLeft: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <li>Markdown chars: {markdown.length}</li>
             <li>Lines: {markdown.split(/\r?\n/).length}</li>
             <li>Approx words: {markdown.trim() ? markdown.trim().split(/\s+/).length : 0}</li>
             <li>HTML length: {htmlLen}</li>
@@ -183,8 +186,8 @@ color: '#555'                                                                   
           {fullHtml && (
             <details style={{ marginTop: 8 }}>
               <summary style={{ cursor: 'pointer' }}>Show HTML sample</summary>
-              <pre style={{ maxHeight: 200, overflow: 'auto', background: '#f5f5f5', padding: 8, border: '1px solid #eee'
- }}>{fullHtml.slice(0, 1200)}</pre>                                                                                                  </details>
+              <pre style={{ maxHeight: 200, overflow: 'auto', background: 'rgba(0,0,0,0.28)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6' }}>{fullHtml.slice(0, 1200)}</pre>
+            </details>
           )}
         </div>
       )}
