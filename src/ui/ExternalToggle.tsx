@@ -160,6 +160,26 @@ export const ExternalToggle: React.FC = () => {
     }
   }, []);
 
+  // Force important inline styles on the real button element in case external CSS uses !important
+  React.useEffect(() => {
+    if (!wrapperEl) return;
+    try {
+      const btn = wrapperEl.querySelector('button.vivlio-toggle-btn') as HTMLElement | null;
+      if (!btn) return;
+      btn.style.setProperty('background', 'linear-gradient(135deg, #1a63b8 0%, #15549a 45%, #d05232 100%)', 'important');
+      btn.style.setProperty('color', '#ffffff', 'important');
+      btn.style.setProperty('box-shadow', '0 4px 0 rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.12)', 'important');
+      btn.style.setProperty('border', 'none', 'important');
+      btn.style.setProperty('border-radius', '6px', 'important');
+      btn.style.setProperty('padding', '6px 10px', 'important');
+      btn.style.setProperty('font-weight', '600', 'important');
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][ExternalToggle] applied important inline styles to button');
+    } catch (e) {
+      // ignore
+    }
+  }, [wrapperEl]);
+
   if (!wrapperEl) return null;
   // アンカー基準クラスから active を除去し、状態に応じて付与
   const baseClasses = anchorClasses
