@@ -20,6 +20,12 @@ const PreviewShell: React.FC = () => {
     };
   }, []);
 
+  // isOpenの変更を監視
+  React.useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG][PreviewShell] isOpen changed', { isOpen, markdownLen: markdown.length });
+  }, [isOpen, markdown]);
+
   const previewContainer = React.useMemo(() => {
     const candidates = [
       '.page-editor-preview-container',
@@ -31,7 +37,7 @@ const PreviewShell: React.FC = () => {
       const el = document.querySelector(sel);
       if (el) {
         // eslint-disable-next-line no-console
-        console.debug('[VivlioDBG][PreviewShell] found previewContainer', { sel, el });
+        console.debug('[VivlioDBG][PreviewShell] found previewContainer', { sel, el, className: el.className });
         return el;
       }
     }
@@ -39,6 +45,9 @@ const PreviewShell: React.FC = () => {
     console.debug('[VivlioDBG][PreviewShell] no previewContainer found', { candidates });
     return null;
   }, []);
+
+  // eslint-disable-next-line no-console
+  console.debug('[VivlioDBG][PreviewShell] render', { isOpen, hasPreviewContainer: !!previewContainer, markdownLen: markdown.length });
 
   if (!previewContainer) {
     return null;
