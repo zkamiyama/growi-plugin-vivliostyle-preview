@@ -188,12 +188,25 @@ export const ExternalToggle: React.FC = () => {
   React.useEffect(() => {
     if (!wrapperEl) return;
     try {
-  const btn = wrapperEl.querySelector('button.vivlio-toggle-btn') as HTMLElement | null;
-  if (!btn) return;
-  btn.style.setProperty('background', 'linear-gradient(135deg, #1a63b8 0%, #1a63b8 25%, #d05232 25%, #d05232 75%, #1a63b8 75%, #1a63b8 100%)', 'important');
-      btn.style.setProperty('color', '#ffffff', 'important');
-      btn.style.setProperty('box-shadow', '0 4px 0 rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.12)', 'important');
-      btn.style.setProperty('border', 'none', 'important');
+      const btn = wrapperEl.querySelector('button.vivlio-toggle-btn') as HTMLElement | null;
+      if (!btn) return;
+  // recreate an earlier vivid 3D gradient for active state (more depth with multiple stops)
+  const activeBg = 'linear-gradient(135deg, #1a63b8 0%, #3b82f6 18%, #1a63b8 28%, #d05232 48%, #f28b6b 68%, #1a63b8 100%)';
+  // OFF overlay: a semi-opaque black layer on top of the active gradient to darken interior
+  const offOverlay = 'linear-gradient(0deg, rgba(0,0,0,0.56), rgba(0,0,0,0.56))';
+  const offBg = `${offOverlay}, ${activeBg}`;
+  // apply bg depending on state
+  btn.style.setProperty('background', isOpen ? activeBg : offBg, 'important');
+  // text color: white when active, muted gray when off
+  btn.style.setProperty('color', isOpen ? '#ffffff' : '#9aa0a6', 'important');
+  // stronger darkness for OFF handled via overlay; keep filter none to avoid blurring colors
+  btn.style.setProperty('filter', 'none', 'important');
+  // box-shadow: outer drop + inner sheen + stronger inset dark at bottom for depth when OFF
+  const activeShadow = '0 4px 0 rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.12)';
+  const offShadow = '0 3px 0 rgba(0,0,0,0.22), inset 0 2px 0 rgba(255,255,255,0.18), inset 0 -8px 18px rgba(0,0,0,0.65)';
+  btn.style.setProperty('box-shadow', isOpen ? activeShadow : offShadow, 'important');
+  // border: keep a subtle light rim so the edge remains visible even when interior is darkened
+  btn.style.setProperty('border', isOpen ? 'none' : '1px solid rgba(255,255,255,0.12)', 'important');
       btn.style.setProperty('border-radius', '6px', 'important');
       btn.style.setProperty('padding', '6px 10px', 'important');
       btn.style.setProperty('font-weight', '600', 'important');
@@ -217,11 +230,11 @@ export const ExternalToggle: React.FC = () => {
         } catch (e) { /* ignore */ }
       }
       // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][ExternalToggle] applied important inline styles to button');
+      console.debug('[VivlioDBG][ExternalToggle] applied important inline styles to button (isOpen=' + isOpen + ')');
     } catch (e) {
       // ignore
     }
-  }, [wrapperEl]);
+  }, [wrapperEl, isOpen, anchorMetrics]);
 
   if (!wrapperEl) return null;
   // アンカー基準クラスから active を除去し、状態に応じて付与
