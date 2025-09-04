@@ -190,11 +190,10 @@ export const ExternalToggle: React.FC = () => {
     try {
       const btn = wrapperEl.querySelector('button.vivlio-toggle-btn') as HTMLElement | null;
       if (!btn) return;
-  // vivid multi-stop 3D gradient (restore earlier appearance)
-  // horizontal two-color block gradient (blue | red) for scrolling effect
+  // horizontal blue->red split for clear horizontal scroll
   const activeBg = 'linear-gradient(90deg, #1a63b8 0%, #1a63b8 50%, #d05232 50%, #d05232 100%)';
   // OFF overlay: radial darkening focused on center to keep rim visible
-  const radialOff = 'radial-gradient(circle at center, rgba(0,0,0,0.86) 0%, rgba(0,0,0,0.82) 40%, rgba(0,0,0,0.72) 65%, rgba(0,0,0,0.0) 100%)';
+  const radialOff = 'radial-gradient(circle at center, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.78) 40%, rgba(0,0,0,0.68) 65%, rgba(0,0,0,0.0) 100%)';
   const offBg = `${radialOff}, ${activeBg}`;
   // apply bg depending on state
   btn.style.setProperty('background', isOpen ? activeBg : offBg, 'important');
@@ -254,8 +253,7 @@ export const ExternalToggle: React.FC = () => {
   // inline style: 立体的なグラデーション（提供画像のブルー→オレンジ系）と白文字を強制
   const buttonStyle: React.CSSProperties = {
     // balanced blue > red > blue areas with smooth transitions
-  // horizontal two-color block gradient so red/blue can scroll horizontally
-  background: 'linear-gradient(90deg, #1a63b8 0%, #1a63b8 50%, #d05232 50%, #d05232 100%)',
+  background: 'linear-gradient(135deg, #1a63b8 0%, #1a63b8 25%, #d05232 25%, #d05232 75%, #1a63b8 75%, #1a63b8 100%)',
   color: '#ffffff',
   // keep a 1px rim always to avoid size shifts when toggling
   border: '1px solid rgba(255,255,255,0.08)',
