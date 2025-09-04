@@ -94,9 +94,14 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       if (!view) return;
       const read = () => {
         try {
-          const txt = view.state && typeof view.state.sliceDoc === 'function'
-            ? view.state.sliceDoc()
-            : (view.state && view.state.doc && typeof view.state.doc.toString === 'function' ? view.state.doc.toString() : '');
+          // Prefer view.state.doc.toString() (more robust across CM6 builds).
+          // Fall back to sliceDoc() if doc.toString is not available.
+          let txt = '';
+          if (view.state && view.state.doc && typeof view.state.doc.toString === 'function') {
+            txt = view.state.doc.toString();
+          } else if (view.state && typeof view.state.sliceDoc === 'function') {
+            txt = view.state.sliceDoc();
+          }
           if (txt && txt !== editorMd) setEditorMd(txt);
         } catch (e) { /* ignore */ }
       };
