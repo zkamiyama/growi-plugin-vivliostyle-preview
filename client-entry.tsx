@@ -54,8 +54,7 @@ function activateEditModeDetector() {
       const viewOptions = base ? base(...args) : {};
       // 状態変更を通知
       try { window.dispatchEvent(new CustomEvent('vivlio:edit-mode-changed', { detail: { isEditPreview: state.isEditPreview } })); } catch (e) {}
-      // 通常画面でもmount()を呼んで、編集到達時に再試行が効くようにする
-      mount();
+      // Reactツリーは常時マウント済みなので何もしない
       return viewOptions;
     };
     optionsGenerators.customGeneratePreviewOptions = (...args: any[]) => {
@@ -66,8 +65,7 @@ function activateEditModeDetector() {
       const previewOptions = base ? base(...args) : {};
       // 状態変更を通知
       try { window.dispatchEvent(new CustomEvent('vivlio:edit-mode-changed', { detail: { isEditPreview: state.isEditPreview } })); } catch (e) {}
-      // 編集プレビュー時にもmount()（重複呼び出しは内部で防がれる）
-      mount();
+      // Reactツリーは常時マウント済みなので何もしない
       return previewOptions;
     };
     return true; // 成功
@@ -97,6 +95,11 @@ function activateEditModeDetector() {
   window.addEventListener('hashchange', retryOnEvent);
   window.addEventListener('popstate', retryOnEvent);
   document.addEventListener('DOMContentLoaded', retryOnEvent);
+
+  // Fix3: 自己修復（定期チェック）
+  setInterval(() => {
+    tryActivate();
+  }, 5000); // 5秒ごとにチェック
 }
 function deactivateEditModeDetector() {
   if (
@@ -153,80 +156,15 @@ function mount() {
     return;
   }
 
-  // --- プレビュー & トグル単一ルートマウント ---
-  const previewContainer = locatePreviewContainer();
-  // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][mount] query preview container', { found: !!previewContainer, candidates: PREVIEW_CONTAINER_CANDIDATES });
-  if (!previewContainer) {
-  // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][mount] previewContainer not found, will retry on navigation (hash/popstate) or DOMContentLoaded');
-    // Avoid busy-loop retries. Retry once when navigation/hash changes or when DOMContentLoaded fires.
-    const retryHandler = () => {
-      try {
-        if (!(window as any).__vivlio_root) mount();
-      } finally {
-        window.removeEventListener('hashchange', retryHandler as EventListener);
-        window.removeEventListener('popstate', retryHandler as EventListener);
-        document.removeEventListener('DOMContentLoaded', retryHandler as EventListener);
-      }
-    };
-    window.addEventListener('hashchange', retryHandler as EventListener, { once: true });
-    // popstate may be fired by SPA navigations; ensure we remove it after first invocation
-    window.addEventListener('popstate', retryHandler as EventListener);
-    // If document wasn't ready earlier, also retry on DOMContentLoaded
-    document.addEventListener('DOMContentLoaded', retryHandler as EventListener, { once: true });
-    // If the current URL already indicates editor mode, start a short bounded poll
-    // because some UI frameworks create the preview container slightly later.
-    try {
-      const hasEditPath = (() => { 
-        try { 
-          if (location && (String(location.hash).indexOf('#edit') !== -1 || String(location.pathname).indexOf('/edit') !== -1)) return true;
-          // GROWI の編集画面ではルート要素に "editing" クラスが追加される
-          const rootEl = document.querySelector('.layout-root');
-          if (rootEl && rootEl.classList.contains('editing')) return true;
-          return false;
-        } catch { return false; } 
-      })();
-      if (hasEditPath) {
-        let pollAttempts = 0;
-        const maxPollAttempts = 10;
-        const pollIntervalMs = 200;
-        const pollId = setInterval(() => {
-          pollAttempts += 1;
-          const fut = locatePreviewContainer();
-          if (fut) {
-            clearInterval(pollId);
-            try { if (!(window as any).__vivlio_root) mount(); } catch {}
-            // cleanup retry handlers just in case
-            window.removeEventListener('hashchange', retryHandler as EventListener);
-            window.removeEventListener('popstate', retryHandler as EventListener);
-            document.removeEventListener('DOMContentLoaded', retryHandler as EventListener);
-            return;
-          }
-          if (pollAttempts >= maxPollAttempts) {
-            clearInterval(pollId);
-          }
-        }, pollIntervalMs);
-      }
-    } catch (e) {
-      // ignore environment errors
-    }
-    return;
-  }
+  // Reactツリーを常時マウント（bodyにホストを作成）
   let host = document.getElementById(CONTAINER_ID);
   if (!host) {
     host = document.createElement('div');
     host.id = CONTAINER_ID;
-  // ベーススタイル: 親と同幅/高さ (高さは後で補正)。display は PreviewShell が制御。
-  host.style.width = '100%';
-  host.style.height = '100%';
-  host.style.position = 'relative';
-  host.style.display = 'none';
-    previewContainer.appendChild(host);
-  // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][mount] host container created and appended');
-  // notify listeners that preview host/container is available
-  try { window.dispatchEvent(new CustomEvent('vivlio:preview-ready', { detail: { container: host } })); } catch (e) {}
+    host.style.display = 'none'; // 常時非表示（Portalで制御）
+    document.body.appendChild(host);
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG][mount] host container created and appended to body');
   }
 
   let root = (window as any).__vivlio_root;
@@ -238,7 +176,7 @@ function mount() {
     (window as any).__vivlio_root = root; // 後でunmount用に保持
   }
   // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][mount] rendering React tree', { hasHost: !!host, childrenBefore: host.childElementCount });
+  console.debug('[VivlioDBG][mount] rendering React tree', { hasHost: !!host });
   root.render(
     <React.StrictMode>
       <AppProvider>
@@ -250,11 +188,8 @@ function mount() {
     </React.StrictMode>
   );
   // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][mount] mount finished', { hostChildrenAfter: host.childElementCount });
-  try { window.dispatchEvent(new CustomEvent('vivlio:preview-mounted', { detail: { hostChildrenAfter: host.childElementCount } })); } catch (e) {}
-}
-
-function unmount() {
+  console.debug('[VivlioDBG][mount] mount finished');
+}function unmount() {
   // eslint-disable-next-line no-console
   console.debug('[VivlioDBG][unmount] called');
   const root = (window as any).__vivlio_root;
@@ -273,7 +208,7 @@ const activate = () => {
   // eslint-disable-next-line no-console
   console.debug('[VivlioDBG] activate() invoked', { time: Date.now() });
   activateEditModeDetector();
-  // mount() はフック内で呼ぶのでここでは呼ばない
+  mount(); // Reactツリーを常時マウント
 };
 
 const deactivate = () => {

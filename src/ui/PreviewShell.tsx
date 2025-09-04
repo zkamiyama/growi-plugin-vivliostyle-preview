@@ -1,5 +1,6 @@
 // ui/PreviewShell.tsx
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { VivliostylePreview } from './VivliostylePreview';
 import { useAppContext } from '../context/AppContext';
 
@@ -18,6 +19,42 @@ const PreviewShell: React.FC = () => {
       console.debug('[VivlioDBG][PreviewShell] unmount', { time: Date.now() });
     };
   }, []);
+
+  const previewContainer = React.useMemo(() => {
+    const candidates = [
+      '.page-editor-preview-container',
+      '#page-editor-preview-container',
+      '.page-editor-preview',
+      '.page-editor-preview-body',
+    ];
+    for (const sel of candidates) {
+      const el = document.querySelector(sel);
+      if (el) return el;
+    }
+    return null;
+  }, []);
+
+  if (!previewContainer) {
+    return null;
+  }
+
+  const host = document.getElementById('vivlio-preview-container');
+  if (!host) {
+    const newHost = document.createElement('div');
+    newHost.id = 'vivlio-preview-container';
+    newHost.style.width = '100%';
+    newHost.style.height = '100%';
+    newHost.style.position = 'relative';
+    newHost.style.display = 'none';
+    if (previewContainer) {
+      previewContainer.appendChild(newHost);
+    }
+  }
+
+  const finalHost = document.getElementById('vivlio-preview-container');
+  if (!finalHost) {
+    return null;
+  }
 
   React.useEffect(() => {
     const host = document.getElementById('vivlio-preview-container');
@@ -88,10 +125,11 @@ const PreviewShell: React.FC = () => {
   if (!isOpen) {
     return null;
   }
-  return (
+  return createPortal(
     <div data-vivlio-shell-root>
       <VivliostylePreview markdown={markdown} isVisible={isOpen} />
-    </div>
+    </div>,
+    finalHost
   );
 };
 
