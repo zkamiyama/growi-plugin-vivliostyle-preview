@@ -1,259 +1,193 @@
-// === GROWI公式推奨: 編集画面判定フック ===
-type AnyFn = (...args: any[]) => any;
-type GrowiFacade = {
-  markdownRenderer?: {
-    optionsGenerators?: {
-      generateViewOptions?: AnyFn;
-      generatePreviewOptions?: AnyFn;
-      customGenerateViewOptions?: AnyFn;
-      customGeneratePreviewOptions?: AnyFn;
-    };
-  };
-  react?: any;
-};
-declare const growiFacade: GrowiFacade;
+/* client-entry.tsx — fix for vivliostyle-preview button mounting/leakage
+   ポイント:
+   - GROWI 公式の optionsGenerators（View/Preview）にフック
+   - シングルトン ButtonManager でマウント/アンマウントを厳密管理
+   - SPA遷移を意識し、モード切替時に必ずクリーンアップ
+   参考: 公式「Developing script plugins」, テンプレ/実装例（Qiita/Dev.to）
+*/
+
 declare global {
   interface Window {
-    __MY_PLUGIN_STATE__?: {
-      isEditPreview: boolean;
-      lastMode: 'view' | 'preview' | null;
-    };
+    pluginActivators?: Record<
+      string,
+      { activate: () => void; deactivate: () => void }
+    >;
   }
 }
-const PLUGIN_EDIT_FLAG = '__MY_PLUGIN_STATE__';
-let originalCustomGenerateViewOptions: AnyFn | undefined;
-let originalCustomGeneratePreviewOptions: AnyFn | undefined;
-function ensureState() {
-  if (!window[PLUGIN_EDIT_FLAG]) {
-    window[PLUGIN_EDIT_FLAG] = { isEditPreview: false, lastMode: null };
-  }
-  return window[PLUGIN_EDIT_FLAG]!;
-}
-function activateEditModeDetector() {
-  if (
-    typeof growiFacade === 'undefined' ||
-    !growiFacade.markdownRenderer ||
-    !growiFacade.markdownRenderer.optionsGenerators
-  ) {
-    return;
-  }
-  const { optionsGenerators } = growiFacade.markdownRenderer;
-  originalCustomGenerateViewOptions = optionsGenerators.customGenerateViewOptions;
-  originalCustomGeneratePreviewOptions = optionsGenerators.customGeneratePreviewOptions;
-  optionsGenerators.customGenerateViewOptions = (...args: any[]) => {
-    const state = ensureState();
-    state.isEditPreview = false;
-    state.lastMode = 'view';
-    const base = originalCustomGenerateViewOptions ?? optionsGenerators.generateViewOptions;
-    const viewOptions = base ? base(...args) : {};
-    // 状態変更を通知
-    try { window.dispatchEvent(new CustomEvent('vivlio:edit-mode-changed', { detail: { isEditPreview: state.isEditPreview } })); } catch (e) {}
-    return viewOptions;
+
+type AnyFn = (...args: any[]) => any;
+
+type ViewOptions = {
+  components?: Record<string, any>;
+  remarkPlugins?: any[];
+  rehypePlugins?: any[];
+};
+
+type OptionsGenerators = {
+  generateViewOptions?: (...args: any[]) => ViewOptions;
+  generatePreviewOptions?: (...args: any[]) => ViewOptions;
+  customGenerateViewOptions?: (...args: any[]) => ViewOptions;
+  customGeneratePreviewOptions?: (...args: any[]) => ViewOptions;
+};
+
+type GrowiFacade = {
+  markdownRenderer?: {
+    optionsGenerators?: OptionsGenerators;
   };
-  optionsGenerators.customGeneratePreviewOptions = (...args: any[]) => {
-    const state = ensureState();
-    state.isEditPreview = true;
-    state.lastMode = 'preview';
-    const base = originalCustomGeneratePreviewOptions ?? optionsGenerators.generatePreviewOptions;
-    const previewOptions = base ? base(...args) : {};
-    // 状態変更を通知
-    try { window.dispatchEvent(new CustomEvent('vivlio:edit-mode-changed', { detail: { isEditPreview: state.isEditPreview } })); } catch (e) {}
-    return previewOptions;
-  };
-}
-function deactivateEditModeDetector() {
-  if (
-    typeof growiFacade === 'undefined' ||
-    !growiFacade.markdownRenderer ||
-    !growiFacade.markdownRenderer.optionsGenerators
-  ) {
-    return;
-  }
-  const { optionsGenerators } = growiFacade.markdownRenderer;
-  if (originalCustomGenerateViewOptions) {
-    optionsGenerators.customGenerateViewOptions = originalCustomGenerateViewOptions;
-  }
-  if (originalCustomGeneratePreviewOptions) {
-    optionsGenerators.customGeneratePreviewOptions = originalCustomGeneratePreviewOptions;
-  }
-}
-// client-entry.tsx
-import * as React from 'react';
-import { createRoot } from 'react-dom/client';
-import PreviewShell from './src/ui/PreviewShell';
-import ExternalToggle from './src/ui/ExternalToggle';
-import { AppProvider } from './src/context/AppContext';
-import config from './package.json';
+};
 
-// 早期ロード確認ログ (script が読み込まれているか最初に出る)
-// eslint-disable-next-line no-console
-console.debug('[VivlioDBG][entry] script file evaluated', { time: Date.now(), plugin: config.name });
+// GROWI が実行時に与える
+declare const growiFacade: GrowiFacade;
 
-// GROWIのスクリプトプラグイン規約：activate/deactivateのみ担当
-const PLUGIN_ID = config.name;
-const CONTAINER_ID = 'vivlio-preview-container';
-const PREVIEW_CONTAINER_CANDIDATES = [
-  '.page-editor-preview-container',
-  '#page-editor-preview-container',
-  '.page-editor-preview',
-  '.page-editor-preview-body', // 最後の手段: body 自体をホストにしないが存在検知用
-];
+// =========================
+// 設定値
+// =========================
+const PLUGIN_NAME = 'growi-plugin-vivliostyle-preview';
+const BTN_ROOT_ID = 'vivlio-preview-floating-button-root';
+const SHOW_IN_VIEW = false; // ← 閲覧画面でも表示したければ true に
 
-function locatePreviewContainer(): Element | null {
-  for (const sel of PREVIEW_CONTAINER_CANDIDATES) {
-    const el = document.querySelector(sel);
-    if (el) return el;
-  }
-  return null;
-}
+// =========================
+// ButtonManager（単一管理）
+// =========================
+const ButtonManager = (() => {
+  let mounted = false;
+  let currentMode: 'preview' | 'view' | null = null;
 
-function mount() {
-  // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG] activate -> mount called, readyState=', document.readyState);
-  if (document.readyState === 'loading') {
-    // GROWI の遅延ロードタイミングで body 未準備だと失敗することがあるため待機
-    document.addEventListener('DOMContentLoaded', () => mount(), { once: true });
-    return;
-  }
-
-  // --- プレビュー & トグル単一ルートマウント ---
-  const previewContainer = locatePreviewContainer();
-  // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][mount] query preview container', { found: !!previewContainer, candidates: PREVIEW_CONTAINER_CANDIDATES });
-  if (!previewContainer) {
-  // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][mount] previewContainer not found, will retry on navigation (hash/popstate) or DOMContentLoaded');
-    // Avoid busy-loop retries. Retry once when navigation/hash changes or when DOMContentLoaded fires.
-    const retryHandler = () => {
-      try {
-        if (!(window as any).__vivlio_root) mount();
-      } finally {
-        window.removeEventListener('hashchange', retryHandler as EventListener);
-        window.removeEventListener('popstate', retryHandler as EventListener);
-        document.removeEventListener('DOMContentLoaded', retryHandler as EventListener);
-      }
-    };
-    window.addEventListener('hashchange', retryHandler as EventListener, { once: true });
-    // popstate may be fired by SPA navigations; ensure we remove it after first invocation
-    window.addEventListener('popstate', retryHandler as EventListener);
-    // If document wasn't ready earlier, also retry on DOMContentLoaded
-    document.addEventListener('DOMContentLoaded', retryHandler as EventListener, { once: true });
-    // If the current URL already indicates editor mode, start a short bounded poll
-    // because some UI frameworks create the preview container slightly later.
-    try {
-      const hasEditPath = (() => { 
-        try { 
-          if (location && (String(location.hash).indexOf('#edit') !== -1 || String(location.pathname).indexOf('/edit') !== -1)) return true;
-          // GROWI の編集画面ではルート要素に "editing" クラスが追加される
-          const rootEl = document.querySelector('.layout-root');
-          if (rootEl && rootEl.classList.contains('editing')) return true;
-          return false;
-        } catch { return false; } 
-      })();
-      if (hasEditPath) {
-        let pollAttempts = 0;
-        const maxPollAttempts = 10;
-        const pollIntervalMs = 200;
-        const pollId = setInterval(() => {
-          pollAttempts += 1;
-          const fut = locatePreviewContainer();
-          if (fut) {
-            clearInterval(pollId);
-            try { if (!(window as any).__vivlio_root) mount(); } catch {}
-            // cleanup retry handlers just in case
-            window.removeEventListener('hashchange', retryHandler as EventListener);
-            window.removeEventListener('popstate', retryHandler as EventListener);
-            document.removeEventListener('DOMContentLoaded', retryHandler as EventListener);
-            return;
-          }
-          if (pollAttempts >= maxPollAttempts) {
-            clearInterval(pollId);
-          }
-        }, pollIntervalMs);
-      }
-    } catch (e) {
-      // ignore environment errors
+  function ensureRoot(): HTMLElement {
+    let el = document.getElementById(BTN_ROOT_ID);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = BTN_ROOT_ID;
+      // 最低限のスタイル（テーマ依存を回避）
+      el.style.position = 'fixed';
+      el.style.right = '20px';
+      el.style.bottom = '20px';
+      el.style.zIndex = '2147483647'; // 最前面
+      document.body.appendChild(el);
     }
-    return;
-  }
-  let host = document.getElementById(CONTAINER_ID);
-  if (!host) {
-    host = document.createElement('div');
-    host.id = CONTAINER_ID;
-  // ベーススタイル: 親と同幅/高さ (高さは後で補正)。display は PreviewShell が制御。
-  host.style.width = '100%';
-  host.style.height = '100%';
-  host.style.position = 'relative';
-  host.style.display = 'none';
-    previewContainer.appendChild(host);
-  // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][mount] host container created and appended');
-  // notify listeners that preview host/container is available
-  try { window.dispatchEvent(new CustomEvent('vivlio:preview-ready', { detail: { container: host } })); } catch (e) {}
+    return el;
   }
 
-  let root = (window as any).__vivlio_root;
-  if (root) {
-    // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][mount] root already exists - skipping re-create');
-  } else {
-    root = createRoot(host);
-    (window as any).__vivlio_root = root; // 後でunmount用に保持
+  function renderButton(mode: 'preview' | 'view') {
+    const root = ensureRoot();
+    root.innerHTML = ''; // 再描画前にクリア（React 未使用の素朴実装）
+    const btn = document.createElement('button');
+    btn.textContent =
+      mode === 'preview' ? 'Vivliostyleプレビュー' : 'Vivliostyle（閲覧）';
+    // 依存の少ない見た目
+    btn.style.padding = '10px 14px';
+    btn.style.borderRadius = '6px';
+    btn.style.border = '1px solid #999';
+    btn.style.background = mode === 'preview' ? '#165dff' : '#666';
+    btn.style.color = '#fff';
+    btn.style.cursor = 'pointer';
+    btn.setAttribute('type', 'button');
+
+    // 実際の挙動：現在ページを Vivliostyle Viewer に渡す（必要に応じて調整）
+    btn.addEventListener('click', () => {
+      // ここは既存実装のロジックに置き換えてください
+      // 例: location.href を Vivliostyle Viewer の URL に組み込む 等
+      const url = new URL(location.href);
+      // サンプル: クエリを付けて新窓で開く
+      url.searchParams.set('vivlio', '1');
+      window.open(url.toString(), '_blank', 'noopener,noreferrer');
+    });
+
+    root.appendChild(btn);
   }
+
+  return {
+    mount(mode: 'preview' | 'view') {
+      // 閲覧では表示しない設定なら即 return
+      if (mode === 'view' && !SHOW_IN_VIEW) {
+        this.unmount();
+        currentMode = 'view';
+        return;
+      }
+      renderButton(mode);
+      mounted = true;
+      currentMode = mode;
+    },
+    unmount() {
+      const el = document.getElementById(BTN_ROOT_ID);
+      if (el && el.parentElement) {
+        el.parentElement.removeChild(el);
+      }
+      mounted = false;
+      currentMode = null;
+    },
+    isMounted() {
+      return mounted;
+    },
+    getMode() {
+      return currentMode;
+    },
+  };
+})();
+
+// =========================
+// プラグイン起動/停止
+// =========================
+let originalView: AnyFn | undefined;
+let originalPreview: AnyFn | undefined;
+
+function activate() {
+  const og = growiFacade?.markdownRenderer?.optionsGenerators;
+  if (!og) return;
+
+  // 既存退避
+  originalView = og.customGenerateViewOptions ?? og.generateViewOptions;
+  originalPreview = og.customGeneratePreviewOptions ?? og.generatePreviewOptions;
+
+  // --- 閲覧 ---
+  og.customGenerateViewOptions = (...args: any[]) => {
+    try {
+      // 閲覧に入った時点でプレビュー用のボタンは消す（症状Aの根治）
+      ButtonManager.unmount();
+      // 必要なら閲覧でもマウント
+      ButtonManager.mount('view');
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(`[${PLUGIN_NAME}] view mount error`, e);
+    }
+    const base = originalView ?? (() => ({}));
+    return base(...args);
+  };
+
+  // --- プレビュー（編集） ---
+  og.customGeneratePreviewOptions = (...args: any[]) => {
+    try {
+      // プレビューに入ったら必ずマウント（症状Bの根治）
+      ButtonManager.mount('preview');
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(`[${PLUGIN_NAME}] preview mount error`, e);
+    }
+    const base = originalPreview ?? (() => ({}));
+    return base(...args);
+  };
+
   // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][mount] rendering React tree', { hasHost: !!host, childrenBefore: host.childElementCount });
-  root.render(
-    <React.StrictMode>
-      <AppProvider>
-        <div style={{ display: 'contents' }}>
-          <PreviewShell />
-          <ExternalToggle />
-        </div>
-      </AppProvider>
-    </React.StrictMode>
-  );
-  // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][mount] mount finished', { hostChildrenAfter: host.childElementCount });
-  try { window.dispatchEvent(new CustomEvent('vivlio:preview-mounted', { detail: { hostChildrenAfter: host.childElementCount } })); } catch (e) {}
+  console.log(`[${PLUGIN_NAME}] activated`);
 }
 
-function unmount() {
-  // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][unmount] called');
-  const root = (window as any).__vivlio_root;
-  if (root) {
-    root.unmount();
-    delete (window as any).__vivlio_root;
-    // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][unmount] root unmounted');
+function deactivate() {
+  try {
+    ButtonManager.unmount();
+  } catch {
+    // noop
   }
-  const host = document.getElementById(CONTAINER_ID);
-  if (host?.parentNode) host.parentNode.removeChild(host);
+  const og = growiFacade?.markdownRenderer?.optionsGenerators;
+  if (og) {
+    if (originalView) og.customGenerateViewOptions = originalView;
+    if (originalPreview) og.customGeneratePreviewOptions = originalPreview;
+  }
+  // eslint-disable-next-line no-console
+  console.log(`[${PLUGIN_NAME}] deactivated`);
 }
 
+// GROWI 規約に沿って登録
+if (!window.pluginActivators) window.pluginActivators = {};
+window.pluginActivators[PLUGIN_NAME] = { activate, deactivate };
 
-const activate = () => {
-  // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG] activate() invoked', { time: Date.now() });
-  activateEditModeDetector();
-  mount();
-};
-
-const deactivate = () => {
-  // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG] deactivate() invoked', { time: Date.now() });
-  deactivateEditModeDetector();
-  unmount();
-};
-
-// GROWIへ登録
-if ((window as any).pluginActivators == null) (window as any).pluginActivators = {};
-(window as any).pluginActivators[PLUGIN_ID] = { activate, deactivate };
-// eslint-disable-next-line no-console
-console.debug('[VivlioDBG][entry] pluginActivators registered', { id: PLUGIN_ID });
-
-// (removed automatic 3s auto-activate fallback to avoid unsolicited activation/log spam)
-
-// 手動強制呼び出し用フック
-(window as any).__vivlio_forceActivate = activate;
-(window as any).__vivlio_forceUnmount = unmount;
+export {};
