@@ -77,7 +77,11 @@ export const ExternalToggle: React.FC = () => {
       if (!wrapper) {
         wrapper = document.createElement('span');
         wrapper.className = 'vivlio-inline-toggle';
-        wrapper.style.marginLeft = '6px';
+        // put small gap between this button and the following anchor
+        wrapper.style.marginRight = '6px';
+        // ensure wrapper participates inline and aligns children
+        wrapper.style.display = 'inline-flex';
+        wrapper.style.alignItems = 'center';
         initialAnchor.parentElement.insertBefore(wrapper, initialAnchor);
             // eslint-disable-next-line no-console
             console.debug('[VivlioDBG][ExternalToggle] wrapper created & inserted', { time: Date.now(), parent: initialAnchor.parentElement.className, anchorText: normalizeLabel(initialAnchor) });
@@ -225,11 +229,16 @@ export const ExternalToggle: React.FC = () => {
     background: 'linear-gradient(135deg, #1a63b8 0%, #15549a 45%, #d05232 100%)',
     color: '#ffffff',
     border: 'none',
-    padding: '6px 10px',
-    borderRadius: '6px',
+  padding: '6px 10px',
+  borderRadius: '6px',
     boxShadow: '0 4px 0 rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.12)',
     cursor: 'pointer',
     fontWeight: 600,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  lineHeight: 'normal',
+  verticalAlign: 'middle',
     // ensure CSS custom props don't override visible color
     WebkitAppearance: 'none',
   };
