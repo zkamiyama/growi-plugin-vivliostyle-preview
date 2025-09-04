@@ -293,6 +293,143 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     };
   }, []);
 
+  /**
+   * A small draggable & 4-corner-resizable panel used for the info overlay.
+   * Implemented inline to avoid adding new files. Uses pointer events and
+   * positions itself relative to its offsetParent (the sheet container).
+   */
+  const DraggableInfoPanel: React.FC<React.PropsWithChildren<{}>> = ({ children }) => {
+    const rootRef = React.useRef<HTMLDivElement | null>(null);
+    const parentRef = React.useRef<HTMLElement | null>(null);
+    const dragging = React.useRef(false);
+    const resizing = React.useRef<null | { dir: string; startX: number; startY: number; startW: number; startH: number; startL: number; startT: number; }> (null);
+    const dragStart = React.useRef<{ x: number; y: number; left: number; top: number }>({ x: 0, y: 0, left: 0, top: 0 });
+    const [pos, setPos] = React.useState<{ left: number | null; top: number }>({ left: null, top: 8 });
+    const [size, setSize] = React.useState<{ width: number; height: number }>({ width: 320, height: 240 });
+
+    React.useEffect(() => {
+      parentRef.current = (rootRef.current && (rootRef.current.offsetParent as HTMLElement)) || document.body;
+    }, []);
+
+    const onPointerMove = React.useCallback((ev: PointerEvent) => {
+      const p = parentRef.current;
+      const r = rootRef.current;
+      if (!p || !r) return;
+      const pRect = p.getBoundingClientRect();
+
+      if (dragging.current) {
+        const dx = ev.clientX - dragStart.current.x;
+        const dy = ev.clientY - dragStart.current.y;
+        let newLeft = dragStart.current.left + dx;
+        let newTop = dragStart.current.top + dy;
+        newLeft = Math.max(0, Math.min(newLeft, pRect.width - size.width));
+        newTop = Math.max(0, Math.min(newTop, pRect.height - size.height));
+        setPos({ left: newLeft, top: newTop });
+        return;
+      }
+
+      if (resizing.current) {
+        const s = resizing.current;
+        const dx = ev.clientX - s.startX;
+        const dy = ev.clientY - s.startY;
+        let newW = s.startW;
+        let newH = s.startH;
+        let newL = s.startL;
+        let newT = s.startT;
+        const minW = 220; const minH = 120;
+        if (s.dir.includes('e')) {
+          newW = Math.max(minW, s.startW + dx);
+        }
+        if (s.dir.includes('s')) {
+          newH = Math.max(minH, s.startH + dy);
+        }
+        if (s.dir.includes('w')) {
+          newW = Math.max(minW, s.startW - dx);
+          newL = Math.max(0, s.startL + dx);
+        }
+        if (s.dir.includes('n')) {
+          newH = Math.max(minH, s.startH - dy);
+          newT = Math.max(0, s.startT + dy);
+        }
+        // clamp into parent
+        newW = Math.min(newW, pRect.width - newL);
+        newH = Math.min(newH, pRect.height - newT);
+        setSize({ width: newW, height: newH });
+        setPos({ left: newL, top: newT });
+      }
+    }, [size.width, size.height]);
+
+    const onPointerUp = React.useCallback(() => {
+      dragging.current = false;
+      resizing.current = null;
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    }, [onPointerMove]);
+
+    const startDrag = (ev: React.PointerEvent) => {
+      ev.preventDefault();
+      const p = parentRef.current;
+      const r = rootRef.current;
+      if (!p || !r) return;
+      const pRect = p.getBoundingClientRect();
+      const rect = r.getBoundingClientRect();
+      const left = rect.left - pRect.left;
+      const top = rect.top - pRect.top;
+      dragStart.current = { x: ev.clientX, y: ev.clientY, left, top };
+      dragging.current = true;
+      // when user starts dragging, switch to explicit left positioning
+      setPos(pv => ({ left: left, top: top }));
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+    };
+
+    const startResize = (dir: string) => (ev: React.PointerEvent) => {
+      ev.stopPropagation(); ev.preventDefault();
+      const p = parentRef.current;
+      const r = rootRef.current;
+      if (!p || !r) return;
+      const pRect = p.getBoundingClientRect();
+      const rect = r.getBoundingClientRect();
+      const left = rect.left - pRect.left;
+      const top = rect.top - pRect.top;
+      resizing.current = { dir, startX: ev.clientX, startY: ev.clientY, startW: size.width, startH: size.height, startL: left, startT: top };
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+    };
+
+    return (
+      <div
+        ref={rootRef}
+        style={{
+          position: 'absolute',
+          left: pos.left != null ? pos.left : undefined,
+          right: pos.left == null ? 8 : undefined,
+          top: pos.top,
+          width: size.width,
+          height: size.height,
+          zIndex: 200,
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
+        <div
+          onPointerDown={startDrag}
+          style={{ cursor: 'move', padding: 6, display: 'flex', alignItems: 'center', gap: 8, userSelect: 'none', background: 'transparent' }}
+        >
+          {/* header area for dragging - children includes close button etc */}
+        </div>
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          {children}
+        </div>
+        {/* corner handles */}
+        <div onPointerDown={startResize('nw')} style={{ position: 'absolute', left: -6, top: -6, width: 12, height: 12, cursor: 'nwse-resize' }} />
+        <div onPointerDown={startResize('ne')} style={{ position: 'absolute', right: -6, top: -6, width: 12, height: 12, cursor: 'nesw-resize' }} />
+        <div onPointerDown={startResize('sw')} style={{ position: 'absolute', left: -6, bottom: -6, width: 12, height: 12, cursor: 'nesw-resize' }} />
+        <div onPointerDown={startResize('se')} style={{ position: 'absolute', right: -6, bottom: -6, width: 12, height: 12, cursor: 'nwse-resize' }} />
+      </div>
+    );
+  };
+
   return (
     <div style={{
       width: '100%',
@@ -308,108 +445,91 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         <div ref={viewerRef} style={{ padding: 24, overflow: 'auto', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {/* Fixed-size preview sheet. Page size comes from user CSS @page if provided, else A4 fallback. */}
           <div ref={sheetRef} style={{ width: pageWidth, height: pageHeight, background: '#fff', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', border: '1px solid #ddd', overflow: 'hidden', position: 'relative' }}>
-          {errorMsg && (
-            <div style={{ position: 'absolute', top: 8, right: 8, left: 8, padding: '8px 10px', background: '#ffeeee', border: '1px solid #e99', color: '#a00', fontSize: 12, borderRadius: 4 }}>
-              VFM Error: {errorMsg}
-            </div>
-          )}
-          {rendererSource ? (
-            <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
-              {/* rendererWrapRef is scaled to fit the sheet into viewer */}
-              <div ref={rendererWrapRef} style={{ width: '100%', height: '100%', overflow: 'hidden', willChange: 'transform' }}>
-                <Renderer
-                  /* keep stable mounting */
-                  source={rendererSource as string}
-                  bookMode={false}
-                  userStyleSheet={finalUserStyleSheet}
-                />
-              </div>
-            </div>
-          ) : !errorMsg ? (
-            <div style={{ padding: '2em', textAlign: 'center', color: '#666' }}>Markdownを入力してください...</div>
-          ) : null}
-        </div>
-      </div>
-      {/* Info button */}
-          {!showInfo && (
-            <button
-              type="button"
-              aria-label="show vivliostyle preview info"
-              onClick={() => setShowInfo(true)}
-              style={{
-                position: 'absolute',
-                top: 6,
-                right: 6,
-                width: 26,
-                height: 26,
-                borderRadius: '50%',
-                border: '1px solid #999',
-                background: '#fff',
-                color: '#333',
-                fontSize: 14,
-                cursor: 'pointer',
-                lineHeight: '24px',
-                textAlign: 'center',
-                boxShadow: '0 1px 2px rgba(0,0,0,.15)'
-              }}
-              title="Preview info"
-            >i</button>
-          )}
-      {showInfo && (
-        <div style={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          width: 320,
-          maxHeight: '80%',
-          overflow: 'auto',
-          resize: 'both',
-          minWidth: 220,
-          minHeight: 120,
-          // darker frosted glass / Aero-like
-          background: 'rgba(18,20,22,0.56)',
-          backdropFilter: 'blur(8px) saturate(120%)',
-          border: '1px solid rgba(255,255,255,0.06)',
-          borderRadius: 8,
-          padding: '10px 12px',
-          fontSize: 12,
-          lineHeight: 1.4,
-          color: '#e6e6e6',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
-          zIndex: 20
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <strong style={{ fontSize: 13, color: '#f3f4f6' }}>Vivliostyle Preview Info</strong>
-            <span style={{ marginLeft: 'auto' }}>
+            {/* Show an info button when panel is hidden */}
+            {!showInfo && (
               <button
                 type="button"
-                onClick={() => setShowInfo(false)}
+                aria-label="show vivliostyle preview info"
+                onClick={() => setShowInfo(true)}
                 style={{
-                  border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0,
-                  color: '#d0d4d8'
+                  position: 'absolute',
+                  top: 6,
+                  right: 6,
+                  width: 26,
+                  height: 26,
+                  borderRadius: '50%',
+                  border: '1px solid #999',
+                  background: '#fff',
+                  color: '#333',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  lineHeight: '24px',
+                  textAlign: 'center',
+                  boxShadow: '0 1px 2px rgba(0,0,0,.15)'
                 }}
-                aria-label="close info"
-              >×</button>
-            </span>
+                title="Preview info"
+              >i</button>
+            )}
+
+            {/* When shown, render the draggable panel with the same content previously inline */}
+            {showInfo && (
+              <DraggableInfoPanel>
+                <div style={{
+                  position: 'absolute',
+                  // top/right are initial hints; DraggableInfoPanel will manage absolute positioning
+                  top: 8,
+                  right: 8,
+                  width: 320,
+                  maxHeight: '80%',
+                  overflow: 'auto',
+                  minWidth: 220,
+                  minHeight: 120,
+                  // darker frosted glass / Aero-like
+                  background: 'rgba(18,20,22,0.56)',
+                  backdropFilter: 'blur(8px) saturate(120%)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                  fontSize: 12,
+                  lineHeight: 1.4,
+                  color: '#e6e6e6',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <strong style={{ fontSize: 13, color: '#f3f4f6' }}>Vivliostyle Preview Info</strong>
+                    <span style={{ marginLeft: 'auto' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowInfo(false)}
+                        style={{
+                          border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0,
+                          color: '#d0d4d8'
+                        }}
+                        aria-label="close info"
+                      >×</button>
+                    </span>
+                  </div>
+                  <ul style={{ listStyle: 'disc', paddingLeft: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <li>Markdown chars: {markdown.length}</li>
+                    <li>Lines: {markdown.split(/\r?\n/).length}</li>
+                    <li>Approx words: {markdown.trim() ? markdown.trim().split(/\s+/).length : 0}</li>
+                    <li>HTML length: {htmlLen}</li>
+                    <li>DataURL length: {encodedLen}</li>
+                    <li>@page rule: {pageInfo.pageRuleFound ? 'found' : 'none'}</li>
+                    {pageInfo.size && <li>page size: {pageInfo.size}</li>}
+                    {pageInfo.margins && pageInfo.margins.map((m,i)=>(<li key={i}>{m}</li>))}
+                  </ul>
+                  {fullHtml && (
+                    <details style={{ marginTop: 8 }}>
+                      <summary style={{ cursor: 'pointer' }}>Show HTML sample</summary>
+                      <pre style={{ maxHeight: 200, overflow: 'auto', background: 'rgba(0,0,0,0.28)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6' }}>{fullHtml.slice(0, 1200)}</pre>
+                    </details>
+                  )}
+                </div>
+              </DraggableInfoPanel>
+            )}
           </div>
-          <ul style={{ listStyle: 'disc', paddingLeft: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <li>Markdown chars: {markdown.length}</li>
-            <li>Lines: {markdown.split(/\r?\n/).length}</li>
-            <li>Approx words: {markdown.trim() ? markdown.trim().split(/\s+/).length : 0}</li>
-            <li>HTML length: {htmlLen}</li>
-            <li>DataURL length: {encodedLen}</li>
-            <li>@page rule: {pageInfo.pageRuleFound ? 'found' : 'none'}</li>
-            {pageInfo.size && <li>page size: {pageInfo.size}</li>}
-            {pageInfo.margins && pageInfo.margins.map((m,i)=>(<li key={i}>{m}</li>))}
-          </ul>
-          {fullHtml && (
-            <details style={{ marginTop: 8 }}>
-              <summary style={{ cursor: 'pointer' }}>Show HTML sample</summary>
-              <pre style={{ maxHeight: 200, overflow: 'auto', background: 'rgba(0,0,0,0.28)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6' }}>{fullHtml.slice(0, 1200)}</pre>
-            </details>
-          )}
         </div>
-      )}
     </div>
   );
 };
