@@ -206,9 +206,11 @@ export const ExternalToggle: React.FC = () => {
   const offShadow = '0 4px 0 rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -12px 28px rgba(0,0,0,0.9)';
   btn.style.setProperty('box-shadow', isOpen ? activeShadow : offShadow, 'important');
   // always keep a 1px rim border so size doesn't change between states; vary alpha for emphasis
-  btn.style.setProperty('border', `1px solid ${isOpen ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.18)'}`, 'important');
-  // ensure the border is included in layout to keep uniform size
+  // enforce consistent border width and box-sizing so toggling doesn't change layout
+  btn.style.setProperty('border', '1px solid rgba(255,255,255,0.12)', 'important');
   btn.style.setProperty('box-sizing', 'border-box', 'important');
+  // force uniform 4-corner border radius
+  btn.style.setProperty('border-radius', '6px', 'important');
       btn.style.setProperty('border-radius', '6px', 'important');
       btn.style.setProperty('padding', '6px 10px', 'important');
       btn.style.setProperty('font-weight', '600', 'important');
@@ -249,11 +251,13 @@ export const ExternalToggle: React.FC = () => {
   const buttonStyle: React.CSSProperties = {
     // balanced blue > red > blue areas with smooth transitions
   background: 'linear-gradient(135deg, #1a63b8 0%, #1a63b8 25%, #d05232 25%, #d05232 75%, #1a63b8 75%, #1a63b8 100%)',
-    color: '#ffffff',
-    border: 'none',
-    padding: '6px 10px',
-    borderRadius: '6px',
-    boxShadow: '0 4px 0 rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.12)',
+  color: '#ffffff',
+  // keep a 1px rim always to avoid size shifts when toggling
+  border: '1px solid rgba(255,255,255,0.08)',
+  padding: '6px 10px',
+  borderRadius: '6px',
+  boxShadow: '0 4px 0 rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.12)',
+  boxSizing: 'border-box',
     cursor: 'pointer',
     fontWeight: 600,
     display: 'inline-flex',
