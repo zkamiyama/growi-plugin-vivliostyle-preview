@@ -7,6 +7,29 @@ import '../VivlioToggle.css';
 import { createPortal } from 'react-dom';
 
 /**
+ * 安定ソース：client-entry.tsx が更新するグローバル状態
+ */
+function readEditFlagFromFacade(): boolean {
+  try {
+    return !!(window as any).__MY_PLUGIN_STATE__?.isEditPreview;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 不安定ソース：DOM のクラス。フォールバックとしてのみ使用
+ */
+function readEditFlagFromDom(): boolean {
+  try {
+    const root = document.querySelector('.layout-root');
+    return !!(root && root.classList.contains('editing'));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * ボタン挿入用アンカー探索ロジック
  * - 複数候補CSSセレクタを優先順に試行
  * - 見つからない場合はヒューリスティック(文言/role)走査
@@ -72,64 +95,62 @@ export const ExternalToggle: React.FC = () => {
   const primaryAnchorRef = React.useRef<HTMLElement | null>(null);
   const lastBaseColorRef = React.useRef<string | null>(null);
 
+  // === 修正ポイントその1: 編集モードのソースをイベント主体に変更 ===
   React.useEffect(() => {
-    // 即時チェック & MutationObserver による検知（ポーリングを廃止）
-    const update = () => {
+    // 初期値は「公式フックが更新するグローバル」から読む
+    const initial = readEditFlagFromFacade();
+    setIsEditing(initial);
+
+    // 公式イベントを購読（client-entry.tsx で dispatch 済み）
+    const onModeChanged = (e: Event) => {
       try {
-        const rootEl = document.querySelector('.layout-root');
-        const editing = rootEl ? rootEl.classList.contains('editing') : false;
-        setIsEditing(editing);
-      } catch (e) {
-        // ignore
+        const detail = (e as CustomEvent).detail || {};
+        const next = !!detail.isEditPreview;
+        setIsEditing(next);
+      } catch {
+        // 何かあっても落とさない
       }
     };
+    window.addEventListener('vivlio:edit-mode-changed', onModeChanged as EventListener);
 
-    update(); // マウント直後に即時反映
-
+    // === 保険: DOM 監視は fallback として。イベントが来ればそちら優先 ===
     let layoutObserver: MutationObserver | null = null;
-    const observeLayoutRoot = (el: Element | null) => {
-      try {
-        if (layoutObserver) { layoutObserver.disconnect(); layoutObserver = null; }
-        if (!el) return;
-        layoutObserver = new MutationObserver(() => update());
-        layoutObserver.observe(el, { attributes: true, attributeFilter: ['class'] });
-      } catch (e) {
-        if (layoutObserver) { layoutObserver.disconnect(); layoutObserver = null; }
-      }
+    let bodyObserver: MutationObserver | null = null;
+
+    const updateFromDom = () => {
+      // 既にイベントで true/false が入っている可能性はあるが、
+      // イベントが飛ばない環境のために最後の手段として DOM も見る
+      const domFlag = readEditFlagFromDom();
+      // イベントが編集 true を示しているなら上書きしない
+      setIsEditing(prev => (prev ? true : domFlag));
     };
 
-    // body 上で .layout-root の追加や属性変化を監視するオブザーバ（MutationObserver のみで対応）
-    let bodyObserver: MutationObserver | null = null;
     try {
-      bodyObserver = new MutationObserver((mutations) => {
-        for (const m of mutations) {
-          if (m.type === 'childList' && (m.addedNodes?.length || m.removedNodes?.length)) {
-            const root = document.querySelector('.layout-root');
-            if (root) {
-              update();
-              observeLayoutRoot(root);
-              return; // まとまって処理されれば十分
-            }
-          }
-          if (m.type === 'attributes') {
-            // attributes の変化が body 内で発生した場合も再評価
-            update();
-          }
-        }
-      });
-      if (document.body) bodyObserver.observe(document.body, { childList: true, subtree: true, attributes: true });
-    } catch (e) {
-      if (bodyObserver) { bodyObserver.disconnect(); bodyObserver = null; }
+      layoutObserver = new MutationObserver(() => updateFromDom());
+      const root = document.querySelector('.layout-root');
+      if (root) {
+        layoutObserver.observe(root, { attributes: true, attributeFilter: ['class'] });
+      }
+
+      bodyObserver = new MutationObserver(() => updateFromDom());
+      if (document.body) {
+        bodyObserver.observe(document.body, { childList: true, subtree: true, attributes: true });
+      }
+    } catch {
+      // 監視セットに失敗しても致命ではない
     }
 
-    // 初期存在する場合は直接監視を開始
-    try { observeLayoutRoot(document.querySelector('.layout-root')); } catch {}
+    // 初回も一応 DOM を確認しておく
+    updateFromDom();
 
     return () => {
-      try { if (bodyObserver) { bodyObserver.disconnect(); bodyObserver = null; } } catch {}
-      try { if (layoutObserver) { layoutObserver.disconnect(); layoutObserver = null; } } catch {}
+      window.removeEventListener('vivlio:edit-mode-changed', onModeChanged as EventListener);
+      try { layoutObserver?.disconnect(); } catch {}
+      try { bodyObserver?.disconnect(); } catch {}
     };
   }, []);
+
+  const detachTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   React.useEffect(() => {
     const initialAnchor = findAnchorOnce();
@@ -164,12 +185,28 @@ export const ExternalToggle: React.FC = () => {
       console.debug('[VivlioDBG][ExternalToggle] detached due to not editing');
     };
 
+    // デバウンス付きデタッチ
+    const scheduleDetach = () => {
+      if (detachTimerRef.current) clearTimeout(detachTimerRef.current);
+      detachTimerRef.current = setTimeout(() => {
+        if (!isEditing) {
+          detachIfAttached();
+        }
+      }, 300); // 300ms デバウンス
+    };
+
     // 編集モードの場合のみ処理を実行
     if (!isEditing) {
       // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][ExternalToggle] not editing, detaching');
-      detachIfAttached();
+      console.debug('[VivlioDBG][ExternalToggle] not editing, scheduling detach');
+      scheduleDetach();
       return;
+    } else {
+      // isEditing が true になったら、保留中のデタッチをキャンセル
+      if (detachTimerRef.current) {
+        clearTimeout(detachTimerRef.current);
+        detachTimerRef.current = null;
+      }
     }
 
     // 既に解決済みの場合、wrapperが存在するか確認
@@ -403,6 +440,11 @@ export const ExternalToggle: React.FC = () => {
       window.removeEventListener('vivlio:preview-mounted', onPreviewReady);
       // ensure full cleanup
       detachIfAttached();
+      // デタッチタイマーをクリア
+      if (detachTimerRef.current) {
+        clearTimeout(detachTimerRef.current);
+        detachTimerRef.current = null;
+      }
     };
   }, [isEditing]);
 
