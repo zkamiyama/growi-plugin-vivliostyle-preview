@@ -83,6 +83,25 @@ const PreviewShell: React.FC = () => {
       if (!host.style.minHeight) host.style.minHeight = '400px';
     }
 
+    // プレビューコンテナの表示制御
+    if (previewContainer) {
+      if (isOpen) {
+        // 保存
+        if (!previewContainer.dataset.vivlioOriginalClass) {
+          previewContainer.dataset.vivlioOriginalClass = previewContainer.className;
+        }
+        // d-none を削除して d-flex を追加
+        previewContainer.classList.remove('d-none');
+        previewContainer.classList.add('d-flex');
+      } else {
+        // 復帰
+        if (previewContainer.dataset.vivlioOriginalClass) {
+          previewContainer.className = previewContainer.dataset.vivlioOriginalClass;
+          delete previewContainer.dataset.vivlioOriginalClass;
+        }
+      }
+    }
+
     let hiddenCount = 0;
     let restoredCount = 0;
     const processed: string[] = [];
@@ -119,6 +138,7 @@ const PreviewShell: React.FC = () => {
       hasHost: !!host,
       hasPreviewContainer: !!previewContainer,
       hostDisplay: host.style.display,
+      previewContainerClass: previewContainer?.className,
       markdownLen: markdown.length,
       hiddenCount,
       restoredCount,
