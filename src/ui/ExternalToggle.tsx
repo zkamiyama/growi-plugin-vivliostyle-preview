@@ -244,6 +244,9 @@ export const ExternalToggle: React.FC = () => {
           if (String(location.pathname || '').indexOf('/edit') !== -1) return true;
         }
       } catch (e) {}
+      // GROWI の編集画面ではルート要素に "editing" クラスが追加される
+      const rootEl = document.querySelector('.layout-root');
+      if (rootEl && rootEl.classList.contains('editing')) return true;
       return false;
     };
 

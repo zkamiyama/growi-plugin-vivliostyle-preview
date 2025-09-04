@@ -62,7 +62,15 @@ function mount() {
     // If the current URL already indicates editor mode, start a short bounded poll
     // because some UI frameworks create the preview container slightly later.
     try {
-      const hasEditPath = (() => { try { return !!(location && (String(location.hash).indexOf('#edit') !== -1 || String(location.pathname).indexOf('/edit') !== -1)); } catch { return false; } })();
+      const hasEditPath = (() => { 
+        try { 
+          if (location && (String(location.hash).indexOf('#edit') !== -1 || String(location.pathname).indexOf('/edit') !== -1)) return true;
+          // GROWI の編集画面ではルート要素に "editing" クラスが追加される
+          const rootEl = document.querySelector('.layout-root');
+          if (rootEl && rootEl.classList.contains('editing')) return true;
+          return false;
+        } catch { return false; } 
+      })();
       if (hasEditPath) {
         let pollAttempts = 0;
         const maxPollAttempts = 10;
