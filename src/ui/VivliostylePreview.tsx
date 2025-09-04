@@ -122,21 +122,40 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   // If editorMd is present, regenerate fullHtml from it so renderer gets correct content.
   React.useEffect(() => {
     if (!editorMd) return;
-    try {
-      const generated = stringify(editorMd);
-      setFullHtml(generated);
-      setHtmlLen(generated.length);
-      const base64 = btoa(unescape(encodeURIComponent(generated)));
-      const url = `data:text/html;base64,${base64}`;
-      setEncodedLen(url.length);
-      setDataUrl(url);
-      setErrorMsg(null);
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('[VivlioDBG][Preview] stringify failed (editorMd)', e);
-      setErrorMsg((e as Error).message);
-      setDataUrl('');
-    }
+    let to: number | null = null;
+    const doGenerate = () => {
+      try {
+        const generated = stringify(editorMd);
+        // quick validation: must contain <html and <body
+        const looksLikeHtml = /<\s*!doctype|<html[\s>]/i.test(generated) && /<body[\s>]/i.test(generated);
+        if (!looksLikeHtml) {
+          // log full sample for diagnostics
+          // eslint-disable-next-line no-console
+          console.error('[VivlioDBG][Preview] stringify produced invalid HTML sample', { sample: generated.slice(0, 200) });
+          setErrorMsg('Vivliostyle produced invalid HTML. Check input.');
+          // don't update dataUrl/fullHtml to avoid feeding broken content to Renderer
+          return;
+        }
+        setFullHtml(generated);
+        setHtmlLen(generated.length);
+        const base64 = btoa(unescape(encodeURIComponent(generated)));
+        const url = `data:text/html;base64,${base64}`;
+        setEncodedLen(url.length);
+        setDataUrl(url);
+        setErrorMsg(null);
+        // debug log
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][Preview] stringify(editorMd) ok', { htmlLen: generated.length, sample: generated.slice(0, 120) });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('[VivlioDBG][Preview] stringify failed (editorMd)', e);
+        setErrorMsg((e as Error).message);
+        setDataUrl('');
+      }
+    };
+    // debounce to avoid partial intermediate state
+    to = window.setTimeout(doGenerate, 120);
+    return () => { if (to) clearTimeout(to); };
   }, [editorMd]);
 
   // Use data URL as the Renderer source so the viewer loads inline HTML and
