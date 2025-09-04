@@ -12,9 +12,9 @@ import { createPortal } from 'react-dom';
  * - 見つからない場合はヒューリスティック(文言/role)走査
  */
 const ANCHOR_SELECTOR_CANDIDATES = [
+  '[data-testid="view-button"]',                  // 新UI (表示) - 優先的にViewボタンを探す
   '.page-editor-meta .btn-edit-page',               // 旧/一部テーマ
   '[data-testid="editor-button"]',                // 新UI (編集)
-  '[data-testid="view-button"]',                  // 新UI (表示)
   '.page-editor-header .btn-edit',
   '.btn-edit-page',
 ];
@@ -46,10 +46,10 @@ function heuristicScan(): HTMLElement | null {
     const label = normalizeLabel(el);
     if (!label) return;
     let score = 0;
-    if (/edit/.test(label)) score += 3;
-    if (/view/.test(label)) score += 2;
+    if (/view/.test(label)) score += 4;  // viewを最優先に
+    if (/edit/.test(label)) score += 2;
     if (/page/.test(label)) score += 1;
-    if (/\bedit\b/.test(label)) score += 2;
+    if (/\bedit\b/.test(label)) score += 1;
     if (score > 0) scored.push({ el, score });
   });
   scored.sort((a, b) => b.score - a.score);
@@ -76,7 +76,7 @@ export const ExternalToggle: React.FC = () => {
         wrapper = document.createElement('span');
         wrapper.className = 'vivlio-inline-toggle';
         wrapper.style.marginLeft = '6px';
-        initialAnchor.parentElement.insertBefore(wrapper, initialAnchor.nextSibling);
+        initialAnchor.parentElement.insertBefore(wrapper, initialAnchor);
             // eslint-disable-next-line no-console
             console.debug('[VivlioDBG][ExternalToggle] wrapper created & inserted', { time: Date.now(), parent: initialAnchor.parentElement.className, anchorText: normalizeLabel(initialAnchor) });
       }
