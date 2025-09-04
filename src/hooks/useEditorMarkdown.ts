@@ -311,6 +311,32 @@ export function useEditorMarkdown(opts: Options = {}) {
 
                 startHybridPolling(180);
 
+                // setup MutationObserver to detect viewer updates and postMessage listener from iframe/viewer
+                let msgHandler: ((ev: MessageEvent) => void) | null = null;
+                try {
+                  const viewerSelectors = ['.vivlio-viewer', '#vivlio-viewer', '.vivlio-iframe', '.vivlio-preview', '.viewer', '.preview', '.vivlio', 'iframe'];
+                  const mutationCb = (muts: MutationRecord[]) => {
+                    let seen = false;
+                    for (const m of muts) {
+                      if (m.addedNodes && m.addedNodes.length > 0) { seen = true; break; }
+                      if (m.type === 'characterData' || m.type === 'attributes') { seen = true; break; }
+                      const tgt = m.target as HTMLElement | null;
+                      if (tgt && viewerSelectors.some(s => tgt.matches?.(s) || tgt.closest?.(s))) { seen = true; break; }
+                    }
+                    if (seen) {
+                      try { read(); } catch (e) { /* ignore */ }
+                    }
+                  };
+                  observerRef.current = new MutationObserver(mutationCb);
+                  observerRef.current.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true });
+
+                  msgHandler = (ev: MessageEvent) => { try { read(); } catch (e) { /* ignore */ } };
+                  window.addEventListener('message', msgHandler);
+                  // eslint-disable-next-line no-console
+                  console.debug('[VivlioDBG] useEditorMarkdown: viewer mutation observer and message listener attached');
+                } catch (e) { /* ignore observer setup errors */ }
+
+                const prevCleanup = cleanupRef.current;
                 cleanupRef.current = () => {
                   if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
                   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
@@ -322,6 +348,9 @@ export function useEditorMarkdown(opts: Options = {}) {
                     } catch (e) { /* ignore */ }
                     inputListenerRef.current = null;
                   }
+                  try { observerRef.current?.disconnect(); observerRef.current = null; } catch (e) { /* ignore */ }
+                  if (msgHandler) { try { window.removeEventListener('message', msgHandler); } catch (e) { /* ignore */ } }
+                  try { prevCleanup?.(); } catch (e) { /* ignore */ }
                 };
               } else {
                 // best-effort cleanup (cannot reliably remove appended extension in all hosts)
