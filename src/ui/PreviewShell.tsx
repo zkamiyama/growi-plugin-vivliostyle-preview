@@ -3,8 +3,9 @@ import * as React from 'react';
 import { VivliostylePreview } from './VivliostylePreview';
 import { useAppContext } from '../context/AppContext';
 
-// 編集モードに応じてPreviewコンテナまたはWikiコンテナを操作
-// トグルでVivliostyleプレビューを表示/非表示し、元のコンテンツを隠す
+// 元の `.page-editor-preview-container` 内に生成した #vivlio-preview-container を
+// トグルで表示/非表示し、従来の preview body (.page-editor-preview-body) を隠すだけの
+// シンプルな差し替え方式。ポップアップは廃止。
 const PreviewShell: React.FC = () => {
   const { isOpen, markdown } = useAppContext();
 
@@ -20,26 +21,12 @@ const PreviewShell: React.FC = () => {
 
   React.useEffect(() => {
     const host = document.getElementById('vivlio-preview-container');
+    const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
 
     if (!host) {
       // eslint-disable-next-line no-console
       console.warn('[VivlioDBG][PreviewShell] host container missing when toggling', { isOpen });
       return;
-    }
-
-    // 編集モードかどうかを判定
-    const isEditMode = window.location.hash.includes('#edit') ||
-                      !!document.querySelector('[data-testid="editor-button"]') ||
-                      !!document.querySelector('.page-editor');
-
-    // 編集モードに応じて操作対象のコンテナを選択
-    let targetContainer: HTMLElement | null = null;
-    if (isEditMode) {
-      // 編集モード: Previewコンテナを操作
-      targetContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
-    } else {
-      // 通常画面: Wikiコンテナを操作
-      targetContainer = document.querySelector('.wiki') as HTMLElement | null;
     }
 
     host.dataset.vivlioMount = 'true';
@@ -57,8 +44,8 @@ const PreviewShell: React.FC = () => {
     let restoredCount = 0;
     const processed: string[] = [];
 
-    if (targetContainer) {
-      const children = Array.from(targetContainer.children) as HTMLElement[];
+    if (previewContainer) {
+      const children = Array.from(previewContainer.children) as HTMLElement[];
       children.forEach((el, idx) => {
         if (el === host) return; // 自分は対象外
         processed.push(`${idx}:${el.className || el.id || el.tagName}`);
@@ -86,16 +73,14 @@ const PreviewShell: React.FC = () => {
     // eslint-disable-next-line no-console
     console.debug('[VivlioDBG][PreviewShell] toggle siblings', {
       isOpen,
-      isEditMode,
       hasHost: !!host,
-      hasTargetContainer: !!targetContainer,
-      targetContainerClass: targetContainer?.className,
+      hasPreviewContainer: !!previewContainer,
       hostDisplay: host.style.display,
       markdownLen: markdown.length,
       hiddenCount,
       restoredCount,
       processed,
-      targetChildren: targetContainer ? targetContainer.children.length : -1,
+      previewChildren: previewContainer ? previewContainer.children.length : -1,
     });
   }, [isOpen]);
 
