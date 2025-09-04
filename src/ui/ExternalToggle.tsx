@@ -188,9 +188,9 @@ export const ExternalToggle: React.FC = () => {
   React.useEffect(() => {
     if (!wrapperEl) return;
     try {
-      const btn = wrapperEl.querySelector('button.vivlio-toggle-btn') as HTMLElement | null;
-      if (!btn) return;
-      btn.style.setProperty('background', 'linear-gradient(135deg, #1a63b8 0%, #15549a 45%, #d05232 100%)', 'important');
+  const btn = wrapperEl.querySelector('button.vivlio-toggle-btn') as HTMLElement | null;
+  if (!btn) return;
+  btn.style.setProperty('background', 'linear-gradient(135deg, #1a63b8 0%, #1a63b8 33.333%, #d05232 50%, #1a63b8 66.666%, #1a63b8 100%)', 'important');
       btn.style.setProperty('color', '#ffffff', 'important');
       btn.style.setProperty('box-shadow', '0 4px 0 rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.12)', 'important');
       btn.style.setProperty('border', 'none', 'important');
@@ -232,19 +232,20 @@ export const ExternalToggle: React.FC = () => {
   const finalClassName = `${baseClasses} vivlio-toggle-btn vivlio-comp${isOpen ? ' active' : ''}`.trim();
   // inline style: 立体的なグラデーション（提供画像のブルー→オレンジ系）と白文字を強制
   const buttonStyle: React.CSSProperties = {
-    background: 'linear-gradient(135deg, #1a63b8 0%, #15549a 45%, #d05232 100%)',
+    // balanced blue > red > blue areas with smooth transitions
+    background: 'linear-gradient(135deg, #1a63b8 0%, #1a63b8 33.333%, #d05232 50%, #1a63b8 66.666%, #1a63b8 100%)',
     color: '#ffffff',
     border: 'none',
-  padding: '6px 10px',
-  borderRadius: '6px',
+    padding: '6px 10px',
+    borderRadius: '6px',
     boxShadow: '0 4px 0 rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.12)',
     cursor: 'pointer',
     fontWeight: 600,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  lineHeight: 'normal',
-  verticalAlign: 'middle',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    lineHeight: 'normal',
+    verticalAlign: 'middle',
     // ensure CSS custom props don't override visible color
     WebkitAppearance: 'none',
   };
