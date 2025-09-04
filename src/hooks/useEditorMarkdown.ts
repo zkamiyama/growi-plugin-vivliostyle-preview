@@ -166,16 +166,53 @@ export function useEditorMarkdown(opts: Options = {}) {
           read();
           try {
             if (EditorView.updateListener && typeof EditorView.updateListener.of === 'function') {
-              const listener = EditorView.updateListener.of((u: any) => { if (u.docChanged) read(); });
-              // try appendConfig; may throw in some environments
-              try { view.dispatch?.({ effects: (window as any).StateEffect?.appendConfig?.of(listener) }); } catch (e) { /* fall back to polling */ }
-              // best-effort cleanup (cannot remove appended ext reliably)
-              cleanupRef.current = () => { /* no-op */ };
+              // create listener that logs when fired and delegates to `read` on doc changes
+              const listener = EditorView.updateListener.of((u: any) => {
+                try {
+                  // eslint-disable-next-line no-console
+                  console.debug('[VivlioDBG] useEditorMarkdown: CM6 updateListener fired', { docChanged: !!u.docChanged });
+                } catch (e) { /* ignore logging errors */ }
+                if (u.docChanged) read();
+              });
+
+              // try appendConfig; may throw or be unavailable in some environments
+              let appended = false;
+              try {
+                const StateEffect = (window as any).StateEffect;
+                if (StateEffect && StateEffect.appendConfig && typeof StateEffect.appendConfig.of === 'function' && typeof view.dispatch === 'function') {
+                  view.dispatch({ effects: StateEffect.appendConfig.of(listener) });
+                  appended = true;
+                  // eslint-disable-next-line no-console
+                  console.debug('[VivlioDBG] useEditorMarkdown: CM6 updateListener appended via StateEffect.appendConfig');
+                } else {
+                  throw new Error('appendConfig or dispatch unavailable');
+                }
+              } catch (e) {
+                // eslint-disable-next-line no-console
+                console.debug('[VivlioDBG] useEditorMarkdown: CM6 updateListener append failed, falling back to polling', { error: String(e) });
+              }
+
+              if (!appended) {
+                // fallback: periodic polling
+                // eslint-disable-next-line no-console
+                console.debug('[VivlioDBG] useEditorMarkdown: CM6 polling started (fallback)');
+                pollTimer = window.setInterval(read, 500);
+                cleanupRef.current = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
+              } else {
+                // best-effort cleanup (cannot reliably remove appended extension in all hosts)
+                cleanupRef.current = () => { /* no-op */ };
+              }
             } else {
+              // updateListener not available; use polling
+              // eslint-disable-next-line no-console
+              console.debug('[VivlioDBG] useEditorMarkdown: CM6 updateListener not available, using polling');
               pollTimer = window.setInterval(read, 500);
               cleanupRef.current = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
             }
           } catch (e) {
+            // any unexpected error: fallback to polling
+            // eslint-disable-next-line no-console
+            console.debug('[VivlioDBG] useEditorMarkdown: CM6 updateListener unexpected error, using polling', { error: String(e) });
             pollTimer = window.setInterval(read, 500);
             cleanupRef.current = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
           }
