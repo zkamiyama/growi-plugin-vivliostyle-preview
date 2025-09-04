@@ -147,35 +147,31 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           width: 320,
           maxHeight: '60%',
           overflow: 'auto',
-          background: 'rgba(32,32,40,0.98)', // 濃いグレーでコントラストUP
-          color: '#fff',
-          backdropFilter: 'blur(2.5px)',
-          border: '1px solid #222',
-          borderRadius: 8,
-          padding: '14px 16px',
-          fontSize: 13,
-          lineHeight: 1.5,
-          boxShadow: '0 6px 24px rgba(0,0,0,.25)',
-          zIndex: 40
+          background: 'rgba(255,255,255,0.95)',
+          backdropFilter: 'blur(2px)',
+          border: '1px solid #ccc',
+          borderRadius: 6,
+          padding: '10px 12px',
+          fontSize: 12,
+          lineHeight: 1.4,
+          boxShadow: '0 4px 14px rgba(0,0,0,.15)',
+          zIndex: 20
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <strong style={{ fontSize: 15, color: '#fff', letterSpacing: 0.5 }}>Vivliostyle Preview Info</strong>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <strong style={{ fontSize: 13 }}>Vivliostyle Preview Info</strong>
             <span style={{ marginLeft: 'auto' }}>
               <button
                 type="button"
                 onClick={() => setShowInfo(false)}
                 style={{
-                  border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0, color: '#fff', opacity: 0.7
-                }}
+                  border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0, 
+color: '#555'                                                                                                                            }}
                 aria-label="close info"
-                title="閉じる"
-                onMouseOver={e => (e.currentTarget.style.opacity = '1')}
-                onMouseOut={e => (e.currentTarget.style.opacity = '0.7')}
               >×</button>
             </span>
           </div>
-          <ul style={{ listStyle: 'disc', paddingLeft: 18, margin: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <li>Markdown chars: {markdown.length}</li>
+          <ul style={{ listStyle: 'disc', paddingLeft: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}
+>                                                                                                                                    <li>Markdown chars: {markdown.length}</li>
             <li>Lines: {markdown.split(/\r?\n/).length}</li>
             <li>Approx words: {markdown.trim() ? markdown.trim().split(/\s+/).length : 0}</li>
             <li>HTML length: {htmlLen}</li>
@@ -185,10 +181,10 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             {pageInfo.margins && pageInfo.margins.map((m,i)=>(<li key={i}>{m}</li>))}
           </ul>
           {fullHtml && (
-            <details style={{ marginTop: 10 }}>
-              <summary style={{ cursor: 'pointer', color: '#ffd700' }}>Show HTML sample</summary>
-              <pre style={{ maxHeight: 200, overflow: 'auto', background: '#222', color: '#fff', padding: 10, border: '1px solid #444', borderRadius: 4 }}>{fullHtml.slice(0, 1200)}</pre>
-            </details>
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: 'pointer' }}>Show HTML sample</summary>
+              <pre style={{ maxHeight: 200, overflow: 'auto', background: '#f5f5f5', padding: 8, border: '1px solid #eee'
+ }}>{fullHtml.slice(0, 1200)}</pre>                                                                                                  </details>
           )}
         </div>
       )}
