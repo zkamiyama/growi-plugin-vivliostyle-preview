@@ -56,7 +56,7 @@ const PreviewShell: React.FC = () => {
     return null;
   });
 
-  // previewContainerが見つからない場合、定期的に探す
+  // previewContainerが見つからない場合、MutationObserverで監視
   React.useEffect(() => {
     if (previewContainer) return; // 既にみつかっている場合は何もしない
 
@@ -66,7 +66,7 @@ const PreviewShell: React.FC = () => {
       const el = document.querySelector(primarySelector) as HTMLElement | null;
       if (el) {
         // eslint-disable-next-line no-console
-        console.debug('[VivlioDBG][PreviewShell] found primary previewContainer (delayed)', { selector: primarySelector, el, className: el.className });
+        console.debug('[VivlioDBG][PreviewShell] found primary previewContainer (observer)', { selector: primarySelector, el, className: el.className });
         setPreviewContainer(el);
         return true;
       }
@@ -81,7 +81,7 @@ const PreviewShell: React.FC = () => {
         const fallbackEl = document.querySelector(sel) as HTMLElement | null;
         if (fallbackEl) {
           // eslint-disable-next-line no-console
-          console.debug('[VivlioDBG][PreviewShell] found fallback previewContainer (delayed)', { sel, el: fallbackEl, className: fallbackEl.className });
+          console.debug('[VivlioDBG][PreviewShell] found fallback previewContainer (observer)', { sel, el: fallbackEl, className: fallbackEl.className });
           setPreviewContainer(fallbackEl);
           return true;
         }
@@ -92,16 +92,26 @@ const PreviewShell: React.FC = () => {
     // 即時実行
     if (findContainer()) return;
 
-    // 見つからない場合、定期的に探す
-    const interval = setInterval(() => {
+    // MutationObserverでDOMの変化を監視
+    const observer = new MutationObserver(() => {
       if (findContainer()) {
-        clearInterval(interval);
+        observer.disconnect();
       }
-    }, 500); // 500msごとにチェック
+    });
+
+    // bodyとその子要素の変化を監視
+    if (document.body) {
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'id']
+      });
+    }
 
     // 最大10秒でタイムアウト
     const timeout = setTimeout(() => {
-      clearInterval(interval);
+      observer.disconnect();
       // eslint-disable-next-line no-console
       console.warn('[VivlioDBG][PreviewShell] previewContainer not found after 10 seconds - giving up search');
       // タイムアウト時はpreviewContainerをnullに設定してローディング状態を終了
@@ -109,7 +119,7 @@ const PreviewShell: React.FC = () => {
     }, 10000);
 
     return () => {
-      clearInterval(interval);
+      observer.disconnect();
       clearTimeout(timeout);
     };
   }, [previewContainer]);
