@@ -223,8 +223,30 @@ export const ExternalToggle: React.FC = () => {
     }
 
 
-    // ハッシュ(#edit) をトリガーに表示/非表示を切り替える
-    const hasEditHash = () => typeof location !== 'undefined' && (location.hash || '').indexOf('#edit') !== -1;
+    // 編集モード検出: ハッシュ/パス名/プレビューコンテナ存在いずれかで判定
+    const PREVIEW_CONTAINER_SELECTORS = [
+      '.page-editor-preview-container',
+      '.page-editor-preview-body',
+      '.grw-editor-preview',
+      '[data-testid="page-editor-preview"]'
+    ];
+    const findPreviewContainer = (): HTMLElement | null => {
+      for (const sel of PREVIEW_CONTAINER_SELECTORS) {
+        const el = document.querySelector(sel) as HTMLElement | null;
+        if (el) return el;
+      }
+      return null;
+    };
+    const hasEditHash = () => {
+      try {
+        if (typeof location !== 'undefined') {
+          if ((location.hash || '').indexOf('#edit') !== -1) return true;
+          if (String(location.pathname || '').indexOf('/edit') !== -1) return true;
+        }
+      } catch (e) {}
+      if (findPreviewContainer()) return true;
+      return false;
+    };
 
     const detachIfAttached = () => {
       if (!resolvedRef.current) return;

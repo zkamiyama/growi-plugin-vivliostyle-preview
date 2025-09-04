@@ -62,7 +62,8 @@ function mount() {
     // If the current URL already indicates editor mode, start a short bounded poll
     // because some UI frameworks create the preview container slightly later.
     try {
-      if ((location && location.hash && String(location.hash).indexOf('#edit') !== -1)) {
+      const hasEditPath = (() => { try { return !!(location && (String(location.hash).indexOf('#edit') !== -1 || String(location.pathname).indexOf('/edit') !== -1)); } catch { return false; } })();
+      if (hasEditPath) {
         let pollAttempts = 0;
         const maxPollAttempts = 10;
         const pollIntervalMs = 200;
