@@ -66,38 +66,36 @@ export const ExternalToggle: React.FC = () => {
   const [wrapperEl, setWrapperEl] = React.useState<HTMLElement | null>(null);
   const [anchorClasses, setAnchorClasses] = React.useState<string>('');
   const [isEditing, setIsEditing] = React.useState(false);
-  const observerRef = React.useRef<MutationObserver | null>(null);
-  const reorderObserverRef = React.useRef<MutationObserver | null>(null);
   const resolvedRef = React.useRef(false);
   const primaryAnchorRef = React.useRef<HTMLElement | null>(null);
   const lastBaseColorRef = React.useRef<string | null>(null);
 
+  // 編集画面判定: window.__MY_PLUGIN_STATE__.isEditPreview を参照
   React.useEffect(() => {
-    // 編集モード検出: window.__MY_PLUGIN_STATE__.isEditPreview を使用
-    const update = () => {
-      try {
-        const isEditing = !!window.__MY_PLUGIN_STATE__?.isEditPreview;
-        setIsEditing(isEditing);
-      } catch (e) {
-        // ignore
-      }
+    const check = () => {
+      setIsEditing(!!(window as any).__MY_PLUGIN_STATE__?.isEditPreview);
     };
-
-    update(); // 初期チェック
-
-    // 状態変更を監視するためのポーリング（軽量）
-    const intervalId = setInterval(update, 500); // 500ms ごとにチェック
-
+    check();
+    window.addEventListener('vivlio:preview-ready', check);
+    window.addEventListener('vivlio:preview-mounted', check);
+    // hashchange/popstate でも再評価
+    window.addEventListener('hashchange', check);
+    window.addEventListener('popstate', check);
+    // 定期的な再評価（念のため）
+    const interval = setInterval(check, 1000);
     return () => {
-      clearInterval(intervalId);
+      window.removeEventListener('vivlio:preview-ready', check);
+      window.removeEventListener('vivlio:preview-mounted', check);
+      window.removeEventListener('hashchange', check);
+      window.removeEventListener('popstate', check);
+      clearInterval(interval);
     };
   }, []);
 
   React.useEffect(() => {
     const initialAnchor = findAnchorOnce();
-    if (!initialAnchor) return; // アンカーが見つからない場合は何もしない
-
-    if (resolvedRef.current) return; // 冪等
+    if (!initialAnchor) return;
+    if (resolvedRef.current) return;
     if (!initialAnchor.parentElement) return;
     let wrapper = initialAnchor.parentElement.querySelector('.vivlio-inline-toggle') as HTMLElement | null;
     if (!wrapper) {
@@ -105,12 +103,11 @@ export const ExternalToggle: React.FC = () => {
       wrapper.className = 'vivlio-inline-toggle';
       wrapper.style.marginLeft = '6px';
       initialAnchor.parentElement.insertBefore(wrapper, initialAnchor.nextSibling);
-            // eslint-disable-next-line no-console
-            console.debug('[VivlioDBG][ExternalToggle] wrapper created & inserted', { time: Date.now(), parent: initialAnchor.parentElement.className, anchorText: normalizeLabel(initialAnchor) });
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][ExternalToggle] wrapper created & inserted', { time: Date.now(), parent: initialAnchor.parentElement.className, anchorText: normalizeLabel(initialAnchor) });
     }
     // リポジショニング + 色計算共通処理
     const isTransparent = (c: string) => !c || c === 'transparent' || /rgba\(\s*0+\s*,\s*0+\s*,\s*0?\.?0*\s*\)/i.test(c);
-    // --- HSL補色計算: Hのみ+180°, S/L保持 ---
     function parseToRgb(input: string): { r: number; g: number; b: number } | null {
       const m = input.trim().match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
       if (m) return { r: +m[1], g: +m[2], b: +m[3] };
@@ -149,55 +146,39 @@ export const ExternalToggle: React.FC = () => {
       const rgb = parseToRgb(color);
       if (!rgb) return null;
       const { h, s, l } = rgbToHsl(rgb.r, rgb.g, rgb.b);
-    // HSL: 補色 (H+180), S=1, L=50%
-    const compHex = hslToHex((h + 180) % 360, 100, 50);
-      // 明度が高いので前景色は黒
+      const compHex = hslToHex((h + 180) % 360, 100, 50);
       const fg = '#000';
       return { compHex, fg };
     }
-
     const pickButtons = (parent: HTMLElement) => {
       const kids = Array.from(parent.children) as HTMLElement[];
       const view = kids.find(el => /\bview\b/i.test(normalizeLabel(el)) && el !== wrapper) || null;
       const edit = kids.find(el => /\bedit\b/i.test(normalizeLabel(el)) && el !== wrapper) || null;
       return { view, edit };
     };
-
     const isVisible = (el: HTMLElement | null): boolean => !!el && el.offsetParent !== null;
-
     const repositionAndRecolor = () => {
       const parent = wrapper!.parentElement;
       if (!parent) return;
       const { view, edit } = pickButtons(parent);
       const anchor = (isVisible(edit) ? edit : null) || (isVisible(view) ? view : null) || initialAnchor;
-      
-      // より厳密な再配置判定: anchor が存在し、かつ wrapper が anchor の直後にない場合のみ移動
       const currentPosition = wrapper!.previousElementSibling;
       const needsReposition = anchor && currentPosition !== anchor;
-      
       if (needsReposition) {
-        // 無限ループ防止: 同じ anchor への移動を短時間で繰り返さない
         const now = Date.now();
         const lastMoveKey = `${normalizeLabel(anchor)}`;
         const lastMoveTime = (repositionAndRecolor as any).lastMoveMap?.[lastMoveKey] || 0;
-        
-        if (now - lastMoveTime > 100) { // 100ms のデバウンス
+        if (now - lastMoveTime > 100) {
           parent.insertBefore(wrapper!, anchor.nextElementSibling);
           // eslint-disable-next-line no-console
           console.debug('[VivlioDBG][ExternalToggle] reposition (cycle)', { anchor: normalizeLabel(anchor) });
-          
-          // 移動時刻を記録
           if (!(repositionAndRecolor as any).lastMoveMap) (repositionAndRecolor as any).lastMoveMap = {};
           (repositionAndRecolor as any).lastMoveMap[lastMoveKey] = now;
         }
       }
-      
-      // クラス継承 (表示基準 anchor)
       if (anchor) setAnchorClasses(anchor.className);
-      // 色計算
       try {
         const cs = window.getComputedStyle(anchor || initialAnchor);
-        // 優先順: backgroundColor → borderColor → color
         let baseColor = cs.backgroundColor;
         if (isTransparent(baseColor)) baseColor = cs.borderColor;
         if (isTransparent(baseColor)) baseColor = cs.color;
@@ -216,21 +197,13 @@ export const ExternalToggle: React.FC = () => {
         console.warn('[VivlioDBG][ExternalToggle] color compute error', e);
       }
     };
-
-    // 初回計算
     repositionAndRecolor();
     primaryAnchorRef.current = initialAnchor;
     setWrapperEl(wrapper);
     resolvedRef.current = true;
-    if (observerRef.current) {
-      observerRef.current.disconnect();
-      observerRef.current = null;
-    }
-        // eslint-disable-next-line no-console
-        console.debug('[VivlioDBG][ExternalToggle] attached to anchor', { anchorSel: initialAnchor.className, text: normalizeLabel(initialAnchor) });
-
-    // 親の子要素 + 属性変化を監視 (表示/非表示, class変更)
-    if (wrapper.parentElement && !reorderObserverRef.current) {
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG][ExternalToggle] attached to anchor', { anchorSel: initialAnchor.className, text: normalizeLabel(initialAnchor) });
+    if (wrapper.parentElement) {
       const parent = wrapper.parentElement;
       let rafId: number | null = null;
       const schedule = () => {
@@ -240,62 +213,10 @@ export const ExternalToggle: React.FC = () => {
           repositionAndRecolor();
         });
       };
-      reorderObserverRef.current = new MutationObserver(schedule);
-      reorderObserverRef.current.observe(parent, { childList: true, subtree: true, attributes: true, attributeFilter: ['style','class'] });
+      const reorderObserver = new MutationObserver(schedule);
+      reorderObserver.observe(parent, { childList: true, subtree: true, attributes: true, attributeFilter: ['style','class'] });
     }
-
-    // 編集モード検出: isEditing を使用
-    const detachIfAttached = () => {
-      if (!resolvedRef.current) return;
-      // remove wrapper element if present
-      try {
-        const wrapper = primaryAnchorRef.current?.parentElement?.querySelector('.vivlio-inline-toggle') as HTMLElement | null;
-        if (wrapper && wrapper.parentElement) wrapper.remove();
-      } catch (e) {
-        // ignore
-      }
-      // disconnect observers
-      try { if (observerRef.current) { observerRef.current.disconnect(); observerRef.current = null; } } catch {}
-      try { if (reorderObserverRef.current) { reorderObserverRef.current.disconnect(); reorderObserverRef.current = null; } } catch {}
-      resolvedRef.current = false;
-      primaryAnchorRef.current = null;
-      lastBaseColorRef.current = null;
-      setWrapperEl(null);
-      setAnchorClasses('');
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][ExternalToggle] detached due to not editing');
-    };
-
-    const checkAndAttach = () => {
-      if (isEditing) {
-        if (!resolvedRef.current) {
-          const immediate = findAnchorOnce();
-          if (immediate) {
-            // attach は既に実行済みなので、ここでは何もしない
-            // eslint-disable-next-line no-console
-            console.debug('[VivlioDBG][ExternalToggle] attached on editing');
-          }
-        }
-      } else {
-        detachIfAttached();
-      }
-    };
-
-    // 初回チェック
-    checkAndAttach();
-
-    // preview の生成完了を待つ通知が来たら再チェック
-    const onPreviewReady = () => { try { checkAndAttach(); } catch {} };
-    window.addEventListener('vivlio:preview-ready', onPreviewReady);
-    window.addEventListener('vivlio:preview-mounted', onPreviewReady);
-
-    return () => {
-      window.removeEventListener('vivlio:preview-ready', onPreviewReady);
-      window.removeEventListener('vivlio:preview-mounted', onPreviewReady);
-      // ensure full cleanup
-      detachIfAttached();
-    };
-  }, [isEditing]);
+  }, []);
 
   // ラベル溢れ検出用
   const btnRef = React.useRef<HTMLButtonElement | null>(null);
@@ -308,8 +229,8 @@ export const ExternalToggle: React.FC = () => {
     if (overflow !== isOverflow) setIsOverflow(overflow);
   }, [isOpen, wrapperEl]);
 
-  if (!wrapperEl) return null;
-  // アンカー基準クラスから active を除去し、状態に応じて付与
+
+  if (!wrapperEl || !isEditing) return null;
   const baseClasses = anchorClasses
     .split(/\s+/)
     .filter(c => c && c !== 'active')
