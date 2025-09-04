@@ -78,7 +78,10 @@ export const ExternalToggle: React.FC = () => {
       try {
         const rootEl = document.querySelector('.layout-root');
         const editing = rootEl ? rootEl.classList.contains('editing') : false;
-        setIsEditing(editing);
+        // より確実な編集モード検出: editingクラスに加えて、Editボタンの存在も確認
+        const hasEditButton = !!document.querySelector('[data-testid="editor-button"]');
+        const isInEditMode = editing || hasEditButton;
+        setIsEditing(isInEditMode);
       } catch (e) {
         // ignore
       }
@@ -145,31 +148,64 @@ export const ExternalToggle: React.FC = () => {
     // 編集モード検出: isEditing を使用
     const detachIfAttached = () => {
       if (!resolvedRef.current) return;
-      // remove wrapper element if present
-      try {
-        const wrapper = primaryAnchorRef.current?.parentElement?.querySelector('.vivlio-inline-toggle') as HTMLElement | null;
-        if (wrapper && wrapper.parentElement) wrapper.remove();
-      } catch (e) {
-        // ignore
-      }
-      // disconnect observers
-      try { if (observerRef.current) { observerRef.current.disconnect(); observerRef.current = null; } } catch {}
-      try { if (reorderObserverRef.current) { reorderObserverRef.current.disconnect(); reorderObserverRef.current = null; } } catch {}
-      resolvedRef.current = false;
-      primaryAnchorRef.current = null;
-      lastBaseColorRef.current = null;
-      setWrapperEl(null);
-      setAnchorClasses('');
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][ExternalToggle] detached due to not editing');
+      // 非表示の条件を緩和: すぐにdetachせず、一定時間待つ
+      setTimeout(() => {
+        const rootEl = document.querySelector('.layout-root');
+        const stillNotEditing = rootEl ? !rootEl.classList.contains('editing') : true;
+        const noEditButton = !document.querySelector('[data-testid="editor-button"]');
+        if (stillNotEditing && noEditButton) {
+          // remove wrapper element if present
+          try {
+            const wrapper = primaryAnchorRef.current?.parentElement?.querySelector('.vivlio-inline-toggle') as HTMLElement | null;
+            if (wrapper && wrapper.parentElement) wrapper.remove();
+          } catch (e) {
+            // ignore
+          }
+          // disconnect observers
+          try { if (observerRef.current) { observerRef.current.disconnect(); observerRef.current = null; } } catch {}
+          try { if (reorderObserverRef.current) { reorderObserverRef.current.disconnect(); reorderObserverRef.current = null; } } catch {}
+          resolvedRef.current = false;
+          primaryAnchorRef.current = null;
+          lastBaseColorRef.current = null;
+          setWrapperEl(null);
+          setAnchorClasses('');
+          // eslint-disable-next-line no-console
+          console.debug('[VivlioDBG][ExternalToggle] detached due to not editing (delayed)');
+        }
+      }, 1000); // 1秒待ってから判断
     };
 
     // 編集モードの場合のみ処理を実行
     if (!isEditing) {
       // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][ExternalToggle] not editing, detaching');
+      console.debug('[VivlioDBG][ExternalToggle] not editing, scheduling detach');
       detachIfAttached();
       return;
+    }
+
+    // 編集モードになったらすぐにボタンを表示しようとする
+    if (isEditing && !resolvedRef.current) {
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][ExternalToggle] editing mode detected, trying to attach immediately');
+      const immediateAnchor = findAnchorOnce();
+      if (immediateAnchor && immediateAnchor.parentElement) {
+        let wrapper = immediateAnchor.parentElement.querySelector('.vivlio-inline-toggle') as HTMLElement | null;
+        if (!wrapper) {
+          wrapper = document.createElement('span');
+          wrapper.className = 'vivlio-inline-toggle';
+          wrapper.style.marginLeft = '6px';
+          immediateAnchor.parentElement.insertBefore(wrapper, immediateAnchor.nextSibling);
+          // eslint-disable-next-line no-console
+          console.debug('[VivlioDBG][ExternalToggle] wrapper created immediately in editing mode');
+        }
+        setWrapperEl(wrapper);
+        resolvedRef.current = true;
+        primaryAnchorRef.current = immediateAnchor;
+        setAnchorClasses(immediateAnchor.className);
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][ExternalToggle] attached immediately in editing mode');
+        return;
+      }
     }
 
     // 既に解決済みの場合、wrapperが存在するか確認
@@ -380,6 +416,15 @@ export const ExternalToggle: React.FC = () => {
             console.debug('[VivlioDBG][ExternalToggle] no anchor found in checkAndAttach');
           }
         } else {
+          // 既に解決済みの場合も、wrapperが正しく表示されているか確認
+          const existingWrapper = primaryAnchorRef.current?.parentElement?.querySelector('.vivlio-inline-toggle') as HTMLElement | null;
+          if (!existingWrapper) {
+            // eslint-disable-next-line no-console
+            console.debug('[VivlioDBG][ExternalToggle] wrapper missing, recreating');
+            resolvedRef.current = false;
+            checkAndAttach(); // 再帰的に呼び出し
+            return;
+          }
           // eslint-disable-next-line no-console
           console.debug('[VivlioDBG][ExternalToggle] already resolved, skipping checkAndAttach');
         }
@@ -393,12 +438,29 @@ export const ExternalToggle: React.FC = () => {
     // 初回チェック
     checkAndAttach();
 
+    // DOM変化を監視するタイマーを追加
+    const checkTimer = setInterval(() => {
+      try {
+        const rootEl = document.querySelector('.layout-root');
+        const editing = rootEl ? rootEl.classList.contains('editing') : false;
+        const hasEditButton = !!document.querySelector('[data-testid="editor-button"]');
+        const currentIsEditing = editing || hasEditButton;
+        if (currentIsEditing !== isEditing) {
+          setIsEditing(currentIsEditing);
+        }
+        checkAndAttach();
+      } catch (e) {
+        // ignore
+      }
+    }, 200); // 200msごとにチェック
+
     // preview の生成完了を待つ通知が来たら再チェック
     const onPreviewReady = () => { try { checkAndAttach(); } catch {} };
     window.addEventListener('vivlio:preview-ready', onPreviewReady);
     window.addEventListener('vivlio:preview-mounted', onPreviewReady);
 
     return () => {
+      clearInterval(checkTimer);
       window.removeEventListener('vivlio:preview-ready', onPreviewReady);
       window.removeEventListener('vivlio:preview-mounted', onPreviewReady);
       // ensure full cleanup
