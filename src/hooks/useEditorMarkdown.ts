@@ -242,6 +242,7 @@ export function useEditorMarkdown(opts: Options = {}) {
                 inputListenerRef.current = inputHandler;
 
                 // try to find a hidden textarea inside view.dom or its parents
+                let textareaFound = false;
                 try {
                   let host: HTMLElement | null = null;
                   if (view && (view.dom instanceof HTMLElement)) {
@@ -252,10 +253,44 @@ export function useEditorMarkdown(opts: Options = {}) {
                   const textarea = host?.querySelector('textarea');
                   if (textarea) {
                     textarea.addEventListener('input', inputHandler);
+                    textareaFound = true;
                     // eslint-disable-next-line no-console
                     console.debug('[VivlioDBG] useEditorMarkdown: attached input listener to hidden textarea', { textareaFound: true });
                   }
                 } catch (e) { /* ignore */ }
+
+                // If no textarea found, attach to a set of likely DOM events on view.dom/cm-content
+                if (!textareaFound) {
+                  try {
+                    const handlers: Array<[string, EventListener]> = [];
+                    const hostNode = (view && view.dom instanceof HTMLElement) ? view.dom as HTMLElement : ((view as any).root?.dom as HTMLElement | null);
+                    const target = hostNode?.querySelector?.('.cm-content') ?? hostNode ?? null;
+                    if (target) {
+                      const events = ['beforeinput', 'input', 'keydown', 'paste', 'cut', 'compositionend'];
+                      for (const ev of events) {
+                        const fn = (e: Event) => {
+                          try { read(); } catch (e) { /* ignore */ }
+                          // stop polling and remove all handlers
+                          try {
+                            if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+                            if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                          } catch (err) { /* ignore */ }
+                          for (const [k, h] of handlers) { target.removeEventListener(k, h as EventListener); }
+                        };
+                        handlers.push([ev, fn]);
+                        target.addEventListener(ev, fn);
+                      }
+                      // eslint-disable-next-line no-console
+                      console.debug('[VivlioDBG] useEditorMarkdown: attached DOM event handlers to view.dom/cm-content', { eventsAttached: events.length });
+                      // ensure cleanup removes handlers
+                      const prevCleanup = cleanupRef.current;
+                      cleanupRef.current = () => {
+                        try { for (const [k, h] of handlers) { target.removeEventListener(k, h as EventListener); } } catch (e) { /* ignore */ }
+                        try { prevCleanup?.(); } catch (e) { /* ignore */ }
+                      };
+                    }
+                  } catch (e) { /* ignore */ }
+                }
 
                 // start fast polling initially; we'll increase delay after a few cycles
                 const startHybridPolling = (initialDelay = 180) => {
