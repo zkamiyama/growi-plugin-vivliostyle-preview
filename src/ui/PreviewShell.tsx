@@ -27,22 +27,32 @@ const PreviewShell: React.FC = () => {
   }, [isOpen, markdown]);
 
   const [previewContainer, setPreviewContainer] = React.useState<HTMLElement | null>(() => {
-    const candidates = [
-      '.page-editor-preview-container',
+    // page-editor-preview-containerを優先的に探す
+    const primarySelector = '.page-editor-preview-container';
+    const el = document.querySelector(primarySelector) as HTMLElement | null;
+    if (el) {
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][PreviewShell] found primary previewContainer', { selector: primarySelector, el, className: el.className });
+      return el;
+    }
+
+    // フォールバック候補
+    const fallbackCandidates = [
       '#page-editor-preview-container',
       '.page-editor-preview',
       '.page-editor-preview-body',
     ];
-    for (const sel of candidates) {
-      const el = document.querySelector(sel) as HTMLElement | null;
-      if (el) {
+    for (const sel of fallbackCandidates) {
+      const fallbackEl = document.querySelector(sel) as HTMLElement | null;
+      if (fallbackEl) {
         // eslint-disable-next-line no-console
-        console.debug('[VivlioDBG][PreviewShell] found previewContainer', { sel, el, className: el.className });
-        return el;
+        console.debug('[VivlioDBG][PreviewShell] found fallback previewContainer', { sel, el: fallbackEl, className: fallbackEl.className });
+        return fallbackEl;
       }
     }
+
     // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][PreviewShell] no previewContainer found', { candidates });
+    console.debug('[VivlioDBG][PreviewShell] no previewContainer found', { primarySelector, fallbackCandidates });
     return null;
   });
 
@@ -51,18 +61,28 @@ const PreviewShell: React.FC = () => {
     if (previewContainer) return; // 既にみつかっている場合は何もしない
 
     const findContainer = () => {
-      const candidates = [
-        '.page-editor-preview-container',
+      // page-editor-preview-containerを優先的に探す
+      const primarySelector = '.page-editor-preview-container';
+      const el = document.querySelector(primarySelector) as HTMLElement | null;
+      if (el) {
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][PreviewShell] found primary previewContainer (delayed)', { selector: primarySelector, el, className: el.className });
+        setPreviewContainer(el);
+        return true;
+      }
+
+      // フォールバック候補
+      const fallbackCandidates = [
         '#page-editor-preview-container',
         '.page-editor-preview',
         '.page-editor-preview-body',
       ];
-      for (const sel of candidates) {
-        const el = document.querySelector(sel) as HTMLElement | null;
-        if (el) {
+      for (const sel of fallbackCandidates) {
+        const fallbackEl = document.querySelector(sel) as HTMLElement | null;
+        if (fallbackEl) {
           // eslint-disable-next-line no-console
-          console.debug('[VivlioDBG][PreviewShell] found previewContainer (delayed)', { sel, el, className: el.className });
-          setPreviewContainer(el);
+          console.debug('[VivlioDBG][PreviewShell] found fallback previewContainer (delayed)', { sel, el: fallbackEl, className: fallbackEl.className });
+          setPreviewContainer(fallbackEl);
           return true;
         }
       }
@@ -93,9 +113,21 @@ const PreviewShell: React.FC = () => {
   }, [previewContainer]);
 
   // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][PreviewShell] render', { isOpen, hasPreviewContainer: !!previewContainer, markdownLen: markdown.length });
+  console.debug('[VivlioDBG][PreviewShell] render', {
+    isOpen,
+    hasPreviewContainer: !!previewContainer,
+    previewContainerClass: previewContainer?.className,
+    markdownLen: markdown.length
+  });
 
-  // previewContainerが見つからない場合でも、ホスト作成は試みる
+  // previewContainerが見つからない場合はホストを作成しない
+  if (!previewContainer) {
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG][PreviewShell] skipping host creation - no previewContainer');
+    return null;
+  }
+
+  // previewContainerが見つかった場合のみホストを作成
   const host = document.getElementById('vivlio-preview-container');
   if (!host) {
     const newHost = document.createElement('div');
@@ -104,28 +136,35 @@ const PreviewShell: React.FC = () => {
     newHost.style.height = '100%';
     newHost.style.position = 'relative';
     newHost.style.display = 'none';
-    if (previewContainer) {
-      previewContainer.appendChild(newHost);
-    } else {
-      // previewContainerが見つからない場合、bodyに追加
-      document.body.appendChild(newHost);
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][PreviewShell] host appended to body (no previewContainer)');
-    }
+    // previewContainer内に確実に追加
+    previewContainer.appendChild(newHost);
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG][PreviewShell] host created and appended to previewContainer', {
+      previewContainer: previewContainer.className,
+      hostId: newHost.id
+    });
   }
 
   const finalHost = document.getElementById('vivlio-preview-container');
   if (!finalHost) {
+    // eslint-disable-next-line no-console
+    console.warn('[VivlioDBG][PreviewShell] failed to create or find host container');
     return null;
   }
 
   React.useEffect(() => {
     const host = document.getElementById('vivlio-preview-container');
-    const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
+    const currentPreviewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
 
     if (!host) {
       // eslint-disable-next-line no-console
       console.warn('[VivlioDBG][PreviewShell] host container missing when toggling', { isOpen });
+      return;
+    }
+
+    if (!currentPreviewContainer) {
+      // eslint-disable-next-line no-console
+      console.warn('[VivlioDBG][PreviewShell] page-editor-preview-container not found during toggle', { isOpen });
       return;
     }
 
@@ -141,21 +180,19 @@ const PreviewShell: React.FC = () => {
     }
 
     // プレビューコンテナの表示制御
-    if (previewContainer) {
-      if (isOpen) {
-        // 保存
-        if (!previewContainer.dataset.vivlioOriginalClass) {
-          previewContainer.dataset.vivlioOriginalClass = previewContainer.className;
-        }
-        // d-none を削除して d-flex を追加
-        previewContainer.classList.remove('d-none');
-        previewContainer.classList.add('d-flex');
-      } else {
-        // 復帰
-        if (previewContainer.dataset.vivlioOriginalClass) {
-          previewContainer.className = previewContainer.dataset.vivlioOriginalClass;
-          delete previewContainer.dataset.vivlioOriginalClass;
-        }
+    if (isOpen) {
+      // 保存
+      if (!currentPreviewContainer.dataset.vivlioOriginalClass) {
+        currentPreviewContainer.dataset.vivlioOriginalClass = currentPreviewContainer.className;
+      }
+      // d-none を削除して d-flex を追加
+      currentPreviewContainer.classList.remove('d-none');
+      currentPreviewContainer.classList.add('d-flex');
+    } else {
+      // 復帰
+      if (currentPreviewContainer.dataset.vivlioOriginalClass) {
+        currentPreviewContainer.className = currentPreviewContainer.dataset.vivlioOriginalClass;
+        delete currentPreviewContainer.dataset.vivlioOriginalClass;
       }
     }
 
@@ -163,46 +200,44 @@ const PreviewShell: React.FC = () => {
     let restoredCount = 0;
     const processed: string[] = [];
 
-    if (previewContainer) {
-      const children = Array.from(previewContainer.children) as HTMLElement[];
-      children.forEach((el, idx) => {
-        if (el === host) return; // 自分は対象外
-        processed.push(`${idx}:${el.className || el.id || el.tagName}`);
-        if (isOpen) {
-          // 既に保存していなければ元displayを保存
-            if (!el.dataset.vivlioPrevDisplay) {
-              el.dataset.vivlioPrevDisplay = el.style.display || '';
-            }
-            el.style.setProperty('display', 'none', 'important');
-            el.setAttribute('aria-hidden', 'true');
-            hiddenCount += 1;
-        } else {
-          if (el.dataset.vivlioPrevDisplay !== undefined) {
-            el.style.display = el.dataset.vivlioPrevDisplay;
-            delete el.dataset.vivlioPrevDisplay; // 復帰後クリア
-          } else {
-            el.style.display = '';
+    const children = Array.from(currentPreviewContainer.children) as HTMLElement[];
+    children.forEach((el, idx) => {
+      if (el === host) return; // 自分は対象外
+      processed.push(`${idx}:${el.className || el.id || el.tagName}`);
+      if (isOpen) {
+        // 既に保存していなければ元displayを保存
+          if (!el.dataset.vivlioPrevDisplay) {
+            el.dataset.vivlioPrevDisplay = el.style.display || '';
           }
-          el.removeAttribute('aria-hidden');
-          restoredCount += 1;
+          el.style.setProperty('display', 'none', 'important');
+          el.setAttribute('aria-hidden', 'true');
+          hiddenCount += 1;
+      } else {
+        if (el.dataset.vivlioPrevDisplay !== undefined) {
+          el.style.display = el.dataset.vivlioPrevDisplay;
+          delete el.dataset.vivlioPrevDisplay; // 復帰後クリア
+        } else {
+          el.style.display = '';
         }
-      });
-    }
+        el.removeAttribute('aria-hidden');
+        restoredCount += 1;
+      }
+    });
 
     // eslint-disable-next-line no-console
     console.debug('[VivlioDBG][PreviewShell] toggle siblings', {
       isOpen,
       hasHost: !!host,
-      hasPreviewContainer: !!previewContainer,
+      hasPreviewContainer: !!currentPreviewContainer,
       hostDisplay: host.style.display,
-      previewContainerClass: previewContainer?.className,
+      previewContainerClass: currentPreviewContainer?.className,
       markdownLen: markdown.length,
       hiddenCount,
       restoredCount,
       processed,
-      previewChildren: previewContainer ? previewContainer.children.length : -1,
+      previewChildren: currentPreviewContainer ? currentPreviewContainer.children.length : -1,
     });
-  }, [isOpen]);
+  }, [isOpen, previewContainer]);
 
   // Host (#vivlio-preview-container) 内にマウントされるのでラッパ不要
   if (!isOpen) {
