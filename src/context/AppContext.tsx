@@ -28,13 +28,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [forced, setForced] = React.useState<string | null>(null);
   const [activeTab, setActiveTab] = React.useState<'markdown' | 'vivliostyle'>('markdown');
   
+  // 'vivlio:edit-mode-changed' イベントを購読
+  React.useEffect(() => {
+    const onEditModeChanged = (e: Event) => {
+      try {
+        const detail = (e as CustomEvent).detail || {};
+        const isEditPreview = !!detail.isEditPreview;
+        setIsVivliostyleActive(isEditPreview);
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][AppContext] edit-mode-changed event received', { isEditPreview, detail });
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn('[VivlioDBG][AppContext] error handling edit-mode-changed event', error);
+      }
+    };
+    
+    window.addEventListener('vivlio:edit-mode-changed', onEditModeChanged);
+    
+    return () => {
+      window.removeEventListener('vivlio:edit-mode-changed', onEditModeChanged);
+    };
+  }, []);
+  
   // activeTabが変わったらisVivliostyleActiveを更新
   React.useEffect(() => {
     setIsVivliostyleActive(activeTab === 'vivliostyle');
-    // タブが切り替わったらプレビューを開く
-    if (activeTab !== 'markdown') {
-      // すでに開いている場合は何もしない
-    }
   }, [activeTab]);
   
   // デバッグ: このContextインスタンスにIDを付与

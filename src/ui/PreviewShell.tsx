@@ -67,6 +67,29 @@ const PreviewShell: React.FC = () => {
     console.debug('[VivlioDBG][PreviewShell] isOpen changed', { isOpen, markdownLen: markdown.length });
   }, [isOpen, markdown]);
 
+  const [tabBar, setTabBar] = React.useState<HTMLElement | null>(() => {
+    // タブバーを探す
+    const tabBarSelectors = [
+      '.page-editor-preview-container .nav',
+      '.page-editor-preview-container .nav-tabs',
+      '.page-editor-preview-container .tab-content',
+      '.page-editor-preview-container > div:first-child',
+    ];
+    
+    for (const sel of tabBarSelectors) {
+      const el = document.querySelector(sel) as HTMLElement | null;
+      if (el) {
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][PreviewShell] found tabBar', { selector: sel, el, className: el.className });
+        return el;
+      }
+    }
+    
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG][PreviewShell] no tabBar found', { tabBarSelectors });
+    return null;
+  });
+
   const [previewContainer, setPreviewContainer] = React.useState<HTMLElement | null>(() => {
     // page-editor-preview-containerを優先的に探す
     const primarySelector = '.page-editor-preview-container';
@@ -97,33 +120,24 @@ const PreviewShell: React.FC = () => {
     return null;
   });
 
-  // previewContainerが見つからない場合、MutationObserverで監視
+  // tabBarが見つからない場合、MutationObserverで監視
   React.useEffect(() => {
-    if (previewContainer) return; // 既にみつかっている場合は何もしない
+    if (tabBar) return; // 既にみつかっている場合は何もしない
 
-    const findContainer = () => {
-      // page-editor-preview-containerを優先的に探す
-      const primarySelector = '.page-editor-preview-container';
-      const el = document.querySelector(primarySelector) as HTMLElement | null;
-      if (el) {
-        // eslint-disable-next-line no-console
-        console.debug('[VivlioDBG][PreviewShell] found primary previewContainer (observer)', { selector: primarySelector, el, className: el.className });
-        setPreviewContainer(el);
-        return true;
-      }
-
-      // フォールバック候補
-      const fallbackCandidates = [
-        '#page-editor-preview-container',
-        '.page-editor-preview',
-        '.page-editor-preview-body',
+    const findTabBar = () => {
+      const tabBarSelectors = [
+        '.page-editor-preview-container .nav',
+        '.page-editor-preview-container .nav-tabs',
+        '.page-editor-preview-container .tab-content',
+        '.page-editor-preview-container > div:first-child',
       ];
-      for (const sel of fallbackCandidates) {
-        const fallbackEl = document.querySelector(sel) as HTMLElement | null;
-        if (fallbackEl) {
+      
+      for (const sel of tabBarSelectors) {
+        const el = document.querySelector(sel) as HTMLElement | null;
+        if (el) {
           // eslint-disable-next-line no-console
-          console.debug('[VivlioDBG][PreviewShell] found fallback previewContainer (observer)', { sel, el: fallbackEl, className: fallbackEl.className });
-          setPreviewContainer(fallbackEl);
+          console.debug('[VivlioDBG][PreviewShell] found tabBar (observer)', { selector: sel, el, className: el.className });
+          setTabBar(el);
           return true;
         }
       }
@@ -131,11 +145,11 @@ const PreviewShell: React.FC = () => {
     };
 
     // 即時実行
-    if (findContainer()) return;
+    if (findTabBar()) return;
 
     // MutationObserverでDOMの変化を監視
     const observer = new MutationObserver(() => {
-      if (findContainer()) {
+      if (findTabBar()) {
         observer.disconnect();
       }
     });
@@ -154,35 +168,36 @@ const PreviewShell: React.FC = () => {
     const timeout = setTimeout(() => {
       observer.disconnect();
       // eslint-disable-next-line no-console
-      console.warn('[VivlioDBG][PreviewShell] previewContainer not found after 10 seconds - giving up search');
-      // タイムアウト時はpreviewContainerをnullに設定してローディング状態を終了
-      setPreviewContainer(null);
+      console.warn('[VivlioDBG][PreviewShell] tabBar not found after 10 seconds - giving up search');
+      setTabBar(null);
     }, 10000);
 
     return () => {
       observer.disconnect();
       clearTimeout(timeout);
     };
-  }, [previewContainer]);
+  }, [tabBar]);
 
   // eslint-disable-next-line no-console
   console.debug('[VivlioDBG][PreviewShell] render', {
     isOpen,
     hasPreviewContainer: !!previewContainer,
+    hasTabBar: !!tabBar,
     previewContainerClass: previewContainer?.className,
+    tabBarClass: tabBar?.className,
     markdownLen: markdown.length
   });
 
-  // previewContainerが見つからない場合でも、isOpenがtrueなら適切なフィードバックを表示
-  if (!previewContainer) {
+  // previewContainerとtabBarが見つからない場合
+  if (!previewContainer || !tabBar) {
     // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][PreviewShell] previewContainer not found', { isOpen });
+    console.debug('[VivlioDBG][PreviewShell] containers not found', { hasPreviewContainer: !!previewContainer, hasTabBar: !!tabBar, isOpen });
 
     if (!isOpen) {
       return null;
     }
 
-    // ローディング状態を表示（タイムアウト後も表示）
+    // ローディング状態を表示
     return (
       <div style={{
         position: 'fixed',
@@ -329,21 +344,28 @@ const PreviewShell: React.FC = () => {
 
   // Host (#vivlio-preview-container) 内にマウントされるのでラッパ不要
   // タブメニューは常に表示、コンテンツはisOpen次第
-  return createPortal(
-    <div data-vivlio-shell-root>
-      <TabMenu />
-      {isOpen && activeTab === 'vivliostyle' && (
-        <VivliostylePreview markdown={markdown} isVisible={isOpen} />
+  return (
+    <>
+      {/* タブメニューをtabBarにポータル */}
+      {tabBar && createPortal(<TabMenu />, tabBar)}
+      
+      {/* コンテンツをfinalHostにポータル */}
+      {createPortal(
+        <div data-vivlio-shell-root>
+          {isOpen && activeTab === 'vivliostyle' && (
+            <VivliostylePreview markdown={markdown} isVisible={isOpen} />
+          )}
+          {isOpen && activeTab === 'markdown' && (
+            <div style={{ padding: '16px' }}>
+              <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+                {markdown}
+              </pre>
+            </div>
+          )}
+        </div>,
+        finalHost
       )}
-      {isOpen && activeTab === 'markdown' && (
-        <div style={{ padding: '16px' }}>
-          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-            {markdown}
-          </pre>
-        </div>
-      )}
-    </div>,
-    finalHost
+    </>
   );
 };
 
