@@ -81,7 +81,9 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
 
   if (!isVisible) return null;
 
-  const source = dataUrl || null; // bookMode=false で loadDocument() を利用
+  // Prefer passing the fully generated HTML string to the Renderer so the viewer
+  // receives the entire document at once (avoid partial/streamed loads).
+  const rendererSource = fullHtml || dataUrl || null;
   // Extract user CSS from markdown code block labeled ```vivliocss
   const extractUserCss = (md: string) => {
     const m = md.match(/```vivliocss\s*([\s\S]*?)```/i);
@@ -151,7 +153,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     if (viewerRef.current) ro.observe(viewerRef.current);
     if (sheetRef.current) ro.observe(sheetRef.current);
     return () => { window.removeEventListener('resize', recompute); ro.disconnect(); };
-  }, [source, userCss, pageWidth, pageHeight]);
+  }, [fullHtml, dataUrl, userCss, pageWidth, pageHeight]);
 
   return (
     <div style={{
@@ -173,13 +175,13 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
               VFM Error: {errorMsg}
             </div>
           )}
-          {source ? (
+          {rendererSource ? (
             <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
               {/* rendererWrapRef is scaled to fit the sheet into viewer */}
               <div ref={rendererWrapRef} style={{ width: '100%', height: '100%', overflow: 'hidden', willChange: 'transform' }}>
                 <Renderer
                   /* keep stable mounting */
-                  source={source as string}
+                  source={rendererSource as string}
                   bookMode={false}
                   userStyleSheet={finalUserStyleSheet}
                 />
