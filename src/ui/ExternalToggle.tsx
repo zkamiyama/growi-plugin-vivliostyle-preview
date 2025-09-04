@@ -190,8 +190,8 @@ export const ExternalToggle: React.FC = () => {
     try {
       const btn = wrapperEl.querySelector('button.vivlio-toggle-btn') as HTMLElement | null;
       if (!btn) return;
-  // horizontal blue->red split for clear horizontal scroll
-  const activeBg = 'linear-gradient(90deg, #1a63b8 0%, #1a63b8 50%, #d05232 50%, #d05232 100%)';
+  // vivid multi-stop 3D gradient (restore earlier appearance)
+  const activeBg = 'linear-gradient(135deg, #1a63b8 0%, #3b82f6 18%, #1a63b8 28%, #d05232 48%, #f28b6b 68%, #1a63b8 100%)';
   // OFF overlay: radial darkening focused on center to keep rim visible
   const radialOff = 'radial-gradient(circle at center, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.78) 40%, rgba(0,0,0,0.68) 65%, rgba(0,0,0,0.0) 100%)';
   const offBg = `${radialOff}, ${activeBg}`;
@@ -273,7 +273,7 @@ export const ExternalToggle: React.FC = () => {
   // make background scrollable and animate position
   backgroundSize: '200% 100%',
   backgroundPosition: '0% 50%',
-  transition: 'background-position 0.25s ease, color 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease',
+  transition: 'background-position 0.225s ease, color 0.225s ease, box-shadow 0.225s ease, border-color 0.225s ease',
   };
 
   return createPortal(
