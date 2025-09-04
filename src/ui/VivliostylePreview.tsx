@@ -104,12 +104,12 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             </div>
           )}
           {source ? (
-            <div style={{ width: '100%', height: '100%', overflow: 'auto' }}>
+            <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
               <Renderer
                 /* keep stable mounting */
                 source={source as string}
                 bookMode={false}
-                userStyleSheet={`@page{size:148mm 210mm; margin:12mm;} html,body{background:#fff !important;color:#222 !important;-webkit-font-smoothing:antialiased;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Meiryo',sans-serif; height:100%;}
+                userStyleSheet={`@page{size:148mm 210mm; margin:12mm;} html,body{background:#fff !important;color:#222 !important;-webkit-font-smoothing:antialiased;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Meiryo',sans-serif; height:100%; overflow:hidden !important;}
                   /* Force vertical writing mode for A5 portrait print-like preview */
                   body{writing-mode:vertical-rl !important; text-orientation:upright !important;}
                   h1,h2,h3,h4,h5{color:#111 !important;}
