@@ -81,9 +81,9 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
 
   if (!isVisible) return null;
 
-  // Prefer passing the fully generated HTML string to the Renderer so the viewer
-  // receives the entire document at once (avoid partial/streamed loads).
-  const rendererSource = fullHtml || dataUrl || null;
+  // Use data URL as the Renderer source so the viewer loads inline HTML and
+  // does not attempt to fetch the string as a remote URL (which causes CORS/fetch errors).
+  const rendererSource = dataUrl || (fullHtml ? `data:text/html;base64,${btoa(unescape(encodeURIComponent(fullHtml)))}` : null);
   // Extract user CSS from markdown code block labeled ```vivliocss
   const extractUserCss = (md: string) => {
     const m = md.match(/```vivliocss\s*([\s\S]*?)```/i);
