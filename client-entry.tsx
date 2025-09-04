@@ -41,26 +41,22 @@ function mount() {
   const previewContainer = locatePreviewContainer();
   // eslint-disable-next-line no-console
   console.debug('[VivlioDBG][mount] query preview container', { found: !!previewContainer, candidates: PREVIEW_CONTAINER_CANDIDATES });
-  if (!previewContainer) {
-    // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][mount] previewContainer not found, retry scheduling (200ms)');
-    setTimeout(() => {
-      if (!(window as any).__vivlio_root) mount();
-    }, 200); // リトライ
-    return;
-  }
+
+  // Previewコンテナが見つからなくてもマウントを続ける（ExternalToggleはDOMアンカーを探す）
+  const targetContainer = previewContainer || document.body;
+
   let host = document.getElementById(CONTAINER_ID);
   if (!host) {
     host = document.createElement('div');
     host.id = CONTAINER_ID;
-  // ベーススタイル: 親と同幅/高さ (高さは後で補正)。display は PreviewShell が制御。
-  host.style.width = '100%';
-  host.style.height = '100%';
-  host.style.position = 'relative';
-  host.style.display = 'none';
-    previewContainer.appendChild(host);
-  // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][mount] host container created and appended');
+    // ベーススタイル: 親と同幅/高さ (高さは後で補正)。display は PreviewShell が制御。
+    host.style.width = '100%';
+    host.style.height = '100%';
+    host.style.position = 'relative';
+    host.style.display = 'none';
+    targetContainer.appendChild(host);
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG][mount] host container created and appended', { target: targetContainer.tagName, id: targetContainer.id });
   }
 
   let root = (window as any).__vivlio_root;
