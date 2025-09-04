@@ -80,12 +80,24 @@ export function useEditorMarkdown(opts: Options = {}) {
 
       // small opportunistic fallback: read contenteditable text while waiting
       try {
+        // Prefer innerText for contenteditable fallback because textContent may
+        // omit line-breaks between block elements; innerText preserves visible
+        // line breaks which is important for Markdown parsing.
         const cmEditable = document.querySelector<HTMLElement>('.cm-content[contenteditable="true"], .cm-content');
         if (cmEditable) {
           attachPhaseRef.current = 'contenteditable-fallback';
+          const computeText = () => {
+            // innerText may be undefined in some environments; fall back to textContent
+            // but prefer innerText to preserve line breaks.
+            // Trim only trailing zero-width chars; keep meaningful whitespace.
+            return (cmEditable.innerText != null && cmEditable.innerText.length > 0)
+              ? cmEditable.innerText
+              : (cmEditable.textContent || '');
+          };
+          const sample = computeText();
           // eslint-disable-next-line no-console
-          console.debug('[VivlioDBG] useEditorMarkdown: contenteditable fallback found', { cls: cmEditable.className, textLen: (cmEditable.textContent||'').length });
-          const handler = () => emit(cmEditable.textContent || '');
+          console.debug('[VivlioDBG] useEditorMarkdown: contenteditable fallback found', { cls: cmEditable.className, textLen: sample.length });
+          const handler = () => emit(computeText());
           handler();
           try { cmEditable.addEventListener('input', handler); cleanupRef.current = () => cmEditable.removeEventListener('input', handler); } catch(e) { /* ignore */ }
           // continue to try to attach proper EditorView in background
