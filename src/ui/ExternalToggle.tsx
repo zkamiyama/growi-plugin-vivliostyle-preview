@@ -188,12 +188,27 @@ export const ExternalToggle: React.FC = () => {
   React.useEffect(() => {
     if (!wrapperEl) return;
     try {
-  const btn = wrapperEl.querySelector('button.vivlio-toggle-btn') as HTMLElement | null;
-  if (!btn) return;
-  btn.style.setProperty('background', 'linear-gradient(135deg, #1a63b8 0%, #1a63b8 25%, #d05232 25%, #d05232 75%, #1a63b8 75%, #1a63b8 100%)', 'important');
-      btn.style.setProperty('color', '#ffffff', 'important');
-      btn.style.setProperty('box-shadow', '0 4px 0 rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.12)', 'important');
-      btn.style.setProperty('border', 'none', 'important');
+      const btn = wrapperEl.querySelector('button.vivlio-toggle-btn') as HTMLElement | null;
+      if (!btn) return;
+  // vivid multi-stop 3D gradient (restore earlier appearance)
+  const activeBg = 'linear-gradient(135deg, #1a63b8 0%, #3b82f6 18%, #1a63b8 28%, #d05232 48%, #f28b6b 68%, #1a63b8 100%)';
+  // OFF overlay: radial darkening focused on center to keep rim visible
+  const radialOff = 'radial-gradient(circle at center, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.78) 40%, rgba(0,0,0,0.68) 65%, rgba(0,0,0,0.0) 100%)';
+  const offBg = `${radialOff}, ${activeBg}`;
+  // apply bg depending on state
+  btn.style.setProperty('background', isOpen ? activeBg : offBg, 'important');
+  // text color: white when active, muted gray when off
+  btn.style.setProperty('color', isOpen ? '#ffffff' : '#9aa0a6', 'important');
+  // remove global filter; darkness handled by radial overlay and inset shadow
+  btn.style.setProperty('filter', 'none', 'important');
+  // keep the same outer drop shadow offset between states to avoid visual shift
+  const activeShadow = '0 4px 0 rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.12)';
+  const offShadow = '0 4px 0 rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -12px 28px rgba(0,0,0,0.9)';
+  btn.style.setProperty('box-shadow', isOpen ? activeShadow : offShadow, 'important');
+  // always keep a 1px rim border so size doesn't change between states; vary alpha for emphasis
+  btn.style.setProperty('border', `1px solid ${isOpen ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.18)'}`, 'important');
+  // ensure the border is included in layout to keep uniform size
+  btn.style.setProperty('box-sizing', 'border-box', 'important');
       btn.style.setProperty('border-radius', '6px', 'important');
       btn.style.setProperty('padding', '6px 10px', 'important');
       btn.style.setProperty('font-weight', '600', 'important');
@@ -217,11 +232,11 @@ export const ExternalToggle: React.FC = () => {
         } catch (e) { /* ignore */ }
       }
       // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][ExternalToggle] applied important inline styles to button');
+      console.debug('[VivlioDBG][ExternalToggle] applied important inline styles to button (isOpen=' + isOpen + ')');
     } catch (e) {
       // ignore
     }
-  }, [wrapperEl]);
+  }, [wrapperEl, isOpen, anchorMetrics]);
 
   if (!wrapperEl) return null;
   // アンカー基準クラスから active を除去し、状態に応じて付与
