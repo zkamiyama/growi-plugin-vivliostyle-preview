@@ -167,10 +167,25 @@ export const ExternalToggle: React.FC = () => {
     .filter(c => c && c !== 'active')
     .join(' ');
   const finalClassName = `${baseClasses} vivlio-toggle-btn vivlio-comp${isOpen ? ' active' : ''}`.trim();
+  // inline style: 立体的なグラデーション（提供画像のブルー→オレンジ系）と白文字を強制
+  const buttonStyle: React.CSSProperties = {
+    background: 'linear-gradient(135deg, #1a63b8 0%, #15549a 45%, #d05232 100%)',
+    color: '#ffffff',
+    border: 'none',
+    padding: '6px 10px',
+    borderRadius: '6px',
+    boxShadow: '0 4px 0 rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.12)',
+    cursor: 'pointer',
+    fontWeight: 600,
+    // ensure CSS custom props don't override visible color
+    WebkitAppearance: 'none',
+  };
+
   return createPortal(
     <button
       type="button"
       className={finalClassName}
+      style={buttonStyle}
       onClick={(e) => {
         // eslint-disable-next-line no-console
         console.debug('[VivlioDBG][ExternalToggle] click', { isOpenBefore: isOpen, time: Date.now(), anchorClasses });
