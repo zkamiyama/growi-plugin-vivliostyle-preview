@@ -89,32 +89,39 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       height: '100%',
       position: 'relative',
       zIndex: 10,
-      background: '#fff',
-      border: '1px solid #ddd',
-      overflow: 'hidden',
+      background: '#e9ecef',
+      overflow: 'auto',
       display: 'flex',
-      flexDirection: 'column'
+      alignItems: 'center',
+      justifyContent: 'center'
     }}>
-      <div style={{ flex: 1, overflow: 'auto', position: 'relative', background: '#fafafa' }}>
-        {errorMsg && (
-          <div style={{ position: 'absolute', top: 8, right: 8, left: 8, padding: '8px 10px', background: '#ffeeee', border: '1px solid #e99', color: '#a00', fontSize: 12, borderRadius: 4 }}>
-            VFM Error: {errorMsg}
-          </div>
-        )}
-        {source ? (
-          <Renderer
-            /* key を固定し再マウントを避けパフォ改善 */
-            source={source as string}
-            bookMode={false}
-            userStyleSheet={`html,body{background:#fff !important;color:#222 !important;-webkit-font-smoothing:antialiased;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Meiryo',sans-serif;}
-              h1,h2,h3,h4,h5{color:#111 !important;}
-              p{color:#222 !important;}
-              a{color:#0645ad !important;}
-            `}
-          />
-        ) : !errorMsg ? (
-          <div style={{ padding: '2em', textAlign: 'center', color: '#666' }}>Markdownを入力してください...</div>
-        ) : null}
+      <div style={{ padding: 24, overflow: 'auto', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {/* Fixed-size A5 preview sheet (portrait). Uses mm units so layout doesn't respond to window size. */}
+        <div style={{ width: '148mm', height: '210mm', background: '#fff', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', border: '1px solid #ddd', overflow: 'hidden' }}>
+          {errorMsg && (
+            <div style={{ position: 'absolute', top: 8, right: 8, left: 8, padding: '8px 10px', background: '#ffeeee', border: '1px solid #e99', color: '#a00', fontSize: 12, borderRadius: 4 }}>
+              VFM Error: {errorMsg}
+            </div>
+          )}
+          {source ? (
+            <div style={{ width: '100%', height: '100%', overflow: 'auto' }}>
+              <Renderer
+                /* keep stable mounting */
+                source={source as string}
+                bookMode={false}
+                userStyleSheet={`@page{size:148mm 210mm; margin:12mm;} html,body{background:#fff !important;color:#222 !important;-webkit-font-smoothing:antialiased;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Meiryo',sans-serif; height:100%;}
+                  /* Force vertical writing mode for A5 portrait print-like preview */
+                  body{writing-mode:vertical-rl !important; text-orientation:upright !important;}
+                  h1,h2,h3,h4,h5{color:#111 !important;}
+                  p{color:#222 !important;}
+                  a{color:#0645ad !important;}
+                `}
+              />
+            </div>
+          ) : !errorMsg ? (
+            <div style={{ padding: '2em', textAlign: 'center', color: '#666' }}>Markdownを入力してください...</div>
+          ) : null}
+        </div>
       </div>
       {/* Info button */}
       <button
