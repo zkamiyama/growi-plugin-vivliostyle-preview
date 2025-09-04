@@ -15,6 +15,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [htmlLen, setHtmlLen] = useState(0);
   const [encodedLen, setEncodedLen] = useState(0);
   const [fullHtml, setFullHtml] = useState('');
+  const [editorMd, setEditorMd] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [pageInfo, setPageInfo] = useState<{ size?: string|null; margins?: string[]; pageRuleFound: boolean }>({ pageRuleFound: false });
 
@@ -80,6 +81,63 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   }, [isVisible]);
 
   if (!isVisible) return null;
+
+  // Try to read raw markdown from CodeMirror 6 EditorView (state.doc) if available
+  React.useEffect(() => {
+    let pollId: number | null = null;
+    try {
+      const EditorView = (window as any).EditorView || (window as any).CodeMirror?.EditorView;
+      if (!EditorView || typeof EditorView.findFromDOM !== 'function') return;
+      const cmRoot = document.querySelector('.cm-editor');
+      if (!cmRoot) return;
+      const view = EditorView.findFromDOM(cmRoot as HTMLElement);
+      if (!view) return;
+      const read = () => {
+        try {
+          const txt = view.state && typeof view.state.sliceDoc === 'function'
+            ? view.state.sliceDoc()
+            : (view.state && view.state.doc && typeof view.state.doc.toString === 'function' ? view.state.doc.toString() : '');
+          if (txt && txt !== editorMd) setEditorMd(txt);
+        } catch (e) { /* ignore */ }
+      };
+      read();
+      // Try to attach an updateListener if available, else fallback to light polling
+      try {
+        if (EditorView.updateListener && typeof EditorView.updateListener.of === 'function') {
+          const listener = EditorView.updateListener.of((u: any) => { if (u.docChanged) read(); });
+          // best-effort appendConfig
+          try { view.dispatch?.({ effects: (window as any).StateEffect?.appendConfig?.of(listener) }); } catch (e) { /* ignore */ }
+        } else {
+          pollId = window.setInterval(read, 500);
+        }
+      } catch (e) {
+        pollId = window.setInterval(read, 500);
+      }
+    } catch (e) {
+      // ignore
+    }
+    return () => { if (pollId) clearInterval(pollId); };
+  }, []);
+
+  // If editorMd is present, regenerate fullHtml from it so renderer gets correct content.
+  React.useEffect(() => {
+    if (!editorMd) return;
+    try {
+      const generated = stringify(editorMd);
+      setFullHtml(generated);
+      setHtmlLen(generated.length);
+      const base64 = btoa(unescape(encodeURIComponent(generated)));
+      const url = `data:text/html;base64,${base64}`;
+      setEncodedLen(url.length);
+      setDataUrl(url);
+      setErrorMsg(null);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[VivlioDBG][Preview] stringify failed (editorMd)', e);
+      setErrorMsg((e as Error).message);
+      setDataUrl('');
+    }
+  }, [editorMd]);
 
   // Use data URL as the Renderer source so the viewer loads inline HTML and
   // does not attempt to fetch the string as a remote URL (which causes CORS/fetch errors).
