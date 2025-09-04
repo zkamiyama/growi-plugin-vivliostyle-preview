@@ -46,6 +46,8 @@ function activateEditModeDetector() {
     state.lastMode = 'view';
     const base = originalCustomGenerateViewOptions ?? optionsGenerators.generateViewOptions;
     const viewOptions = base ? base(...args) : {};
+    // 状態変更を通知
+    try { window.dispatchEvent(new CustomEvent('vivlio:edit-mode-changed', { detail: { isEditPreview: state.isEditPreview } })); } catch (e) {}
     return viewOptions;
   };
   optionsGenerators.customGeneratePreviewOptions = (...args: any[]) => {
@@ -54,6 +56,8 @@ function activateEditModeDetector() {
     state.lastMode = 'preview';
     const base = originalCustomGeneratePreviewOptions ?? optionsGenerators.generatePreviewOptions;
     const previewOptions = base ? base(...args) : {};
+    // 状態変更を通知
+    try { window.dispatchEvent(new CustomEvent('vivlio:edit-mode-changed', { detail: { isEditPreview: state.isEditPreview } })); } catch (e) {}
     return previewOptions;
   };
 }

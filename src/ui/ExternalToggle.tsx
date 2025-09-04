@@ -81,6 +81,11 @@ export const ExternalToggle: React.FC = () => {
     // hashchange/popstate でも再評価
     window.addEventListener('hashchange', check);
     window.addEventListener('popstate', check);
+    // 編集モード変更イベントをリスン
+    const handleEditModeChange = (e: any) => {
+      setIsEditing(!!e.detail?.isEditPreview);
+    };
+    window.addEventListener('vivlio:edit-mode-changed', handleEditModeChange);
     // 定期的な再評価（念のため）
     const interval = setInterval(check, 1000);
     return () => {
@@ -88,6 +93,7 @@ export const ExternalToggle: React.FC = () => {
       window.removeEventListener('vivlio:preview-mounted', check);
       window.removeEventListener('hashchange', check);
       window.removeEventListener('popstate', check);
+      window.removeEventListener('vivlio:edit-mode-changed', handleEditModeChange);
       clearInterval(interval);
     };
   }, []);
