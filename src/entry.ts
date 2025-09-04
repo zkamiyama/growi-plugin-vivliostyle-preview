@@ -105,26 +105,89 @@ function setMode(m:'markdown'|'vivlio'){
   if (m===currentMode) return; currentMode=m; if(m==='vivlio'){ ensureIframe(); if(!lastSrc){ const t=tryReadEditorText(); if(t) lastSrc=t; } scheduleRender(lastSrc||'# Vivliostyle Preview'); } updateTabActive(); }
 
 function tryReadEditorText(): string | null {
-  try { const cmHost=document.querySelector('.CodeMirror'); if(cmHost && (cmHost as any).CodeMirror) return (cmHost as any).CodeMirror.getValue(); } catch{}
-  try { const cm6=document.querySelector('.cm-content[contenteditable="true"]'); if(cm6) return cm6.textContent||''; } catch{}
-  try { const ta=document.querySelector('textarea[name="markdown"], textarea.markdown-body, textarea'); if(ta) return (ta as HTMLTextAreaElement).value; } catch{}
+  // 1) CM5 instance via DOM (preferred over DOM text)
+  try {
+    const cmHost = document.querySelector('.CodeMirror') as any;
+    if (cmHost && cmHost.CodeMirror && typeof cmHost.CodeMirror.getValue === 'function') {
+      return cmHost.CodeMirror.getValue();
+    }
+  } catch {}
+      const ta = document.querySelector('textarea[name="markdown"], textarea.markdown-body, textarea') as HTMLTextAreaElement | null;
+      if (ta) return ta.value;
+  try {
+    const EditorView = (window as any).EditorView || (window as any).CodeMirror?.EditorView;
+    const cmRoot = document.querySelector('.cm-editor') as HTMLElement | null;
+    if (EditorView && cmRoot && typeof EditorView.findFromDOM === 'function') {
+      const view = EditorView.findFromDOM(cmRoot);
+      if (view && view.state) {
+        if (view.state.doc && typeof view.state.doc.toString === 'function') return view.state.doc.toString();
+        if (typeof view.state.sliceDoc === 'function') return view.state.sliceDoc();
+      }
+    }
+  } catch {}
+
+  // 3) Textarea fallback
+  try {
+    const ta = document.querySelector('textarea[name="markdown"], textarea.markdown-body, textarea') as HTMLTextAreaElement | null;
+    if (ta) return ta.value;
+  } catch {}
+
   return null;
 }
 
-function attachEditorListeners(){
-  const disposers: Array<() => void> = [];
-  try {
-    const cmHost=document.querySelector('.CodeMirror');
-    if(cmHost && (cmHost as any).CodeMirror){
-      const cm=(cmHost as any).CodeMirror; const h=()=>{ try{ scheduleRender(cm.getValue()); }catch(e){ console.warn('[VIVLIO_DEV] cm change error',e);} };
+    const cmHost = document.querySelector('.CodeMirror') as any;
+    if (cmHost && cmHost.CodeMirror) {
+      const cm = cmHost.CodeMirror as any;
+      const h = () => { try { scheduleRender(cm.getValue()); } catch (e) { console.warn('[VIVLIO_DEV] cm change error', e); } };
+      try {
+        cm.on('change', h);
+        disposers.push(() => { try { cm.off('change', h); } catch {} });
+        scheduleRender(cm.getValue());
+      } catch (e) {
+        // If instance API not usable, fall back to polling
+        const p = window.setInterval(() => { try { scheduleRender(cm.getValue()); } catch {} }, 500);
+        disposers.push(() => clearInterval(p));
+      }
+    }
       cm.on('change',h); disposers.push(()=>{ try{ cm.off('change',h);}catch{} });
       scheduleRender(cm.getValue());
     }
-  }catch{}
-  try {
-    const cm6=document.querySelector('.cm-content[contenteditable="true"]');
-    if(cm6){
-      const handler=()=>{ scheduleRender(cm6.textContent||''); }; cm6.addEventListener('input',handler); disposers.push(()=>cm6.removeEventListener('input',handler));
+    const EditorView = (window as any).EditorView || (window as any).CodeMirror?.EditorView;
+    const cm6root = document.querySelector('.cm-editor') as HTMLElement | null;
+    if (EditorView && cm6root && typeof EditorView.findFromDOM === 'function') {
+      const view = EditorView.findFromDOM(cm6root);
+      if (view && view.state) {
+        const read = () => { try {
+          const txt = view.state.doc && typeof view.state.doc.toString === 'function' ? view.state.doc.toString() : (typeof view.state.sliceDoc === 'function' ? view.state.sliceDoc() : '');
+          scheduleRender(txt);
+        } catch (e) { /* ignore */ } };
+        read();
+        try {
+          if (EditorView.updateListener && typeof EditorView.updateListener.of === 'function') {
+            const listener = EditorView.updateListener.of((u: any) => { if (u.docChanged) read(); });
+            try { view.dispatch?.({ effects: (window as any).StateEffect?.appendConfig?.of(listener) }); }
+            catch { /* append failed: fallback to poll */ }
+            // best-effort no-op cleanup
+            disposers.push(() => { /* noop */ });
+          } else {
+            const p = window.setInterval(read, 500);
+            disposers.push(() => clearInterval(p));
+          }
+        } catch (e) {
+          const p = window.setInterval(read, 500);
+          disposers.push(() => clearInterval(p));
+        }
+      }
+    } else {
+      // previous DOM-based fallback: contenteditable element
+      const cm6 = document.querySelector('.cm-content[contenteditable="true"]');
+      if (cm6) {
+        const handler = () => { scheduleRender(cm6.textContent || ''); };
+        cm6.addEventListener('input', handler);
+        disposers.push(() => cm6.removeEventListener('input', handler));
+        scheduleRender(cm6.textContent || '');
+      }
+    }
       scheduleRender(cm6.textContent||'');
     }
   }catch{}

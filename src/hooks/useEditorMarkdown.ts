@@ -48,54 +48,87 @@ export function useEditorMarkdown(opts: Options = {}) {
 
   React.useEffect(() => {
     let disposed = false;
+    let pollTimer: number | null = null;
 
     function tryAttach() {
       if (disposed) return;
-      // 1) Textarea
-    for (const sel of TEXTAREA_SELECTORS) {
+      // 1) Textarea (still safest fallback)
+      for (const sel of TEXTAREA_SELECTORS) {
         const ta = document.querySelector<HTMLTextAreaElement>(sel);
         if (ta) {
+          attachPhaseRef.current = 'textarea';
           // eslint-disable-next-line no-console
-      attachPhaseRef.current = 'textarea';
-      console.debug('[VivlioDBG] useEditorMarkdown: textarea found', { sel, valueLen: ta.value.length });
+          console.debug('[VivlioDBG] useEditorMarkdown: textarea found', { sel, valueLen: ta.value.length });
           const handler = () => emit(ta.value);
           handler();
-            ta.addEventListener('input', handler);
+          ta.addEventListener('input', handler);
           cleanupRef.current = () => ta.removeEventListener('input', handler);
           return;
         }
       }
-      // 2) CodeMirror 6
-    for (const sel of CM6_SELECTORS) {
-        const cm6 = document.querySelector<HTMLElement>(sel);
-        if (cm6) {
-          // eslint-disable-next-line no-console
-      attachPhaseRef.current = 'cm6';
-      console.debug('[VivlioDBG] useEditorMarkdown: CM6 content found', { sel, textLen: cm6.innerText.length });
-          const extract = () => cm6.innerText;
-          emit(extract());
-          observerRef.current = new MutationObserver(() => emit(extract()));
-          observerRef.current.observe(cm6, { childList: true, subtree: true, characterData: true });
-          cleanupRef.current = () => observerRef.current?.disconnect();
-          return;
+
+      // 2) Try CodeMirror 6 via API (robust against fold/virtualization)
+      try {
+        const EditorView = (window as any).EditorView || (window as any).CodeMirror?.EditorView;
+        const cmRoot = document.querySelector('.cm-editor') as HTMLElement | null;
+        if (EditorView && cmRoot && typeof EditorView.findFromDOM === 'function') {
+          const view = EditorView.findFromDOM(cmRoot as HTMLElement);
+          if (view) {
+            attachPhaseRef.current = 'cm6';
+            // eslint-disable-next-line no-console
+            console.debug('[VivlioDBG] useEditorMarkdown: CM6 view found', { sel: '.cm-editor', len: (view.state?.doc ? (typeof view.state.doc.toString === 'function' ? view.state.doc.toString().length : (typeof view.state.sliceDoc === 'function' ? view.state.sliceDoc().length : 0)) : 0) });
+            const read = () => {
+              try {
+                const txt = view.state && view.state.doc && typeof view.state.doc.toString === 'function'
+                  ? view.state.doc.toString()
+                  : (view.state && typeof view.state.sliceDoc === 'function' ? view.state.sliceDoc() : '');
+                emit(txt);
+              } catch (e) { /* ignore read errors */ }
+            };
+            read();
+            try {
+              if (EditorView.updateListener && typeof EditorView.updateListener.of === 'function') {
+                const listener = EditorView.updateListener.of((u: any) => { if (u.docChanged) read(); });
+                // try appendConfig; may throw in some environments
+                try { view.dispatch?.({ effects: (window as any).StateEffect?.appendConfig?.of(listener) }); } catch (e) { /* fall back to polling */ }
+                // best-effort cleanup (cannot remove appended ext reliably)
+                cleanupRef.current = () => { /* no-op */ };
+              } else {
+                pollTimer = window.setInterval(read, 500);
+                cleanupRef.current = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
+              }
+            } catch (e) {
+              pollTimer = window.setInterval(read, 500);
+              cleanupRef.current = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
+            }
+            return;
+          }
         }
+      } catch (e) {
+        // ignore and fallback
       }
-      // 3) CodeMirror 5
-    for (const sel of CM5_ROOTS) {
-        const root = document.querySelector<HTMLElement>(sel);
-        if (root) {
+
+      // 3) CodeMirror 5: use instance API if available
+      try {
+        const cmHost = document.querySelector('.CodeMirror') as any;
+        if (cmHost && cmHost.CodeMirror) {
+          attachPhaseRef.current = 'cm5';
           // eslint-disable-next-line no-console
-      attachPhaseRef.current = 'cm5';
-      console.debug('[VivlioDBG] useEditorMarkdown: CM5 root found', { sel });
-          const extract = () => Array.from(root.querySelectorAll<HTMLElement>('.CodeMirror-line'))
-            .map(l => l.innerText)
-            .join('\n');
-          emit(extract());
-          observerRef.current = new MutationObserver(() => emit(extract()));
-          observerRef.current.observe(root, { childList: true, subtree: true, characterData: true });
-          cleanupRef.current = () => observerRef.current?.disconnect();
+          console.debug('[VivlioDBG] useEditorMarkdown: CM5 instance found');
+          const cm = cmHost.CodeMirror as any;
+          const read = () => { try { emit(cm.getValue()); } catch (e) { /* ignore */ } };
+          read();
+          try {
+            cm.on('change', read);
+            cleanupRef.current = () => { try { cm.off('change', read); } catch (e) { /* ignore */ } };
+          } catch (e) {
+            const p = window.setInterval(read, 500);
+            cleanupRef.current = () => clearInterval(p);
+          }
           return;
         }
+      } catch (e) {
+        // ignore
       }
 
       retryRef.current += 1;
@@ -115,6 +148,7 @@ export function useEditorMarkdown(opts: Options = {}) {
       cleanupRef.current?.();
       observerRef.current?.disconnect();
       if (debTimerRef.current) window.clearTimeout(debTimerRef.current);
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
       // eslint-disable-next-line no-console
       console.debug('[VivlioDBG] useEditorMarkdown: cleanup', { phase: attachPhaseRef.current });
     };
