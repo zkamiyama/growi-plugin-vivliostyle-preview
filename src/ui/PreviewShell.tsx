@@ -1,36 +1,38 @@
 // ui/PreviewShell.tsx
 import * as React from 'react';
-import { createPortal } from 'react-dom';
 import { VivliostylePreview } from './VivliostylePreview';
 import { useAppContext } from '../context/AppContext';
 
-// 元の `.page-editor-preview-container` 内に生成した #vivlio-preview-container を
-// トグルで表示/非表示し、従来の preview body (.page-editor-preview-body) を隠すだけの
-// シンプルな差し替え方式。ポップアップは廃止。
+// シンプルなトグルボタン - Editor previewの上部に配置
 const PreviewShell: React.FC = () => {
   const { isOpen, markdown, activeTab, setActiveTabWithOpen } = useAppContext();
 
-  // タブメニューコンポーネント
-  const TabMenu = () => (
+  // トグルボタンコンポーネント
+  const ToggleButton = () => (
     <div style={{
-      position: 'sticky',
-      top: 0,
-      background: 'white',
-      borderBottom: '1px solid #ddd',
-      padding: '8px 16px',
-      zIndex: 100,
       display: 'flex',
-      gap: '8px'
+      alignItems: 'center',
+      gap: '8px',
+      marginBottom: '8px',
+      padding: '4px 8px',
+      background: '#f8f9fa',
+      borderRadius: '4px',
+      border: '1px solid #dee2e6'
     }}>
+      <span style={{ fontSize: '12px', color: '#6c757d', fontWeight: 'bold' }}>
+        Preview:
+      </span>
       <button
         onClick={() => setActiveTabWithOpen('markdown')}
         style={{
-          padding: '6px 12px',
-          border: '1px solid #ddd',
+          padding: '4px 8px',
+          border: '1px solid #dee2e6',
           background: activeTab === 'markdown' ? '#007bff' : 'white',
-          color: activeTab === 'markdown' ? 'white' : 'black',
-          borderRadius: '4px',
-          cursor: 'pointer'
+          color: activeTab === 'markdown' ? 'white' : '#495057',
+          borderRadius: '3px',
+          cursor: 'pointer',
+          fontSize: '11px',
+          fontWeight: 'bold'
         }}
       >
         Markdown
@@ -38,12 +40,14 @@ const PreviewShell: React.FC = () => {
       <button
         onClick={() => setActiveTabWithOpen('vivliostyle')}
         style={{
-          padding: '6px 12px',
-          border: '1px solid #ddd',
+          padding: '4px 8px',
+          border: '1px solid #dee2e6',
           background: activeTab === 'vivliostyle' ? '#007bff' : 'white',
-          color: activeTab === 'vivliostyle' ? 'white' : 'black',
-          borderRadius: '4px',
-          cursor: 'pointer'
+          color: activeTab === 'vivliostyle' ? 'white' : '#495057',
+          borderRadius: '3px',
+          cursor: 'pointer',
+          fontSize: '11px',
+          fontWeight: 'bold'
         }}
       >
         Vivliostyle
@@ -51,350 +55,131 @@ const PreviewShell: React.FC = () => {
     </div>
   );
 
-  // 初回マウントログ
+  // 初期マウント時とisOpen変更時にトグルボタンを配置
   React.useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][PreviewShell] mount', { time: Date.now() });
-    return () => {
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][PreviewShell] unmount', { time: Date.now() });
-    };
-  }, []);
-
-  // isOpenの変更を監視
-  React.useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][PreviewShell] isOpen changed', { isOpen, markdownLen: markdown.length });
-  }, [isOpen, markdown]);
-
-  const [tabBar, setTabBar] = React.useState<HTMLElement | null>(() => {
-    // タブバーを探す - ul.nav.nav-tabsを最優先
-    const tabBarSelectors = [
-      '.page-editor-preview-container ul.nav.nav-tabs',
-      '#page-editor-preview-container ul.nav.nav-tabs',
-      'ul.nav.nav-tabs',
-      '.page-editor-preview-container .nav',
-      '.page-editor-preview-container .nav-tabs',
-      '.page-editor-preview-container',
-    ];
-    for (const sel of tabBarSelectors) {
-      const el = document.querySelector(sel) as HTMLElement | null;
-      if (el) {
+    const placeToggle = () => {
+      // Editor previewコンテナを探す
+      const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement;
+      if (!previewContainer) {
         // eslint-disable-next-line no-console
-        console.debug('[VivlioDBG][PreviewShell] found tabBar', { selector: sel, el, className: el.className });
-        return el;
+        console.debug('[VivlioDBG][PreviewShell] preview container not found');
+        return;
       }
-    }
-    // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][PreviewShell] no tabBar found', { tabBarSelectors });
-    return null;
-  });
 
-  const [previewContainer, setPreviewContainer] = React.useState<HTMLElement | null>(() => {
-    // page-editor-preview-containerを優先的に探す
-    const primarySelector = '.page-editor-preview-container';
-    const el = document.querySelector(primarySelector) as HTMLElement | null;
-    if (el) {
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][PreviewShell] found primary previewContainer', { selector: primarySelector, el, className: el.className });
-      return el;
-    }
-
-    // フォールバック候補
-    const fallbackCandidates = [
-      '#page-editor-preview-container',
-      '.page-editor-preview',
-      '.page-editor-preview-body',
-    ];
-    for (const sel of fallbackCandidates) {
-      const fallbackEl = document.querySelector(sel) as HTMLElement | null;
-      if (fallbackEl) {
-        // eslint-disable-next-line no-console
-        console.debug('[VivlioDBG][PreviewShell] found fallback previewContainer', { sel, el: fallbackEl, className: fallbackEl.className });
-        return fallbackEl;
+      // 既存のトグルボタンを削除
+      const existingToggle = previewContainer.querySelector('.vivlio-toggle-container');
+      if (existingToggle) {
+        existingToggle.remove();
       }
-    }
 
-    // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][PreviewShell] no previewContainer found', { primarySelector, fallbackCandidates });
-    return null;
-  });
+      // 新しいトグルボタンコンテナを作成
+      const toggleContainer = document.createElement('div');
+      toggleContainer.className = 'vivlio-toggle-container';
+      toggleContainer.style.cssText = `
+        position: relative;
+        z-index: 10;
+        margin-bottom: 8px;
+      `;
 
-  // tabBarが見つからない場合、MutationObserverで監視
-  React.useEffect(() => {
-    if (tabBar) return; // 既にみつかっている場合は何もしない
+      // Reactコンポーネントをレンダリング
+      const root = (window as any).__vivlio_toggle_root || ((window as any).__vivlio_toggle_root = (window as any).ReactDOM.createRoot(toggleContainer));
+      root.render(<ToggleButton />);
 
-    const findTabBar = () => {
-      const tabBarSelectors = [
-        '.page-editor-preview-container ul.nav.nav-tabs',
-        '#page-editor-preview-container ul.nav.nav-tabs',
-        'ul.nav.nav-tabs',
-        '.page-editor-preview-container .nav',
-        '.page-editor-preview-container .nav-tabs',
-        '.page-editor-preview-container',
-      ];
-      for (const sel of tabBarSelectors) {
-        const el = document.querySelector(sel) as HTMLElement | null;
-        if (el) {
-          // eslint-disable-next-line no-console
-          console.debug('[VivlioDBG][PreviewShell] found tabBar (observer)', { selector: sel, el, className: el.className });
-          setTabBar(el);
-          return true;
-        }
-      }
-      return false;
-    };
-
-    // 即時実行
-    if (findTabBar()) return;
-
-    // MutationObserverでDOMの変化を監視
-    const observer = new MutationObserver(() => {
-      if (findTabBar()) {
-        observer.disconnect();
-      }
-    });
-
-    // bodyとその子要素の変化を監視
-    if (document.body) {
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['class', 'id']
-      });
-    }
-
-    // 最大10秒でタイムアウト
-    const timeout = setTimeout(() => {
-      observer.disconnect();
-      // eslint-disable-next-line no-console
-      console.warn('[VivlioDBG][PreviewShell] tabBar not found after 10 seconds - giving up search');
-      setTabBar(null);
-    }, 10000);
-
-    return () => {
-      observer.disconnect();
-      clearTimeout(timeout);
-    };
-  }, [tabBar]);
-
-  // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][PreviewShell] render', {
-    isOpen,
-    hasPreviewContainer: !!previewContainer,
-    hasTabBar: !!tabBar,
-    previewContainerClass: previewContainer?.className,
-    tabBarClass: tabBar?.className,
-    markdownLen: markdown.length
-  });
-
-  // previewContainerとtabBarが見つからない場合
-  if (!previewContainer || !tabBar) {
-    // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][PreviewShell] containers not found', { hasPreviewContainer: !!previewContainer, hasTabBar: !!tabBar, isOpen });
-
-    if (!isOpen) {
-      return null;
-    }
-
-    // ローディング状態を表示
-    return (
-      <div style={{
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        background: 'rgba(0, 0, 0, 0.8)',
-        color: 'white',
-        padding: '20px',
-        borderRadius: '8px',
-        zIndex: 9999,
-        fontSize: '14px',
-        textAlign: 'center',
-        maxWidth: '300px'
-      }}>
-        <div style={{ marginBottom: '10px' }}>⚠️ Vivliostyle Preview</div>
-        <div>プレビューコンテナが見つかりません</div>
-        <div style={{ fontSize: '12px', opacity: 0.7, marginTop: '8px' }}>
-          ページの構造が変更された可能性があります。<br />
-          ページを再読み込みするか、開発者に連絡してください。
-        </div>
-      </div>
-    );
-  }
-
-  // previewContainerが見つかった場合のみホストを作成
-  const host = document.getElementById('vivlio-preview-host');
-  if (!host) {
-    const newHost = document.createElement('div');
-    newHost.id = 'vivlio-preview-host';
-    newHost.style.width = '100%';
-    newHost.style.height = '100%';
-    newHost.style.position = 'relative';
-    newHost.style.display = 'none';
-    // previewContainer内に確実に追加
-    previewContainer.appendChild(newHost);
-    // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][PreviewShell] host created and appended to previewContainer', {
-      previewContainer: previewContainer.className,
-      hostId: newHost.id
-    });
-  }
-
-  const finalHost = document.getElementById('vivlio-preview-host');
-  if (!finalHost) {
-    // eslint-disable-next-line no-console
-    console.warn('[VivlioDBG][PreviewShell] failed to create or find host container');
-    return null;
-  }
-
-  React.useEffect(() => {
-    const host = document.getElementById('vivlio-preview-host');
-    const currentPreviewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
-
-    if (!host) {
-      // eslint-disable-next-line no-console
-      console.warn('[VivlioDBG][PreviewShell] host container missing when toggling', { isOpen });
-      return;
-    }
-
-    if (!currentPreviewContainer) {
-      // eslint-disable-next-line no-console
-      console.warn('[VivlioDBG][PreviewShell] page-editor-preview-container not found during toggle', { isOpen });
-      return;
-    }
-
-    host.dataset.vivlioMount = 'true';
-    host.style.display = isOpen ? 'block' : 'none';
-    if (isOpen) {
-      host.style.position = 'relative';
-      host.style.width = '100%';
-      host.style.height = '100%';
-      host.style.overflow = 'auto';
-      host.style.zIndex = '10';
-      if (!host.style.minHeight) host.style.minHeight = '400px';
-
-      // プレビュー準備完了を通知
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('vivlio:preview-mounted'));
-        // eslint-disable-next-line no-console
-        console.debug('[VivlioDBG][PreviewShell] preview mounted notification sent');
-      }, 100);
-    }
-
-    // プレビューコンテナの表示制御
-    if (isOpen) {
-      // 保存
-      if (!currentPreviewContainer.dataset.vivlioOriginalClass) {
-        currentPreviewContainer.dataset.vivlioOriginalClass = currentPreviewContainer.className;
-      }
-      // d-none を削除して d-flex を追加
-      currentPreviewContainer.classList.remove('d-none');
-      currentPreviewContainer.classList.add('d-flex');
-    } else {
-      // 復帰
-      if (currentPreviewContainer.dataset.vivlioOriginalClass) {
-        currentPreviewContainer.className = currentPreviewContainer.dataset.vivlioOriginalClass;
-        delete currentPreviewContainer.dataset.vivlioOriginalClass;
-      }
-    }
-
-    let hiddenCount = 0;
-    let restoredCount = 0;
-    const processed: string[] = [];
-
-    const children = Array.from(currentPreviewContainer.children) as HTMLElement[];
-    // タブバー系は絶対に隠さない
-    const tabWhitelist = [
-      'nav', 'ul',
-    ];
-    const tabClassWhitelist = [
-      'nav', 'nav-tabs',
-    ];
-    const tabRoleWhitelist = ['tablist'];
-    children.forEach((el, idx) => {
-      if (el === host) return; // 自分は対象外
-      // タブバー系は絶対に隠さない
-      const tag = el.tagName.toLowerCase();
-      const classList = Array.from(el.classList);
-      const role = el.getAttribute('role');
-      const isTabBar =
-        (tabWhitelist.includes(tag) && classList.some(c => tabClassWhitelist.includes(c))) ||
-        (role && tabRoleWhitelist.includes(role));
-      if (isTabBar) return;
-      processed.push(`${idx}:${el.className || el.id || el.tagName}`);
-      if (isOpen) {
-        if (!el.dataset.vivlioPrevDisplay) {
-          el.dataset.vivlioPrevDisplay = el.style.display || '';
-        }
-        el.style.setProperty('display', 'none', 'important');
-        el.setAttribute('aria-hidden', 'true');
-        hiddenCount += 1;
+      // previewContainerの先頭に挿入
+      if (previewContainer.firstChild) {
+        previewContainer.insertBefore(toggleContainer, previewContainer.firstChild);
       } else {
-        if (el.dataset.vivlioPrevDisplay !== undefined) {
-          el.style.display = el.dataset.vivlioPrevDisplay;
-          delete el.dataset.vivlioPrevDisplay;
-        } else {
-          el.style.display = '';
-        }
-        el.removeAttribute('aria-hidden');
-        restoredCount += 1;
+        previewContainer.appendChild(toggleContainer);
       }
-    });
+
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][PreviewShell] toggle button placed');
+    };
+
+    if (isOpen) {
+      // 少し遅延してDOMが安定してから配置
+      setTimeout(placeToggle, 100);
+    }
+
+    return () => {
+      // クリーンアップ
+      const existingToggle = document.querySelector('.vivlio-toggle-container');
+      if (existingToggle) {
+        existingToggle.remove();
+      }
+    };
+  }, [isOpen, activeTab]);
+
+  // コンテンツの表示制御
+  React.useEffect(() => {
+    const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement;
+    if (!previewContainer) return;
+
+    // 標準のプレビュー本文を探す
+    const previewBody = previewContainer.querySelector('.page-editor-preview-body') as HTMLElement;
+    const tabContent = previewContainer.querySelector('.tab-content') as HTMLElement;
+
+    if (isOpen) {
+      // Vivliostyleの場合、標準コンテンツを隠す
+      if (activeTab === 'vivliostyle') {
+        if (previewBody) previewBody.style.display = 'none';
+        if (tabContent) tabContent.style.display = 'none';
+      } else {
+        // Markdownの場合、標準コンテンツを表示
+        if (previewBody) previewBody.style.display = '';
+        if (tabContent) tabContent.style.display = '';
+      }
+    } else {
+      // プレビューが閉じている場合、標準コンテンツを表示
+      if (previewBody) previewBody.style.display = '';
+      if (tabContent) tabContent.style.display = '';
+    }
+  }, [isOpen, activeTab]);
+
+  // Vivliostyleコンテンツの配置
+  React.useEffect(() => {
+    if (!isOpen || activeTab !== 'vivliostyle') return;
+
+    const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement;
+    if (!previewContainer) return;
+
+    // 既存のVivliostyleコンテナを削除
+    const existingVivlio = previewContainer.querySelector('.vivlio-content-container');
+    if (existingVivlio) {
+      existingVivlio.remove();
+    }
+
+    // 新しいVivliostyleコンテナを作成
+    const vivlioContainer = document.createElement('div');
+    vivlioContainer.className = 'vivlio-content-container';
+    vivlioContainer.style.cssText = `
+      position: relative;
+      width: 100%;
+      min-height: 400px;
+      margin-top: 8px;
+    `;
+
+    // Reactコンポーネントをレンダリング
+    const root = (window as any).__vivlio_content_root || ((window as any).__vivlio_content_root = (window as any).ReactDOM.createRoot(vivlioContainer));
+    root.render(<VivliostylePreview markdown={markdown} isVisible={true} />);
+
+    // previewContainerに追加
+    previewContainer.appendChild(vivlioContainer);
 
     // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][PreviewShell] toggle siblings', {
-      isOpen,
-      hasHost: !!host,
-      hasPreviewContainer: !!currentPreviewContainer,
-      hostDisplay: host.style.display,
-      previewContainerClass: currentPreviewContainer?.className,
-      markdownLen: markdown.length,
-      hiddenCount,
-      restoredCount,
-      processed,
-      previewChildren: currentPreviewContainer ? currentPreviewContainer.children.length : -1,
-    });
-  }, [isOpen, previewContainer]);
+    console.debug('[VivlioDBG][PreviewShell] Vivliostyle content placed');
 
-  // Host (#vivlio-preview-container) 内にマウントされるのでラッパ不要
-  // タブメニューは常に表示、コンテンツはisOpen次第
-  return (
-    <>
-      {/* タブメニューをtabBarにポータル - 常に表示 */}
-      {tabBar && createPortal(
-        <div style={{ 
-          position: 'sticky', 
-          top: 0, 
-          background: 'white', 
-          borderBottom: '1px solid #ddd', 
-          zIndex: 100,
-          padding: '8px 16px'
-        }}>
-          <TabMenu />
-        </div>, 
-        tabBar
-      )}
-      
-      {/* コンテンツをfinalHostにポータル */}
-      {createPortal(
-        <div data-vivlio-shell-root>
-          {isOpen && activeTab === 'vivliostyle' && (
-            <VivliostylePreview markdown={markdown} isVisible={isOpen} />
-          )}
-          {isOpen && activeTab === 'markdown' && (
-            <div style={{ padding: '16px' }}>
-              <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-                {markdown}
-              </pre>
-            </div>
-          )}
-        </div>,
-        finalHost
-      )}
-    </>
-  );
+    return () => {
+      // クリーンアップ
+      const existingVivlio = document.querySelector('.vivlio-content-container');
+      if (existingVivlio) {
+        existingVivlio.remove();
+      }
+    };
+  }, [isOpen, activeTab, markdown]);
+
+  // このコンポーネント自体は表示しない（Portalで配置するため）
+  return null;
 };
 
 export default PreviewShell;
