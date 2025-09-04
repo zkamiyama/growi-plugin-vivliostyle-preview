@@ -155,6 +155,10 @@ export function useEditorMarkdown(opts: Options = {}) {
           attachPhaseRef.current = 'cm6';
           // eslint-disable-next-line no-console
           console.debug('[VivlioDBG] useEditorMarkdown: CM6 view found', { sel: 'multiple-candidates', len: (view.state?.doc ? (typeof view.state.doc.toString === 'function' ? view.state.doc.toString().length : (typeof view.state.sliceDoc === 'function' ? view.state.sliceDoc().length : 0)) : 0) });
+          // try to resolve the EditorView constructor: prefer global EditorView, else use the instance's constructor
+          const EditorViewCtor = (window as any).EditorView || (view && (view.constructor as any));
+          // eslint-disable-next-line no-console
+          console.debug('[VivlioDBG] useEditorMarkdown: EditorViewCtor resolution', { hasGlobal: !!(window as any).EditorView, ctorType: typeof EditorViewCtor, ctorName: EditorViewCtor?.name });
           const read = () => {
             try {
               const txt = view.state && view.state.doc && typeof view.state.doc.toString === 'function'
@@ -170,9 +174,9 @@ export function useEditorMarkdown(opts: Options = {}) {
             // eslint-disable-next-line no-console
             console.debug('[VivlioDBG] useEditorMarkdown: EditorView presence', { hasEditorView: !!EditorView, editorViewType: typeof EditorView });
 
-            if (EditorView && EditorView.updateListener && typeof EditorView.updateListener.of === 'function') {
+            if (EditorViewCtor && EditorViewCtor.updateListener && typeof EditorViewCtor.updateListener.of === 'function') {
               // create listener that logs when fired and delegates to `read` on doc changes
-              const listener = EditorView.updateListener.of((u: any) => {
+              const listener = EditorViewCtor.updateListener.of((u: any) => {
                 try {
                   // eslint-disable-next-line no-console
                   console.debug('[VivlioDBG] useEditorMarkdown: CM6 updateListener fired', { docChanged: !!u.docChanged });
