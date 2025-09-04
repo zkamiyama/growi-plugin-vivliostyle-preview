@@ -187,12 +187,27 @@ export function useEditorMarkdown(opts: Options = {}) {
               // try appendConfig; may throw or be unavailable in some environments
               let appended = false;
               try {
-                const StateEffect = (window as any).StateEffect;
+                // Resolve StateEffect from multiple possible locations
+                let StateEffect: any = (window as any).StateEffect;
+                let stateEffectSource = StateEffect ? 'window' : null;
+                if (!StateEffect) {
+                  try {
+                    if ((EditorViewCtor as any)?.StateEffect) { StateEffect = (EditorViewCtor as any).StateEffect; stateEffectSource = 'EditorViewCtor'; }
+                  } catch (e) { /* ignore */ }
+                }
+                if (!StateEffect) {
+                  try {
+                    if ((view as any).constructor && (view as any).constructor.StateEffect) { StateEffect = (view as any).constructor.StateEffect; stateEffectSource = 'view.constructor'; }
+                  } catch (e) { /* ignore */ }
+                }
+                // eslint-disable-next-line no-console
+                console.debug('[VivlioDBG] useEditorMarkdown: StateEffect resolution', { source: stateEffectSource });
+
                 if (StateEffect && StateEffect.appendConfig && typeof StateEffect.appendConfig.of === 'function' && typeof view.dispatch === 'function') {
                   view.dispatch({ effects: StateEffect.appendConfig.of(listener) });
                   appended = true;
                   // eslint-disable-next-line no-console
-                  console.debug('[VivlioDBG] useEditorMarkdown: CM6 updateListener appended via StateEffect.appendConfig');
+                  console.debug('[VivlioDBG] useEditorMarkdown: CM6 updateListener appended via StateEffect.appendConfig', { source: stateEffectSource });
                 } else {
                   throw new Error('appendConfig or dispatch unavailable');
                 }
