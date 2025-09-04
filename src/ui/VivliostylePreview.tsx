@@ -85,9 +85,28 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   // does not attempt to fetch the string as a remote URL (which causes CORS/fetch errors).
   const rendererSource = dataUrl || (fullHtml ? `data:text/html;base64,${btoa(unescape(encodeURIComponent(fullHtml)))}` : null);
   // Extract user CSS from markdown code block labeled ```vivliocss
+  // Also support cases where the editor folds code and produces
+  // <pre class="language-vivliocss…"> truncated forms in the generated HTML.
   const extractUserCss = (md: string) => {
+    // 1) Prefer explicit markdown fenced block
     const m = md.match(/```vivliocss\s*([\s\S]*?)```/i);
-    return m ? m[1].trim() : '';
+    if (m) return m[1].trim();
+
+    // 2) Fallback: try to extract from generated fullHtml <pre class="language-vivliocss..."> blocks
+    if (fullHtml) {
+      const preMatch = fullHtml.match(/<pre[^>]*class=(?:"|')([^"']*language-vivliocss[^"']*)(?:"|')[^>]*>([\s\S]*?)<\/pre>/i);
+      if (preMatch) {
+        let content = preMatch[2] || '';
+        // If wrapped in <code>..</code>, strip tags
+        content = content.replace(/^\s*<code[^>]*>/i, '').replace(/<\/code>\s*$/i, '');
+        // Unescape basic HTML entities
+        content = content.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+        // Remove trailing ellipsis characters that editors insert when folding (e.g. '…' or '...')
+        content = content.replace(/[\u2026]+$|\.\.\.+$/m, '').trim();
+        return content;
+      }
+    }
+    return '';
   };
 
   const userCss = extractUserCss(markdown || '');
