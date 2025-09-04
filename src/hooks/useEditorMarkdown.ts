@@ -78,6 +78,20 @@ export function useEditorMarkdown(opts: Options = {}) {
         }
       }
 
+      // small opportunistic fallback: read contenteditable text while waiting
+      try {
+        const cmEditable = document.querySelector<HTMLElement>('.cm-content[contenteditable="true"], .cm-content');
+        if (cmEditable) {
+          attachPhaseRef.current = 'contenteditable-fallback';
+          // eslint-disable-next-line no-console
+          console.debug('[VivlioDBG] useEditorMarkdown: contenteditable fallback found', { cls: cmEditable.className, textLen: (cmEditable.textContent||'').length });
+          const handler = () => emit(cmEditable.textContent || '');
+          handler();
+          try { cmEditable.addEventListener('input', handler); cleanupRef.current = () => cmEditable.removeEventListener('input', handler); } catch(e) { /* ignore */ }
+          // continue to try to attach proper EditorView in background
+        }
+      } catch (e) { /* ignore */ }
+
       // 2) Try CodeMirror 6 via API (robust against fold/virtualization)
       try {
         const EditorView = (window as any).EditorView || (window as any).CodeMirror?.EditorView;
@@ -169,11 +183,13 @@ export function useEditorMarkdown(opts: Options = {}) {
       retryRef.current += 1;
       // eslint-disable-next-line no-console
       console.debug('[VivlioDBG] useEditorMarkdown: retry', { retry: retryRef.current, phase: attachPhaseRef.current });
-      if (retryRef.current < 15) {
-        setTimeout(tryAttach, 300);
+      // increase retry attempts and use faster early polling to catch delayed EditorView registration
+      if (retryRef.current < 45) {
+        const delay = retryRef.current < 8 ? 200 : 600; // faster initial retries
+        setTimeout(tryAttach, delay);
       } else {
         // eslint-disable-next-line no-console
-        console.warn('[VivlioDBG] useEditorMarkdown: editor detection failed');
+        console.warn('[VivlioDBG] useEditorMarkdown: editor detection failed after extended retries');
       }
     }
 
