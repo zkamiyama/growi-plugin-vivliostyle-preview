@@ -10,17 +10,19 @@ const TEXTAREA_SELECTORS = [
   '[data-testid="editor-textarea"]',
   '.page-editor textarea',
 ];
-  const CM6_SELECTORS = [
-    '.cm-editor',
-    '.cm-editor .cm-content',
-    '.cm-editor .cm-scroller',
-    '.cm-content[contenteditable="true"]',
-    '.cm-scroller',
-    '.grw-editor',
-    '.editor',
-    '#page-editor',
-    '.page-editor'
-  ];
+
+const CM6_SELECTORS = [
+  '.cm-editor',
+  '.cm-editor .cm-content',
+  '.cm-editor .cm-scroller',
+  '.cm-content[contenteditable="true"]',
+  '.cm-scroller',
+  '.grw-editor',
+  '.editor',
+  '#page-editor',
+  '.page-editor',
+];
+
 const CM5_ROOTS = [
   '.CodeMirror-code',
 ];
@@ -60,6 +62,7 @@ export function useEditorMarkdown(opts: Options = {}) {
 
     function tryAttach() {
       if (disposed) return;
+
       // 1) Textarea (still safest fallback)
       for (const sel of TEXTAREA_SELECTORS) {
         const ta = document.querySelector<HTMLTextAreaElement>(sel);
@@ -78,50 +81,63 @@ export function useEditorMarkdown(opts: Options = {}) {
       // 2) Try CodeMirror 6 via API (robust against fold/virtualization)
       try {
         const EditorView = (window as any).EditorView || (window as any).CodeMirror?.EditorView;
-        if (EditorView && typeof EditorView.findFromDOM === 'function') {
-          // Try multiple selector candidates and attempt findFromDOM on each matched element
-          let foundView: any = null;
-          for (const sel of CM6_SELECTORS) {
-            const nodes = Array.from(document.querySelectorAll<HTMLElement>(sel));
-            for (const node of nodes) {
-              try {
-                const v = EditorView.findFromDOM(node);
-                if (v) { foundView = v; break; }
-              } catch (e) { /* ignore find errors */ }
-            }
-            if (foundView) break;
-          }
-          const view = foundView;
-          if (view) {
-            attachPhaseRef.current = 'cm6';
-            // eslint-disable-next-line no-console
-            console.debug('[VivlioDBG] useEditorMarkdown: CM6 view found', { sel: 'multiple-candidates', len: (view.state?.doc ? (typeof view.state.doc.toString === 'function' ? view.state.doc.toString().length : (typeof view.state.sliceDoc === 'function' ? view.state.sliceDoc().length : 0)) : 0) });
-            const read = () => {
-              try {
-                const txt = view.state && view.state.doc && typeof view.state.doc.toString === 'function'
-                  ? view.state.doc.toString()
-                  : (view.state && typeof view.state.sliceDoc === 'function' ? view.state.sliceDoc() : '');
-                emit(txt);
-              } catch (e) { /* ignore read errors */ }
-            };
-            read();
+
+        // Try to locate a CM6 EditorView; prefer EditorView.findFromDOM but
+        // fall back to checking element properties like `cmView` which some hosts
+        // attach directly to the DOM node.
+        let foundView: any = null;
+        for (const sel of CM6_SELECTORS) {
+          const nodes = Array.from(document.querySelectorAll<HTMLElement>(sel));
+          for (const node of nodes) {
             try {
-              if (EditorView.updateListener && typeof EditorView.updateListener.of === 'function') {
-                const listener = EditorView.updateListener.of((u: any) => { if (u.docChanged) read(); });
-                // try appendConfig; may throw in some environments
-                try { view.dispatch?.({ effects: (window as any).StateEffect?.appendConfig?.of(listener) }); } catch (e) { /* fall back to polling */ }
-                // best-effort cleanup (cannot remove appended ext reliably)
-                cleanupRef.current = () => { /* no-op */ };
-              } else {
-                pollTimer = window.setInterval(read, 500);
-                cleanupRef.current = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
+              // 1) Preferred path: EditorView.findFromDOM if available
+              if (EditorView && typeof EditorView.findFromDOM === 'function') {
+                try {
+                  const v = EditorView.findFromDOM(node);
+                  if (v) { foundView = v; break; }
+                } catch (e) { /* ignore find errors */ }
               }
-            } catch (e) {
+              // 2) Fallback: some hosts attach the CM6 view instance to the node
+              // under `cmView` (observed) or similar property names. Try common names.
+              if (!foundView) {
+                const maybe = (node as any).cmView || (node as any).view || (node as any).__cmView || (node as any).CodeMirrorView;
+                if (maybe && maybe.state) { foundView = maybe; break; }
+              }
+            } catch (e) { /* ignore per-node errors */ }
+          }
+          if (foundView) break;
+        }
+
+        const view = foundView;
+        if (view) {
+          attachPhaseRef.current = 'cm6';
+          // eslint-disable-next-line no-console
+          console.debug('[VivlioDBG] useEditorMarkdown: CM6 view found', { sel: 'multiple-candidates', len: (view.state?.doc ? (typeof view.state.doc.toString === 'function' ? view.state.doc.toString().length : (typeof view.state.sliceDoc === 'function' ? view.state.sliceDoc().length : 0)) : 0) });
+          const read = () => {
+            try {
+              const txt = view.state && view.state.doc && typeof view.state.doc.toString === 'function'
+                ? view.state.doc.toString()
+                : (view.state && typeof view.state.sliceDoc === 'function' ? view.state.sliceDoc() : '');
+              emit(txt);
+            } catch (e) { /* ignore read errors */ }
+          };
+          read();
+          try {
+            if (EditorView.updateListener && typeof EditorView.updateListener.of === 'function') {
+              const listener = EditorView.updateListener.of((u: any) => { if (u.docChanged) read(); });
+              // try appendConfig; may throw in some environments
+              try { view.dispatch?.({ effects: (window as any).StateEffect?.appendConfig?.of(listener) }); } catch (e) { /* fall back to polling */ }
+              // best-effort cleanup (cannot remove appended ext reliably)
+              cleanupRef.current = () => { /* no-op */ };
+            } else {
               pollTimer = window.setInterval(read, 500);
               cleanupRef.current = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
             }
-            return;
+          } catch (e) {
+            pollTimer = window.setInterval(read, 500);
+            cleanupRef.current = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
           }
+          return;
         }
       } catch (e) {
         // ignore and fallback
