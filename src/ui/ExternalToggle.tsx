@@ -103,16 +103,52 @@ export const ExternalToggle: React.FC = () => {
     try {
       bodyObserver = new MutationObserver((mutations) => {
         for (const m of mutations) {
+          // childList で追加/削除が起きた場合は addedNodes を詳しく見る
           if (m.type === 'childList' && (m.addedNodes?.length || m.removedNodes?.length)) {
-            const root = document.querySelector('.layout-root');
+            let root: Element | null = document.querySelector('.layout-root');
+            if (!root) {
+              // addedNodes の中に layout-root や growi / BasicLayout を含む要素がないかチェック
+              for (const n of Array.from(m.addedNodes || [])) {
+                if (!(n instanceof Element)) continue;
+                // 直接 layout-root を持つノード
+                if (n.classList && n.classList.contains('layout-root')) { root = n; break; }
+                // 動的に付与される GROWI 固有クラスを含むかどうか
+                const cn = String((n as Element).className || '');
+                if (cn.indexOf('growi') !== -1 || /BasicLayout/i.test(cn)) {
+                  // そのノード自身か、その子孫の .layout-root を優先して使う
+                  const found = (n as Element).querySelector('.layout-root');
+                  root = found || (n as Element);
+                  break;
+                }
+                // 子孫に .layout-root がいるか
+                const descendant = (n as Element).querySelector('.layout-root');
+                if (descendant) { root = descendant; break; }
+              }
+            }
             if (root) {
               update();
               observeLayoutRoot(root);
-              return; // まとまって処理されれば十分
+              return; // 一度検知できれば十分
             }
           }
           if (m.type === 'attributes') {
-            // attributes の変化が body 内で発生した場合も再評価
+            // attributes の変化（class の変化等）が起きた場合、ターゲットを詳しく評価
+            try {
+              if (m.target && m.target instanceof Element) {
+                const t = m.target as Element;
+                const tcn = String(t.className || '');
+                if (t.classList.contains('layout-root') || tcn.indexOf('growi') !== -1 || /BasicLayout/i.test(tcn)) {
+                  // ターゲットまたはその子孫を監視対象として再評価
+                  const maybeRoot = t.classList.contains('layout-root') ? t : (t.querySelector('.layout-root') || t);
+                  update();
+                  observeLayoutRoot(maybeRoot);
+                  continue;
+                }
+              }
+            } catch (err) {
+              // fallthrough to generic update
+            }
+            // 汎用的に再評価
             update();
           }
         }
