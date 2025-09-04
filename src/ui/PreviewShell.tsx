@@ -8,7 +8,7 @@ import { useAppContext } from '../context/AppContext';
 // トグルで表示/非表示し、従来の preview body (.page-editor-preview-body) を隠すだけの
 // シンプルな差し替え方式。ポップアップは廃止。
 const PreviewShell: React.FC = () => {
-  const { isOpen, markdown } = useAppContext();
+  const { isOpen, markdown, activeTab, setActiveTab } = useAppContext();
 
   // 初回マウントログ
   React.useEffect(() => {
@@ -290,9 +290,60 @@ const PreviewShell: React.FC = () => {
   if (!isOpen) {
     return null;
   }
+
+  // タブメニューコンポーネント
+  const TabMenu = () => (
+    <div style={{
+      position: 'sticky',
+      top: 0,
+      background: 'white',
+      borderBottom: '1px solid #ddd',
+      padding: '8px 16px',
+      zIndex: 100,
+      display: 'flex',
+      gap: '8px'
+    }}>
+      <button
+        onClick={() => setActiveTab('markdown')}
+        style={{
+          padding: '6px 12px',
+          border: '1px solid #ddd',
+          background: activeTab === 'markdown' ? '#007bff' : 'white',
+          color: activeTab === 'markdown' ? 'white' : 'black',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        }}
+      >
+        Markdown
+      </button>
+      <button
+        onClick={() => setActiveTab('vivliostyle')}
+        style={{
+          padding: '6px 12px',
+          border: '1px solid #ddd',
+          background: activeTab === 'vivliostyle' ? '#007bff' : 'white',
+          color: activeTab === 'vivliostyle' ? 'white' : 'black',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        }}
+      >
+        Vivliostyle
+      </button>
+    </div>
+  );
+
   return createPortal(
     <div data-vivlio-shell-root>
-      <VivliostylePreview markdown={markdown} isVisible={isOpen} />
+      <TabMenu />
+      {activeTab === 'vivliostyle' ? (
+        <VivliostylePreview markdown={markdown} isVisible={isOpen} />
+      ) : (
+        <div style={{ padding: '16px' }}>
+          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+            {markdown}
+          </pre>
+        </div>
+      )}
     </div>,
     finalHost
   );

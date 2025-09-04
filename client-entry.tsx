@@ -121,7 +121,6 @@ function deactivateEditModeDetector() {
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import PreviewShell from './src/ui/PreviewShell';
-import ExternalToggle from './src/ui/ExternalToggle';
 import { AppProvider } from './src/context/AppContext';
 import config from './package.json';
 
@@ -182,7 +181,6 @@ function mount() {
       <AppProvider>
         <div style={{ display: 'contents' }}>
           <PreviewShell />
-          <ExternalToggle />
         </div>
       </AppProvider>
     </React.StrictMode>

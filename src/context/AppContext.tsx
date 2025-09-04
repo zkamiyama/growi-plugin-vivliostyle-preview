@@ -12,6 +12,9 @@ export type AppContextType = {
   toggle: () => void;
   markdown: string;
   forceUpdateMarkdown: (md: string) => void;
+  // New tab state
+  activeTab: 'markdown' | 'vivliostyle';
+  setActiveTab: React.Dispatch<React.SetStateAction<'markdown' | 'vivliostyle'>>;
   // Debug field
   __contextId?: string;
 };
@@ -22,6 +25,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isVivliostyleActive, setIsVivliostyleActive] = React.useState(false);
   const { markdown } = useEditorMarkdown({ debounceMs: 250 });
   const [forced, setForced] = React.useState<string | null>(null);
+  const [activeTab, setActiveTab] = React.useState<'markdown' | 'vivliostyle'>('markdown');
+  
+  // activeTabが変わったらisVivliostyleActiveを更新
+  React.useEffect(() => {
+    setIsVivliostyleActive(activeTab === 'vivliostyle');
+  }, [activeTab]);
   
   // デバッグ: このContextインスタンスにIDを付与
   const contextIdRef = React.useRef(Math.random().toString(36).slice(2, 8));
@@ -53,6 +62,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.debug('[VivlioDBG] forceUpdateMarkdown', { length: md.length, contextId: contextIdRef.current });
       setForced(md);
     },
+    activeTab,
+    setActiveTab,
     __contextId: contextIdRef.current, // デバッグ用
   };
 
