@@ -64,8 +64,10 @@ export const ExternalToggle: React.FC = () => {
   const { isOpen, toggle } = useAppContext();
   const [wrapperEl, setWrapperEl] = React.useState<HTMLElement | null>(null);
   const [anchorClasses, setAnchorClasses] = React.useState<string>('');
+  const [anchorMetrics, setAnchorMetrics] = React.useState<Record<string, string> | null>(null);
   const resolvedRef = React.useRef(false);
   const lastBaseColorRef = React.useRef<string | null>(null);
+  const anchorElRef = React.useRef<HTMLElement | null>(null);
 
   React.useEffect(() => {
     function attach(initialAnchor: HTMLElement) {
@@ -79,6 +81,22 @@ export const ExternalToggle: React.FC = () => {
         initialAnchor.parentElement.insertBefore(wrapper, initialAnchor);
             // eslint-disable-next-line no-console
             console.debug('[VivlioDBG][ExternalToggle] wrapper created & inserted', { time: Date.now(), parent: initialAnchor.parentElement.className, anchorText: normalizeLabel(initialAnchor) });
+      }
+      // capture anchor element for metrics
+      anchorElRef.current = initialAnchor;
+      try {
+        const aCs = window.getComputedStyle(initialAnchor);
+        setAnchorMetrics({
+          height: aCs.height || '',
+          paddingLeft: aCs.paddingLeft || '',
+          paddingRight: aCs.paddingRight || '',
+          fontSize: aCs.fontSize || '',
+          lineHeight: aCs.lineHeight || '',
+          borderRadius: aCs.borderRadius || '',
+          minWidth: aCs.minWidth || '',
+        });
+      } catch (e) {
+        // ignore
       }
       // リポジショニング + 色適用（簡素化）
       // アンカーに適用されている色をそのまま引用する。
@@ -173,6 +191,21 @@ export const ExternalToggle: React.FC = () => {
       btn.style.setProperty('border-radius', '6px', 'important');
       btn.style.setProperty('padding', '6px 10px', 'important');
       btn.style.setProperty('font-weight', '600', 'important');
+      // apply measured metrics from anchor when available to match size/spacing
+      if (anchorMetrics) {
+        try {
+          if (anchorMetrics.height) btn.style.setProperty('height', anchorMetrics.height, 'important');
+          if (anchorMetrics.fontSize) btn.style.setProperty('font-size', anchorMetrics.fontSize, 'important');
+          if (anchorMetrics.lineHeight) btn.style.setProperty('line-height', anchorMetrics.lineHeight, 'important');
+          if (anchorMetrics.paddingLeft || anchorMetrics.paddingRight) {
+            const pl = anchorMetrics.paddingLeft || '6px';
+            const pr = anchorMetrics.paddingRight || '10px';
+            btn.style.setProperty('padding', `${pl} ${pr}`, 'important');
+          }
+          if (anchorMetrics.borderRadius) btn.style.setProperty('border-radius', anchorMetrics.borderRadius, 'important');
+          if (anchorMetrics.minWidth) btn.style.setProperty('min-width', anchorMetrics.minWidth, 'important');
+        } catch (e) { /* ignore */ }
+      }
       // eslint-disable-next-line no-console
       console.debug('[VivlioDBG][ExternalToggle] applied important inline styles to button');
     } catch (e) {
