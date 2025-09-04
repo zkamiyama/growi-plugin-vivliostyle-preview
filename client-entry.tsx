@@ -101,6 +101,8 @@ function mount() {
     previewContainer.appendChild(host);
   // eslint-disable-next-line no-console
   console.debug('[VivlioDBG][mount] host container created and appended');
+  // notify listeners that preview host/container is available
+  try { window.dispatchEvent(new CustomEvent('vivlio:preview-ready', { detail: { container: host } })); } catch (e) {}
   }
 
   let root = (window as any).__vivlio_root;
@@ -125,6 +127,7 @@ function mount() {
   );
   // eslint-disable-next-line no-console
   console.debug('[VivlioDBG][mount] mount finished', { hostChildrenAfter: host.childElementCount });
+  try { window.dispatchEvent(new CustomEvent('vivlio:preview-mounted', { detail: { hostChildrenAfter: host.childElementCount } })); } catch (e) {}
 }
 
 function unmount() {

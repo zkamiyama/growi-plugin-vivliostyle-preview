@@ -292,6 +292,10 @@ export const ExternalToggle: React.FC = () => {
     checkHashAndAttach();
     window.addEventListener('hashchange', checkHashAndAttach);
     window.addEventListener('popstate', checkHashAndAttach);
+  // preview の生成完了を待つ通知が来たら再チェック
+  const onPreviewReady = () => { try { checkHashAndAttach(); } catch {} };
+  window.addEventListener('vivlio:preview-ready', onPreviewReady);
+  window.addEventListener('vivlio:preview-mounted', onPreviewReady);
 
     // SPA が history.pushState / replaceState を用いる場合に遷移を拾えないため
     // これらをラップしてカスタムイベントを発行し、遷移検知を強化する
