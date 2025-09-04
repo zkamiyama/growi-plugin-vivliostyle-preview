@@ -66,27 +66,11 @@ export const ExternalToggle: React.FC = () => {
   const { isOpen, toggle } = useAppContext();
   const [wrapperEl, setWrapperEl] = React.useState<HTMLElement | null>(null);
   const [anchorClasses, setAnchorClasses] = React.useState<string>('');
-  const [isEditing, setIsEditing] = React.useState(false);
   const observerRef = React.useRef<MutationObserver | null>(null);
   const reorderObserverRef = React.useRef<MutationObserver | null>(null);
   const resolvedRef = React.useRef(false);
   const primaryAnchorRef = React.useRef<HTMLElement | null>(null);
   const lastBaseColorRef = React.useRef<string | null>(null);
-
-  React.useEffect(() => {
-    // DOM クラス変化を監視して isEditing を更新
-    const rootEl = document.querySelector('.layout-root');
-    if (rootEl) {
-      const updateEditing = () => {
-        const editing = rootEl.classList.contains('editing');
-        setIsEditing(editing);
-      };
-      updateEditing(); // 初期チェック
-      const classObserver = new MutationObserver(updateEditing);
-      classObserver.observe(rootEl, { attributes: true, attributeFilter: ['class'] });
-      return () => classObserver.disconnect();
-    }
-  }, []);
 
   React.useEffect(() => {
     function attach(initialAnchor: HTMLElement) {
@@ -288,7 +272,7 @@ export const ExternalToggle: React.FC = () => {
     };
 
     const checkHashAndAttach = () => {
-      if (isEditing) {
+      if (hasEditHash()) {
         if (!resolvedRef.current) {
           const immediate = findAnchorOnce();
           if (immediate) {
@@ -310,6 +294,11 @@ export const ExternalToggle: React.FC = () => {
     checkHashAndAttach();
     window.addEventListener('hashchange', checkHashAndAttach);
     window.addEventListener('popstate', checkHashAndAttach);
+
+    // シンプルな定期チェックで編集モードを検知
+    const intervalId = setInterval(() => {
+      try { checkHashAndAttach(); } catch (e) { /* ignore */ }
+    }, 500); // 500ms ごとにチェック
   // preview の生成完了を待つ通知が来たら再チェック
   const onPreviewReady = () => { try { checkHashAndAttach(); } catch {} };
   window.addEventListener('vivlio:preview-ready', onPreviewReady);
@@ -413,11 +402,12 @@ export const ExternalToggle: React.FC = () => {
 
     // checkHashAndAttach 内で attach された場合にポーリング/observer を止める
     // ただしハッシュがある状態でまだ attach されていない可能性があるため、ハッシュ有効時は開始
-    if (isEditing) startPollingAndObserver();
+    if (hasEditHash()) startPollingAndObserver();
 
     return () => {
       window.removeEventListener('hashchange', checkHashAndAttach);
       window.removeEventListener('popstate', checkHashAndAttach);
+      clearInterval(intervalId);
   try { if (navObserver) { navObserver.disconnect(); navObserver = null; } } catch {}
   try { if (navRaf != null) { cancelAnimationFrame(navRaf); navRaf = null; } } catch {}
       // restore history wrappers
