@@ -103,7 +103,9 @@ const PreviewShell: React.FC = () => {
     const timeout = setTimeout(() => {
       clearInterval(interval);
       // eslint-disable-next-line no-console
-      console.warn('[VivlioDBG][PreviewShell] previewContainer not found after 10 seconds');
+      console.warn('[VivlioDBG][PreviewShell] previewContainer not found after 10 seconds - giving up search');
+      // タイムアウト時はpreviewContainerをnullに設定してローディング状態を終了
+      setPreviewContainer(null);
     }, 10000);
 
     return () => {
@@ -120,11 +122,39 @@ const PreviewShell: React.FC = () => {
     markdownLen: markdown.length
   });
 
-  // previewContainerが見つからない場合はホストを作成しない
+  // previewContainerが見つからない場合でも、isOpenがtrueなら適切なフィードバックを表示
   if (!previewContainer) {
     // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][PreviewShell] skipping host creation - no previewContainer');
-    return null;
+    console.debug('[VivlioDBG][PreviewShell] previewContainer not found', { isOpen });
+
+    if (!isOpen) {
+      return null;
+    }
+
+    // ローディング状態を表示（タイムアウト後も表示）
+    return (
+      <div style={{
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        background: 'rgba(0, 0, 0, 0.8)',
+        color: 'white',
+        padding: '20px',
+        borderRadius: '8px',
+        zIndex: 9999,
+        fontSize: '14px',
+        textAlign: 'center',
+        maxWidth: '300px'
+      }}>
+        <div style={{ marginBottom: '10px' }}>⚠️ Vivliostyle Preview</div>
+        <div>プレビューコンテナが見つかりません</div>
+        <div style={{ fontSize: '12px', opacity: 0.7, marginTop: '8px' }}>
+          ページの構造が変更された可能性があります。<br />
+          ページを再読み込みするか、開発者に連絡してください。
+        </div>
+      </div>
+    );
   }
 
   // previewContainerが見つかった場合のみホストを作成
@@ -177,6 +207,13 @@ const PreviewShell: React.FC = () => {
       host.style.overflow = 'auto';
       host.style.zIndex = '10';
       if (!host.style.minHeight) host.style.minHeight = '400px';
+
+      // プレビュー準備完了を通知
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('vivlio:preview-mounted'));
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][PreviewShell] preview mounted notification sent');
+      }, 100);
     }
 
     // プレビューコンテナの表示制御
