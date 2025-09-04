@@ -1,34 +1,96 @@
 // ui/PreviewShell.tsx
 import * as React from 'react';
-import '../styles/preview.css';
-import VivliostyleFrame from './VivliostyleFrame';
+import { VivliostylePreview } from './VivliostylePreview';
 import { useAppContext } from '../context/AppContext';
-import { useVivliostyleBridge } from '../hooks/useVivliostyleBridge';
-// markdown-it の型定義は export = 形式のため、ts-jest (esModuleInterop: false) 下では require で扱う
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const MarkdownIt = require('markdown-it');
-const md: import('markdown-it') = new MarkdownIt({ html: true, linkify: true });
 
+// 元の `.page-editor-preview-container` 内に生成した #vivlio-preview-container を
+// トグルで表示/非表示し、従来の preview body (.page-editor-preview-body) を隠すだけの
+// シンプルな差し替え方式。ポップアップは廃止。
 const PreviewShell: React.FC = () => {
-  const { isVivliostyleActive, markdown } = useAppContext();
-  const { updateViewer } = useVivliostyleBridge();
+  const { isOpen, markdown } = useAppContext();
+
+  // 初回マウントログ
+  React.useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG][PreviewShell] mount', { time: Date.now() });
+    return () => {
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][PreviewShell] unmount', { time: Date.now() });
+    };
+  }, []);
 
   React.useEffect(() => {
-    if (!isVivliostyleActive) return;
-    const nextHtml = md.render(markdown);
-    updateViewer(nextHtml);
-  }, [markdown, isVivliostyleActive, updateViewer]);
+    const host = document.getElementById('vivlio-preview-container');
+    const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
 
+    if (!host) {
+      // eslint-disable-next-line no-console
+      console.warn('[VivlioDBG][PreviewShell] host container missing when toggling', { isOpen });
+      return;
+    }
+
+    host.dataset.vivlioMount = 'true';
+    host.style.display = isOpen ? 'block' : 'none';
+    if (isOpen) {
+      host.style.position = 'relative';
+      host.style.width = '100%';
+      host.style.height = '100%';
+      host.style.overflow = 'auto';
+      host.style.zIndex = '10';
+      if (!host.style.minHeight) host.style.minHeight = '400px';
+    }
+
+    let hiddenCount = 0;
+    let restoredCount = 0;
+    const processed: string[] = [];
+
+    if (previewContainer) {
+      const children = Array.from(previewContainer.children) as HTMLElement[];
+      children.forEach((el, idx) => {
+        if (el === host) return; // 自分は対象外
+        processed.push(`${idx}:${el.className || el.id || el.tagName}`);
+        if (isOpen) {
+          // 既に保存していなければ元displayを保存
+            if (!el.dataset.vivlioPrevDisplay) {
+              el.dataset.vivlioPrevDisplay = el.style.display || '';
+            }
+            el.style.setProperty('display', 'none', 'important');
+            el.setAttribute('aria-hidden', 'true');
+            hiddenCount += 1;
+        } else {
+          if (el.dataset.vivlioPrevDisplay !== undefined) {
+            el.style.display = el.dataset.vivlioPrevDisplay;
+            delete el.dataset.vivlioPrevDisplay; // 復帰後クリア
+          } else {
+            el.style.display = '';
+          }
+          el.removeAttribute('aria-hidden');
+          restoredCount += 1;
+        }
+      });
+    }
+
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG][PreviewShell] toggle siblings', {
+      isOpen,
+      hasHost: !!host,
+      hasPreviewContainer: !!previewContainer,
+      hostDisplay: host.style.display,
+      markdownLen: markdown.length,
+      hiddenCount,
+      restoredCount,
+      processed,
+      previewChildren: previewContainer ? previewContainer.children.length : -1,
+    });
+  }, [isOpen]);
+
+  // Host (#vivlio-preview-container) 内にマウントされるのでラッパ不要
+  if (!isOpen) {
+    return null;
+  }
   return (
-    <div className={`vivlio-preview ${isVivliostyleActive ? 'is-open' : 'is-closed'}`}>
-      <div className="vivlio-toolbar">
-        <button onClick={() => {}} aria-expanded={isVivliostyleActive}>
-          {isVivliostyleActive ? 'Close Vivliostyle' : 'Open Vivliostyle'}
-        </button>
-      </div>
-      <div className="vivlio-body" role="region" aria-label="Vivliostyle preview">
-        {isVivliostyleActive && <VivliostyleFrame />}
-      </div>
+    <div data-vivlio-shell-root>
+      <VivliostylePreview markdown={markdown} isVisible={isOpen} />
     </div>
   );
 };
