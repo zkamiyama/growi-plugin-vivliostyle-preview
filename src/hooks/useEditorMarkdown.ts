@@ -95,6 +95,35 @@ export function useEditorMarkdown(opts: Options = {}) {
         let foundView: any = null;
         for (const sel of CM6_SELECTORS) {
           const nodes = Array.from(document.querySelectorAll<HTMLElement>(sel));
+          // helper: try to resolve a candidate object to an object that has a CM6-like state/doc
+          const resolveViewCandidate = (obj: any): any | null => {
+            if (!obj) return null;
+            try {
+              if (obj.state && (obj.state.doc || typeof obj.state.sliceDoc === 'function')) return obj;
+            } catch (e) { /* ignore */ }
+            // inspect own properties (shallow) for an inner object with state.doc
+            try {
+              const names = Object.getOwnPropertyNames(obj || {}).slice(0, 200);
+              for (const n of names) {
+                try {
+                  const v = obj[n];
+                  if (v && typeof v === 'object') {
+                    if (v.state && (v.state.doc || typeof v.state.sliceDoc === 'function')) return v;
+                  }
+                } catch (e) { /* ignore property access errors */ }
+              }
+              // also try symbol properties
+              const syms = Object.getOwnPropertySymbols(obj || {});
+              for (const s of syms) {
+                try {
+                  const v = (obj as any)[s];
+                  if (v && typeof v === 'object' && v.state && (v.state.doc || typeof v.state.sliceDoc === 'function')) return v;
+                } catch (e) { /* ignore */ }
+              }
+            } catch (e) { /* ignore final */ }
+            return null;
+          };
+
           for (const node of nodes) {
             try {
               // 1) Preferred path: EditorView.findFromDOM if available
@@ -108,7 +137,13 @@ export function useEditorMarkdown(opts: Options = {}) {
               // under `cmView` (observed) or similar property names. Try common names.
               if (!foundView) {
                 const maybe = (node as any).cmView || (node as any).view || (node as any).__cmView || (node as any).CodeMirrorView;
-                if (maybe && maybe.state) { foundView = maybe; break; }
+                if (maybe) {
+                  // direct state
+                  if (maybe.state && (maybe.state.doc || typeof maybe.state.sliceDoc === 'function')) { foundView = maybe; break; }
+                  // try to resolve wrapped candidate objects (some hosts attach wrappers)
+                  const resolved = resolveViewCandidate(maybe);
+                  if (resolved) { foundView = resolved; /* eslint-disable-line no-unused-vars */ break; }
+                }
               }
             } catch (e) { /* ignore per-node errors */ }
           }
