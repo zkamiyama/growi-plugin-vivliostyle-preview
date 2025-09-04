@@ -19,9 +19,30 @@ const PREVIEW_CONTAINER_CANDIDATES = [
   '.page-editor-preview',
   '.page-editor-preview-body', // 最後の手段: body 自体をホストにしないが存在検知用
 ];
+const WIKI_CONTAINER_CANDIDATES = [
+  '.wiki',
+  '.page-content .wiki',
+  '.main .wiki',
+  '.content-main .wiki',
+];
+
+function isEditMode(): boolean {
+  // URLに#editが含まれるか、編集関連のDOM要素が存在するかで判定
+  return window.location.hash.includes('#edit') ||
+         !!document.querySelector('[data-testid="editor-button"]') ||
+         !!document.querySelector('.page-editor');
+}
 
 function locatePreviewContainer(): Element | null {
   for (const sel of PREVIEW_CONTAINER_CANDIDATES) {
+    const el = document.querySelector(sel);
+    if (el) return el;
+  }
+  return null;
+}
+
+function locateWikiContainer(): Element | null {
+  for (const sel of WIKI_CONTAINER_CANDIDATES) {
     const el = document.querySelector(sel);
     if (el) return el;
   }
@@ -37,30 +58,57 @@ function mount() {
     return;
   }
 
-  // --- プレビュー & トグル単一ルートマウント ---
-  const previewContainer = locatePreviewContainer();
+  // --- 編集モードに応じて適切なコンテナを選択 ---
+  const editMode = isEditMode();
   // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][mount] query preview container', { found: !!previewContainer, candidates: PREVIEW_CONTAINER_CANDIDATES });
-  if (!previewContainer) {
+  console.debug('[VivlioDBG][mount] detected mode', { editMode, url: window.location.href });
+
+  let targetContainer: Element | null = null;
+  let containerCandidates: string[] = [];
+
+  if (editMode) {
+    // 編集モード: Previewコンテナを探す
+    targetContainer = locatePreviewContainer();
+    containerCandidates = PREVIEW_CONTAINER_CANDIDATES;
+  } else {
+    // 通常画面: Wikiコンテナを探す
+    targetContainer = locateWikiContainer();
+    containerCandidates = WIKI_CONTAINER_CANDIDATES;
+  }
+
+  // eslint-disable-next-line no-console
+  console.debug('[VivlioDBG][mount] query target container', {
+    editMode,
+    found: !!targetContainer,
+    candidates: containerCandidates,
+    targetTag: targetContainer?.tagName,
+    targetClass: targetContainer?.className
+  });
+
+  if (!targetContainer) {
     // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][mount] previewContainer not found, retry scheduling (200ms)');
+    console.debug('[VivlioDBG][mount] targetContainer not found, retry scheduling (200ms)');
     setTimeout(() => {
       if (!(window as any).__vivlio_root) mount();
     }, 200); // リトライ
     return;
   }
+
   let host = document.getElementById(CONTAINER_ID);
   if (!host) {
     host = document.createElement('div');
     host.id = CONTAINER_ID;
-  // ベーススタイル: 親と同幅/高さ (高さは後で補正)。display は PreviewShell が制御。
-  host.style.width = '100%';
-  host.style.height = '100%';
-  host.style.position = 'relative';
-  host.style.display = 'none';
-    previewContainer.appendChild(host);
-  // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][mount] host container created and appended');
+    // ベーススタイル: 親と同幅/高さ (高さは後で補正)。display は PreviewShell が制御。
+    host.style.width = '100%';
+    host.style.height = '100%';
+    host.style.position = 'relative';
+    host.style.display = 'none';
+    targetContainer.appendChild(host);
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG][mount] host container created and appended', {
+      targetTag: targetContainer.tagName,
+      targetClass: targetContainer.className
+    });
   }
 
   let root = (window as any).__vivlio_root;
