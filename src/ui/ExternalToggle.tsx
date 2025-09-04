@@ -135,7 +135,7 @@ export const ExternalToggle: React.FC = () => {
     const initialAnchor = findAnchorOnce();
     if (!initialAnchor) return; // アンカーが見つからない場合は何もしない
 
-    if (resolvedRef.current) return; // 冪等
+    if (resolvedRef.current && !isEditing) return; // 編集モード変更時のみ再実行
     if (!initialAnchor.parentElement) return;
     let wrapper = initialAnchor.parentElement.querySelector('.vivlio-inline-toggle') as HTMLElement | null;
     if (!wrapper) {
