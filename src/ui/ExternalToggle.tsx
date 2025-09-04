@@ -84,14 +84,18 @@ export const ExternalToggle: React.FC = () => {
       const isTransparent = (c: string) => !c || c === 'transparent' || /rgba\(\s*0+\s*,\s*0+\s*,\s*0?\.?0*\s*\)/i.test(c);
       // --- HSL補色計算: Hのみ+180°, S/L保持 ---
       function parseToRgb(input: string): { r: number; g: number; b: number } | null {
-        const m = input.trim().match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-        if (m) return { r: +m[1], g: +m[2], b: +m[3] };
-        const hm = input.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+        const s = (input || '').trim();
+        // rgba() / rgb() - support comma or space separated and optional alpha
+        const m = s.match(/^rgba?\(\s*([0-9]{1,3})[\s,]+([0-9]{1,3})[\s,]+([0-9]{1,3})/i);
+        if (m) return { r: Math.min(255, +m[1]), g: Math.min(255, +m[2]), b: Math.min(255, +m[3]) };
+        // hex #rgb or #rrggbb
+        const hm = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
         if (hm) {
-          let h = hm[1]; if (h.length===3) h = h.split('').map(c=>c+c).join('');
-          const iv = parseInt(h,16);
-          return { r: (iv>>16)&255, g:(iv>>8)&255, b:iv&255 };
+          let h = hm[1]; if (h.length === 3) h = h.split('').map(c => c + c).join('');
+          const iv = parseInt(h, 16);
+          return { r: (iv >> 16) & 255, g: (iv >> 8) & 255, b: iv & 255 };
         }
+        // fallback: some browsers may return "transparent" or other tokens
         return null;
       }
       function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
@@ -141,11 +145,24 @@ export const ExternalToggle: React.FC = () => {
           if (baseColor && baseColor !== lastBaseColorRef.current) {
             const res = computeComplement(baseColor);
             if (res) {
+              // apply to wrapper and also to the button element (portalled) to be safe
               wrapper!.style.setProperty('--vivlio-comp-color', res.compHex);
               wrapper!.style.setProperty('--vivlio-comp-fg', res.fg);
+              try {
+                const btn = wrapper!.querySelector('button') as HTMLElement | null;
+                if (btn) {
+                  btn.style.setProperty('--vivlio-comp-color', res.compHex);
+                  btn.style.setProperty('--vivlio-comp-fg', res.fg);
+                }
+              } catch (e) {
+                // ignore
+              }
               lastBaseColorRef.current = baseColor;
               // eslint-disable-next-line no-console
               console.debug('[VivlioDBG][ExternalToggle] color recomputed', { baseColor, res });
+            } else {
+              // eslint-disable-next-line no-console
+              console.debug('[VivlioDBG][ExternalToggle] color compute returned null', { baseColor });
             }
           }
         } catch (e) {
