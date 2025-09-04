@@ -80,65 +80,11 @@ export const ExternalToggle: React.FC = () => {
             // eslint-disable-next-line no-console
             console.debug('[VivlioDBG][ExternalToggle] wrapper created & inserted', { time: Date.now(), parent: initialAnchor.parentElement.className, anchorText: normalizeLabel(initialAnchor) });
       }
-      // リポジショニング + 色計算共通処理
+      // リポジショニング + 色適用（簡素化）
+      // アンカーに適用されている色をそのまま引用する。
       const isTransparent = (c: string) => !c || c === 'transparent' || /rgba\(\s*0+\s*,\s*0+\s*,\s*0?\.?0*\s*\)/i.test(c);
-      // --- HSL補色計算: Hのみ+180°, S/L保持 ---
-      function parseToRgb(input: string): { r: number; g: number; b: number } | null {
-        const s = (input || '').trim();
-        // rgba() / rgb() - support comma or space separated and optional alpha
-        const m = s.match(/^rgba?\(\s*([0-9]{1,3})[\s,]+([0-9]{1,3})[\s,]+([0-9]{1,3})/i);
-        if (m) return { r: Math.min(255, +m[1]), g: Math.min(255, +m[2]), b: Math.min(255, +m[3]) };
-        // hex #rgb or #rrggbb
-        const hm = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
-        if (hm) {
-          let h = hm[1]; if (h.length === 3) h = h.split('').map(c => c + c).join('');
-          const iv = parseInt(h, 16);
-          return { r: (iv >> 16) & 255, g: (iv >> 8) & 255, b: iv & 255 };
-        }
-        // fallback: some browsers may return "transparent" or other tokens
-        return null;
-      }
-      function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
-        r/=255; g/=255; b/=255;
-        const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max-min;
-        let h=0, s=0, l=(max+min)/2;
-        if (d!==0) {
-          s = d/(1 - Math.abs(2*l-1));
-          if (max===r) h = ((g-b)/d + (g<b?6:0))/6;
-          else if (max===g) h = ((b-r)/d + 2)/6;
-          else h = ((r-g)/d + 4)/6;
-        }
-        return { h: h*360, s: s*100, l: l*100 };
-      }
-      function hslToHex(h: number, s: number, l: number): string {
-        h/=360; s/=100; l/=100;
-        const hue2rgb=(p:number,q:number,t:number)=>{ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6) return p+(q-p)*6*t; if(t<1/2) return q; if(t<2/3) return p+(q-p)*(2/3-t)*6; return p; };
-        const q = l<0.5 ? l*(1+s) : l+s-l*s;
-        const p = 2*l-q;
-        const r2 = hue2rgb(p,q,h+1/3);
-        const g2 = hue2rgb(p,q,h);
-        const b2 = hue2rgb(p,q,h-1/3);
-        const toHex=(x:number)=> Math.round(x*255).toString(16).padStart(2,'0');
-        return `#${toHex(r2)}${toHex(g2)}${toHex(b2)}`;
-      }
-      // For verification: use the anchor's applied color directly
-      // and pick a readable foreground based on lightness.
-      function computeComplement(color: string): { compHex: string; fg: string } | null {
-        const rgb = parseToRgb(color);
-        if (!rgb) return null;
-        // convert rgb -> hex
-        const toHex = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
-        const compHex = `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
-        const { l } = rgbToHsl(rgb.r, rgb.g, rgb.b);
-        // choose foreground: dark text on light bg, white text on dark bg
-        const fg = l > 60 ? '#000' : '#fff';
-        return { compHex, fg };
-      }
 
-      const repositionAndRecolor = () => {
-        // クラス継承 (表示基準 anchor)
-        setAnchorClasses(initialAnchor.className);
-        // 色計算
+      function repositionAndRecolor() {
         try {
           const cs = window.getComputedStyle(initialAnchor);
           // 優先順: backgroundColor → borderColor → color
@@ -146,33 +92,23 @@ export const ExternalToggle: React.FC = () => {
           if (isTransparent(baseColor)) baseColor = cs.borderColor;
           if (isTransparent(baseColor)) baseColor = cs.color;
           if (baseColor && baseColor !== lastBaseColorRef.current) {
-            const res = computeComplement(baseColor);
-            if (res) {
-              // apply to wrapper and also to the button element (portalled) to be safe
-              wrapper!.style.setProperty('--vivlio-comp-color', res.compHex);
-              wrapper!.style.setProperty('--vivlio-comp-fg', res.fg);
-              try {
-                const btn = wrapper!.querySelector('button') as HTMLElement | null;
-                if (btn) {
-                  btn.style.setProperty('--vivlio-comp-color', res.compHex);
-                  btn.style.setProperty('--vivlio-comp-fg', res.fg);
-                }
-              } catch (e) {
-                // ignore
-              }
-              lastBaseColorRef.current = baseColor;
-              // eslint-disable-next-line no-console
-              console.debug('[VivlioDBG][ExternalToggle] color recomputed', { baseColor, res });
-            } else {
-              // eslint-disable-next-line no-console
-              console.debug('[VivlioDBG][ExternalToggle] color compute returned null', { baseColor });
+            // 直接引用: アンカーに適用されている CSS 値をそのまま --vivlio-comp-color に設定
+            try {
+              wrapper!.style.setProperty('--vivlio-comp-color', baseColor);
+              const btn = wrapper!.querySelector('button') as HTMLElement | null;
+              if (btn) btn.style.setProperty('--vivlio-comp-color', baseColor);
+            } catch (e) {
+              // ignore
             }
+            lastBaseColorRef.current = baseColor;
+            // eslint-disable-next-line no-console
+            console.debug('[VivlioDBG][ExternalToggle] color applied from anchor', { baseColor });
           }
         } catch (e) {
           // eslint-disable-next-line no-console
           console.warn('[VivlioDBG][ExternalToggle] color compute error', e);
         }
-      };
+      }
 
       // 初回計算
       repositionAndRecolor();
