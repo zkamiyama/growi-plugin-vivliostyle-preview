@@ -121,14 +121,17 @@ export const ExternalToggle: React.FC = () => {
         const toHex=(x:number)=> Math.round(x*255).toString(16).padStart(2,'0');
         return `#${toHex(r2)}${toHex(g2)}${toHex(b2)}`;
       }
+      // For verification: use the anchor's applied color directly
+      // and pick a readable foreground based on lightness.
       function computeComplement(color: string): { compHex: string; fg: string } | null {
         const rgb = parseToRgb(color);
         if (!rgb) return null;
-        const { h, s, l } = rgbToHsl(rgb.r, rgb.g, rgb.b);
-    // HSL: 補色 (H+180), S=1, L=50%
-    const compHex = hslToHex((h + 180) % 360, 100, 50);
-        // 明度が高いので前景色は黒
-        const fg = '#000';
+        // convert rgb -> hex
+        const toHex = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+        const compHex = `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
+        const { l } = rgbToHsl(rgb.r, rgb.g, rgb.b);
+        // choose foreground: dark text on light bg, white text on dark bg
+        const fg = l > 60 ? '#000' : '#fff';
         return { compHex, fg };
       }
 
