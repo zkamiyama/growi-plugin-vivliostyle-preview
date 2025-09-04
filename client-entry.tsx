@@ -12,6 +12,64 @@ console.debug('[VivlioDBG][entry] script file evaluated', { time: Date.now(), pl
 
 // GROWIのスクリプトプラグイン規約：activate/deactivateのみ担当
 const PLUGIN_ID = config.name;
+// optional global state published by plugin when growiFacade hooks are available
+declare global {
+  interface Window {
+    __MY_PLUGIN_STATE__?: { isEditPreview: boolean; lastMode: 'view' | 'preview' | null };
+  }
+}
+
+let originalCustomGenerateViewOptions: any | undefined;
+let originalCustomGeneratePreviewOptions: any | undefined;
+
+function ensureMyPluginState() {
+  if (!window.__MY_PLUGIN_STATE__) window.__MY_PLUGIN_STATE__ = { isEditPreview: false, lastMode: null };
+  return window.__MY_PLUGIN_STATE__;
+}
+
+export function isEditingNow(): boolean {
+  return !!window.__MY_PLUGIN_STATE__?.isEditPreview;
+}
+
+function tryHookGrowiOptionsGenerators() {
+  try {
+    const gf = (window as any).growiFacade;
+    const opts = gf?.markdownRenderer?.optionsGenerators;
+    if (!opts) return false;
+    originalCustomGenerateViewOptions = opts.customGenerateViewOptions;
+    originalCustomGeneratePreviewOptions = opts.customGeneratePreviewOptions;
+
+    opts.customGenerateViewOptions = (...args: any[]) => {
+      const s = ensureMyPluginState(); s.isEditPreview = false; s.lastMode = 'view';
+      const base = originalCustomGenerateViewOptions ?? opts.generateViewOptions;
+      return base ? base(...args) : {};
+    };
+
+    opts.customGeneratePreviewOptions = (...args: any[]) => {
+      const s = ensureMyPluginState(); s.isEditPreview = true; s.lastMode = 'preview';
+      const base = originalCustomGeneratePreviewOptions ?? opts.generatePreviewOptions;
+      return base ? base(...args) : {};
+    };
+    console.debug('[VivlioDBG][entry] hooked growiFacade.optionsGenerators');
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function tryUnhookGrowiOptionsGenerators() {
+  try {
+    const gf = (window as any).growiFacade;
+    const opts = gf?.markdownRenderer?.optionsGenerators;
+    if (!opts) return false;
+    if (originalCustomGenerateViewOptions) opts.customGenerateViewOptions = originalCustomGenerateViewOptions;
+    if (originalCustomGeneratePreviewOptions) opts.customGeneratePreviewOptions = originalCustomGeneratePreviewOptions;
+    console.debug('[VivlioDBG][entry] unhooked growiFacade.optionsGenerators');
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 const CONTAINER_ID = 'vivlio-preview-container';
 const PREVIEW_CONTAINER_CANDIDATES = [
   '.page-editor-preview-container',
@@ -136,6 +194,8 @@ function mount() {
   // eslint-disable-next-line no-console
   console.debug('[VivlioDBG][mount] mount finished', { hostChildrenAfter: host.childElementCount });
   try { window.dispatchEvent(new CustomEvent('vivlio:preview-mounted', { detail: { hostChildrenAfter: host.childElementCount } })); } catch (e) {}
+  // try to hook growiFacade optionsGenerators now that mount is done
+  tryHookGrowiOptionsGenerators();
 }
 
 function unmount() {
@@ -150,6 +210,8 @@ function unmount() {
   }
   const host = document.getElementById(CONTAINER_ID);
   if (host?.parentNode) host.parentNode.removeChild(host);
+  // cleanup potential hook
+  tryUnhookGrowiOptionsGenerators();
 }
 
 const activate = () => {

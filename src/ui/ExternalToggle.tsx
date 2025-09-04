@@ -76,6 +76,11 @@ export const ExternalToggle: React.FC = () => {
     // 即時チェック & MutationObserver による検知（ポーリングを廃止）
     const update = () => {
       try {
+        // Prefer explicit state published by growiFacade hook when available
+        if ((window as any).__MY_PLUGIN_STATE__ && typeof (window as any).__MY_PLUGIN_STATE__.isEditPreview === 'boolean') {
+          setIsEditing(!!(window as any).__MY_PLUGIN_STATE__.isEditPreview);
+          return;
+        }
         const rootEl = document.querySelector('.layout-root');
         const editing = rootEl ? rootEl.classList.contains('editing') : false;
         setIsEditing(editing);
@@ -160,6 +165,25 @@ export const ExternalToggle: React.FC = () => {
 
     // 初期存在する場合は直接監視を開始
     try { observeLayoutRoot(document.querySelector('.layout-root')); } catch {}
+
+    // history API の変更を監視（pushState/replaceState をラップ）
+    try {
+      const _push = history.pushState;
+      const _replace = history.replaceState;
+      history.pushState = function (this: History, ...args: any[]) { // eslint-disable-line @typescript-eslint/ban-ts-comment
+        const res = _push.apply(this, args as any);
+        try { update(); } catch {}
+        return res;
+      } as any;
+      history.replaceState = function (this: History, ...args: any[]) { // eslint-disable-line @typescript-eslint/ban-ts-comment
+        const res = _replace.apply(this, args as any);
+        try { update(); } catch {}
+        return res;
+      } as any;
+      window.addEventListener('popstate', update);
+    } catch (e) {
+      // ignore
+    }
 
     return () => {
       try { if (bodyObserver) { bodyObserver.disconnect(); bodyObserver = null; } } catch {}
