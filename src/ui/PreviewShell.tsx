@@ -1,116 +1,123 @@
 // ui/PreviewShell.tsx
 import * as React from 'react';
+import { createRoot } from 'react-dom/client';
 import { VivliostylePreview } from './VivliostylePreview';
 import { useAppContext } from '../context/AppContext';
 
 // シンプルなトグルボタン - Editor previewの上部に配置
 const PreviewShell: React.FC = () => {
-  const { isOpen, markdown, activeTab, setActiveTabWithOpen } = useAppContext();
+  const { markdown, activeTab, setActiveTabWithOpen } = useAppContext();
 
-  // トグルボタンコンポーネント
-  const ToggleButton = () => (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      marginBottom: '8px',
-      padding: '4px 8px',
-      background: '#f8f9fa',
-      borderRadius: '4px',
-      border: '1px solid #dee2e6'
-    }}>
-      <span style={{ fontSize: '12px', color: '#6c757d', fontWeight: 'bold' }}>
-        Preview:
-      </span>
-      <button
-        onClick={() => setActiveTabWithOpen('markdown')}
-        style={{
-          padding: '4px 8px',
-          border: '1px solid #dee2e6',
-          background: activeTab === 'markdown' ? '#007bff' : 'white',
-          color: activeTab === 'markdown' ? 'white' : '#495057',
-          borderRadius: '3px',
-          cursor: 'pointer',
-          fontSize: '11px',
-          fontWeight: 'bold'
-        }}
-      >
-        Markdown
-      </button>
-      <button
-        onClick={() => setActiveTabWithOpen('vivliostyle')}
-        style={{
-          padding: '4px 8px',
-          border: '1px solid #dee2e6',
-          background: activeTab === 'vivliostyle' ? '#007bff' : 'white',
-          color: activeTab === 'vivliostyle' ? 'white' : '#495057',
-          borderRadius: '3px',
-          cursor: 'pointer',
-          fontSize: '11px',
-          fontWeight: 'bold'
-        }}
-      >
-        Vivliostyle
-      </button>
-    </div>
-  );
-
-  // 初期マウント時とisOpen変更時にトグルボタンを配置
+  // トグルボタンの配置（シンプルなHTML挿入）
   React.useEffect(() => {
     const placeToggle = () => {
-      // Editor previewコンテナを探す
       const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement;
       if (!previewContainer) {
         // eslint-disable-next-line no-console
-        console.debug('[VivlioDBG][PreviewShell] preview container not found');
-        return;
+        console.debug('[VivlioDBG] preview container not found, retrying...');
+        return false;
       }
 
-      // 既存のトグルボタンを削除
+      // 既存のトグルを削除
       const existingToggle = previewContainer.querySelector('.vivlio-toggle-container');
       if (existingToggle) {
         existingToggle.remove();
       }
 
-      // 新しいトグルボタンコンテナを作成
-      const toggleContainer = document.createElement('div');
-      toggleContainer.className = 'vivlio-toggle-container';
-      toggleContainer.style.cssText = `
-        position: relative;
-        z-index: 10;
-        margin-bottom: 8px;
+      // シンプルなHTMLでトグルボタンを作成
+      const toggleHtml = `
+        <div class="vivlio-toggle-container" style="
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 8px;
+          padding: 8px 12px;
+          background: #f8f9fa;
+          border-radius: 6px;
+          border: 1px solid #dee2e6;
+          font-size: 13px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        ">
+          <span style="color: #6c757d; font-weight: 600;">Preview:</span>
+          <button class="vivlio-btn-markdown" style="
+            padding: 6px 12px;
+            border: 1px solid #dee2e6;
+            background: ${activeTab === 'markdown' ? '#007bff' : 'white'};
+            color: ${activeTab === 'markdown' ? 'white' : '#495057'};
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+          ">Markdown</button>
+          <button class="vivlio-btn-vivliostyle" style="
+            padding: 6px 12px;
+            border: 1px solid #dee2e6;
+            background: ${activeTab === 'vivliostyle' ? '#007bff' : 'white'};
+            color: ${activeTab === 'vivliostyle' ? 'white' : '#495057'};
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+          ">Vivliostyle</button>
+        </div>
       `;
 
-      // Reactコンポーネントをレンダリング
-      const root = (window as any).__vivlio_toggle_root || ((window as any).__vivlio_toggle_root = (window as any).ReactDOM.createRoot(toggleContainer));
-      root.render(<ToggleButton />);
-
       // previewContainerの先頭に挿入
-      if (previewContainer.firstChild) {
-        previewContainer.insertBefore(toggleContainer, previewContainer.firstChild);
-      } else {
-        previewContainer.appendChild(toggleContainer);
+      previewContainer.insertAdjacentHTML('afterbegin', toggleHtml);
+
+      // イベントリスナーを追加
+      const markdownBtn = previewContainer.querySelector('.vivlio-btn-markdown') as HTMLButtonElement;
+      const vivliostyleBtn = previewContainer.querySelector('.vivlio-btn-vivliostyle') as HTMLButtonElement;
+
+      if (markdownBtn) {
+        markdownBtn.addEventListener('click', () => {
+          setActiveTabWithOpen('markdown');
+        });
+      }
+      if (vivliostyleBtn) {
+        vivliostyleBtn.addEventListener('click', () => {
+          setActiveTabWithOpen('vivliostyle');
+        });
       }
 
       // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][PreviewShell] toggle button placed');
+      console.debug('[VivlioDBG] toggle button placed successfully');
+      return true;
     };
 
-    if (isOpen) {
-      // 少し遅延してDOMが安定してから配置
-      setTimeout(placeToggle, 100);
-    }
+    // 即時実行
+    if (placeToggle()) return;
+
+    // プレビューコンテナがまだない場合、監視
+    const observer = new MutationObserver(() => {
+      if (placeToggle()) {
+        observer.disconnect();
+      }
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class']
+    });
+
+    // タイムアウト
+    const timeout = setTimeout(() => {
+      observer.disconnect();
+      // eslint-disable-next-line no-console
+      console.warn('[VivlioDBG] toggle button placement timed out');
+    }, 10000);
 
     return () => {
-      // クリーンアップ
-      const existingToggle = document.querySelector('.vivlio-toggle-container');
-      if (existingToggle) {
-        existingToggle.remove();
-      }
+      observer.disconnect();
+      clearTimeout(timeout);
     };
-  }, [isOpen, activeTab]);
+  }, [activeTab, setActiveTabWithOpen]);
 
-  // コンテンツの表示制御
+  // コンテンツの表示制御（Markdown/Vivliostyle切り替え）
   React.useEffect(() => {
     const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement;
     if (!previewContainer) return;
@@ -119,26 +126,27 @@ const PreviewShell: React.FC = () => {
     const previewBody = previewContainer.querySelector('.page-editor-preview-body') as HTMLElement;
     const tabContent = previewContainer.querySelector('.tab-content') as HTMLElement;
 
-    if (isOpen) {
+    if (activeTab === 'vivliostyle') {
       // Vivliostyleの場合、標準コンテンツを隠す
-      if (activeTab === 'vivliostyle') {
-        if (previewBody) previewBody.style.display = 'none';
-        if (tabContent) tabContent.style.display = 'none';
-      } else {
-        // Markdownの場合、標準コンテンツを表示
-        if (previewBody) previewBody.style.display = '';
-        if (tabContent) tabContent.style.display = '';
-      }
+      if (previewBody) previewBody.style.display = 'none';
+      if (tabContent) tabContent.style.display = 'none';
     } else {
-      // プレビューが閉じている場合、標準コンテンツを表示
+      // Markdownの場合、標準コンテンツを表示
       if (previewBody) previewBody.style.display = '';
       if (tabContent) tabContent.style.display = '';
     }
-  }, [isOpen, activeTab]);
+  }, [activeTab]);
 
-  // Vivliostyleコンテンツの配置
+  // Vivliostyleコンテンツの配置（シンプルなHTML挿入）
   React.useEffect(() => {
-    if (!isOpen || activeTab !== 'vivliostyle') return;
+    if (activeTab !== 'vivliostyle') {
+      // Vivliostyleでない場合はコンテンツを削除
+      const existingVivlio = document.querySelector('.vivlio-content-container');
+      if (existingVivlio) {
+        existingVivlio.remove();
+      }
+      return;
+    }
 
     const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement;
     if (!previewContainer) return;
@@ -149,7 +157,7 @@ const PreviewShell: React.FC = () => {
       existingVivlio.remove();
     }
 
-    // 新しいVivliostyleコンテナを作成
+    // Vivliostyleコンテナを作成
     const vivlioContainer = document.createElement('div');
     vivlioContainer.className = 'vivlio-content-container';
     vivlioContainer.style.cssText = `
@@ -157,28 +165,31 @@ const PreviewShell: React.FC = () => {
       width: 100%;
       min-height: 400px;
       margin-top: 8px;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      background: white;
     `;
 
     // Reactコンポーネントをレンダリング
-    const root = (window as any).__vivlio_content_root || ((window as any).__vivlio_content_root = (window as any).ReactDOM.createRoot(vivlioContainer));
+    const root = createRoot(vivlioContainer);
     root.render(<VivliostylePreview markdown={markdown} isVisible={true} />);
 
     // previewContainerに追加
     previewContainer.appendChild(vivlioContainer);
 
     // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][PreviewShell] Vivliostyle content placed');
+    console.debug('[VivlioDBG] Vivliostyle content placed');
 
     return () => {
       // クリーンアップ
-      const existingVivlio = document.querySelector('.vivlio-content-container');
-      if (existingVivlio) {
-        existingVivlio.remove();
+      const existing = document.querySelector('.vivlio-content-container');
+      if (existing) {
+        existing.remove();
       }
     };
-  }, [isOpen, activeTab, markdown]);
+  }, [activeTab, markdown]);
 
-  // このコンポーネント自体は表示しない（Portalで配置するため）
+  // このコンポーネント自体は表示しない（直接DOM操作）
   return null;
 };
 
