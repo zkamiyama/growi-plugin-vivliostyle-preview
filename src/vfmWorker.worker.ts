@@ -1,4 +1,5 @@
 import { stringify } from '@vivliostyle/vfm';
+import MarkdownIt from 'markdown-it';
 
 self.addEventListener('message', (ev: MessageEvent) => {
   try {
@@ -34,9 +35,25 @@ self.addEventListener('message', (ev: MessageEvent) => {
     } catch (e) {
       // ignore and proceed with original md
     }
-  // Debug: emit normalized markdown preview so we can see what vfm receives
-  try { console.debug('[vfmWorker][normalizedMd]', { seq, preview: md.slice(0, 200) }); } catch (e) { /* ignore */ }
-  const html = stringify(md);
+    // Debug: emit normalized markdown preview so we can see what vfm receives
+    try { console.debug('[vfmWorker][normalizedMd]', { seq, preview: md.slice(0, 200) }); } catch (e) { /* ignore */ }
+    let html: string;
+    try {
+      html = stringify(md);
+    } catch (e) {
+      // vfm may throw when highlighter receives an invalid language; fall back to markdown-it
+      try {
+        console.error('[vfmWorker] vfm.stringify failed, falling back to markdown-it', e);
+      } catch (e2) { /* ignore */ }
+      try {
+        const mdIt = new MarkdownIt();
+        html = mdIt.render(md);
+        try { console.debug('[vfmWorker] fallback markdown-it rendered', { seq, htmlLen: html.length }); } catch (e2) { /* ignore */ }
+      } catch (e3) {
+        // last resort: empty html with error message
+        html = '<pre><code>Preview generation failed</code></pre>';
+      }
+    }
     // respond with JSON string to avoid any library expecting string messages
     (self as any).postMessage(JSON.stringify({ seq, ok: true, html }));
   } catch (e) {
