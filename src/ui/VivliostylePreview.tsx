@@ -30,6 +30,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [lastSentFinalCss, setLastSentFinalCss] = useState<string>('');
   const currentControllerRef = React.useRef<AbortController | null>(null);
   const vfmClient = React.useMemo(() => createVfmClient(), []);
+  const [sheetSizePx, setSheetSizePx] = useState<{width:number, height:number}>({width:0, height:0});
 
   useEffect(() => {
     if (!isVisible) return;
@@ -348,24 +349,37 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       const sheet = sheetRef.current;
       if (!viewer || !sheet) return;
       const vRect = viewer.getBoundingClientRect();
-      const sRect = sheet.getBoundingClientRect();
-      // available space inside viewer (padding included)
-      const availW = vRect.width - 0; // no extra padding
-      const availH = vRect.height - 0;
-      if (sRect.width <= 0 || sRect.height <= 0) return;
-      const fit = Math.min(availW / sRect.width, availH / sRect.height, 1);
+      // Prefer iframe content size when renderer uses an iframe
+      let sheetRect = sheet.getBoundingClientRect();
+      try {
+        const wrap = rendererWrapRef.current;
+        if (wrap) {
+          const iframe = wrap.querySelector('iframe') as HTMLIFrameElement | null;
+          if (iframe && iframe.contentDocument) {
+            const doc = iframe.contentDocument;
+            const inner = doc.documentElement || doc.body;
+            if (inner) {
+              const ir = inner.getBoundingClientRect();
+              if (ir.width > 0 && ir.height > 0) sheetRect = ir;
+            }
+          }
+        }
+      } catch (e) { /* ignore cross-origin or timing errors */ }
+
+      // available space inside viewer
+      const availW = vRect.width;
+      const availH = vRect.height;
+      if (sheetRect.width <= 0 || sheetRect.height <= 0) return;
+      const fit = Math.min(availW / sheetRect.width, availH / sheetRect.height, 1);
       setScale(Number(fit.toFixed(4)));
-      // If fit < 1, reduce the sheet's layout size to avoid leaving extra space
-      // below/around the sheet. We set explicit pixel width/height when scaled;
-      // when fit === 1, clear inline sizing so CSS (e.g. '210mm') applies.
-      // apply transform to renderer wrap so the sheet is visually scaled while
-      // the sheet container keeps its original layout size (prevents background
-      // being tied to sheet pixel size)
+
+      // scale rendererWrap visually; keep sheet container layout size stable
       if (rendererWrapRef.current) {
         rendererWrapRef.current.style.transform = `scale(${fit})`;
         rendererWrapRef.current.style.transformOrigin = 'top left';
       }
-      // clear any inline sizing on sheet/viewer that previously tied background to page size
+
+      // clear inline sizing on sheet/viewer to avoid tying background to sheet pixels
       if (sheetRef.current) {
         sheetRef.current.style.width = '';
         sheetRef.current.style.height = '';
@@ -375,7 +389,11 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         viewerRef.current.style.minWidth = '';
         viewerRef.current.style.minHeight = '';
       }
+
+      // update diagnostic with the sheetRect we actually used
+      setSheetSizePx({ width: Math.round(sheetRect.width), height: Math.round(sheetRect.height) });
     }
+
     recompute();
     window.addEventListener('resize', recompute);
     const ro = new ResizeObserver(recompute);
