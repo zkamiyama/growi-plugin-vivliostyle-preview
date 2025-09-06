@@ -8,7 +8,15 @@ self.addEventListener('message', (ev: MessageEvent) => {
       try { data = JSON.parse(data); } catch (e) { /* leave as string */ }
     }
     const seq = data && (data.seq ?? null);
-    const md: string = data && data.markdown ? data.markdown : '';
+    let md: string = data && data.markdown ? data.markdown : '';
+    // Ensure fenced code blocks without language get a safe default to avoid
+    // highlighter errors like "The language \"undefined\" has no grammar.".
+    // Replace lines that are exactly ``` (optionally with spaces) with ```text
+    try {
+      md = md.replace(/^```\s*$/gm, '```text');
+    } catch (e) {
+      // ignore and proceed with original md
+    }
     const html = stringify(md);
     // respond with JSON string to avoid any library expecting string messages
     (self as any).postMessage(JSON.stringify({ seq, ok: true, html }));
