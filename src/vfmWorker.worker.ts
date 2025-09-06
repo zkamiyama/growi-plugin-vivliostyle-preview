@@ -1,6 +1,5 @@
 import './vfmWorker.setup';
 import { stringify } from '@vivliostyle/vfm';
-import MarkdownIt from 'markdown-it';
 
 self.addEventListener('message', async (ev: MessageEvent) => {
   try {
@@ -13,25 +12,7 @@ self.addEventListener('message', async (ev: MessageEvent) => {
     }
     const seq = data && (data.seq ?? null);
     let md: string = data && data.markdown ? data.markdown : '';
-    const originalMd = md;
-    // Extract fenced code block language/info tokens from the original markdown
-    // so we can see what vfm actually receives before normalization.
-    try {
-      const fenceRe = /(^|\r?\n)(```|~~~)([^\r\n]*)\r?\n/g;
-      const fenceLangs: string[] = [];
-      let m: RegExpExecArray | null;
-      while ((m = fenceRe.exec(originalMd)) !== null) {
-        const rawInfo = (m[3] || '').trim();
-        let lang = rawInfo;
-        if (!rawInfo || /^(?:undefined|null)$/i.test(rawInfo) || !/[A-Za-z0-9_-]/.test(rawInfo)) {
-          lang = 'text';
-        }
-        fenceLangs.push(lang);
-      }
-      try { console.debug('[vfmWorker][fenceLangs]', { seq, fenceLangs }); } catch (e) { /* ignore */ }
-    } catch (e) {
-      /* ignore fence extraction errors */
-    }
+  // originalMd intentionally not captured to reduce noise; we normalize fences below
     // Ensure fenced code blocks without language get a safe default to avoid
     // highlighter errors like "The language \"undefined\" has no grammar.".
     // Handle several cases:
@@ -58,77 +39,19 @@ self.addEventListener('message', async (ev: MessageEvent) => {
     // Debug: emit normalized markdown preview so we can see what vfm receives
     try { console.debug('[vfmWorker][normalizedMd]', { seq, preview: md.slice(0, 200) }); } catch (e) { /* ignore */ }
 
-    // Install defensive handlers and wrappers to capture any highlighter calls
-    // that may throw (e.g. highlight.js / Prism). This helps us log the
-    // language argument and avoid uncaught exceptions during vfm.stringify.
-    try {
-      // Log unhandled promise rejections inside the worker
-      (self as any).onunhandledrejection = (ev: any) => {
-        try { console.error('[vfmWorker][unhandledrejection]', ev && ev.reason); } catch (e) { /* ignore */ }
-        // prevent default propagation
-        return true;
-      };
-
-      const escapeHtml = (s: string) => s.replace(/[&<>\"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'} as any)[c]);
-
-      const makeWrapper = (name: string) => {
-        const globalObj = (globalThis as any);
-        const orig = globalObj[name];
-        if (orig && typeof orig === 'object' && typeof orig.highlight === 'function') {
-          const originalFn = orig.highlight.bind(orig);
-          orig.highlight = function(a: any, b: any) {
-            try {
-              const preview = (a && a.toString && a.toString().slice ? a.toString().slice(0,80) : String(a)).slice(0,80);
-              const stack = (new Error()).stack;
-              console.debug('[vfmWorker][' + name + '.highlight] called', { lang: b, preview, stack });
-            } catch (e) { /* ignore */ }
-            // Defensive: if no language provided, avoid calling original highlight
-            // which may throw when grammar is missing. Return escaped HTML instead.
-            if (!b) {
-              return { value: escapeHtml(String(a)) };
-            }
-            try { return originalFn(a, b); } catch (e) {
-              try { console.debug('[vfmWorker][' + name + '.highlight] error', e, (new Error()).stack); } catch (e2) { /* ignore */ }
-              return { value: escapeHtml(String(a)) };
-            }
-          };
-          globalObj[name] = orig;
-        } else if (!globalObj[name]) {
-          // Provide a minimal shim that logs and returns escaped code
-          globalObj[name] = {
-            highlight: function(a: any, b: any) {
-              try { console.debug('[vfmWorker][' + name + '.highlight shim] called', { lang: b, preview: (a && a.toString && a.toString().slice ? a.toString().slice(0,80) : String(a)).slice(0,80), stack: (new Error()).stack }); } catch (e) { /* ignore */ }
-              if (!b) return { value: escapeHtml(String(a)) };
-              return { value: escapeHtml(String(a)) };
-            },
-          };
-        }
-      };
-
-      try { makeWrapper('hljs'); } catch (e) { /* ignore */ }
-      try { makeWrapper('Prism'); } catch (e) { /* ignore */ }
-      try { if (!(globalThis as any).highlight) { (globalThis as any).highlight = (a: any, b: any) => { try { console.debug('[vfmWorker][highlight shim] called', { lang: b }); } catch (e) {} return { value: escapeHtml(String(a)) }; }; } } catch (e) { /* ignore */ }
-    } catch (e) {
-      /* defensive: if wrappers fail, continue without them */
-    }
+  // Defensive shims and global handlers are installed in `vfmWorker.setup`.
+  // Keep this worker focused on normalization and calling vfm.stringify.
     let html: string;
-    // Suppress uncaught error logging during stringify; capture errors and fallback.
+    // Suppress uncaught error logging during stringify; capture errors.
     const prevOnError = (self as any).onerror;
     (self as any).onerror = () => true;
     try {
       try {
         html = stringify(md);
       } catch (e) {
-      // vfm may throw when highlighter receives an invalid language; fall back to markdown-it
-        try { console.error('[vfmWorker] vfm.stringify failed, falling back to markdown-it', e); } catch (e2) { /* ignore */ }
-        try {
-          const mdIt = new MarkdownIt();
-          html = mdIt.render(md);
-          try { console.debug('[vfmWorker] fallback markdown-it rendered', { seq, htmlLen: html.length }); } catch (e2) { /* ignore */ }
-        } catch (e3) {
-          // last resort: empty html with error message
-          html = '<pre><code>Preview generation failed</code></pre>';
-        }
+        try { console.error('[vfmWorker] vfm.stringify failed', e); } catch (e2) { /* ignore */ }
+        // No markdown-it fallback per request — return a simple error placeholder HTML
+        html = '<pre><code>Preview generation failed (vfm)</code></pre>';
       }
     } finally {
       // restore previous handler
