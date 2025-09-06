@@ -351,10 +351,11 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       if (sRect.width <= 0 || sRect.height <= 0) return;
       const fit = Math.min(availW / sRect.width, availH / sRect.height, 1);
       setScale(Number(fit.toFixed(4)));
-      // apply transform to renderer wrap if exists
-      if (rendererWrapRef.current) {
-        rendererWrapRef.current.style.transform = `scale(${fit})`;
-        rendererWrapRef.current.style.transformOrigin = 'top left';
+      // apply transform to the sheet itself so the layout box is scaled
+      // (this prevents the unscaled sheet container from leaving extra space below)
+      if (sheetRef.current) {
+        sheetRef.current.style.transform = `scale(${fit})`;
+        sheetRef.current.style.transformOrigin = 'top left';
       }
     }
     recompute();
