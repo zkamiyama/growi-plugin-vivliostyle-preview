@@ -12,6 +12,25 @@ self.addEventListener('message', (ev: MessageEvent) => {
     }
     const seq = data && (data.seq ?? null);
     let md: string = data && data.markdown ? data.markdown : '';
+    const originalMd = md;
+    // Extract fenced code block language/info tokens from the original markdown
+    // so we can see what vfm actually receives before normalization.
+    try {
+      const fenceRe = /(^|\r?\n)(```|~~~)([^\r\n]*)\r?\n/g;
+      const fenceLangs: string[] = [];
+      let m: RegExpExecArray | null;
+      while ((m = fenceRe.exec(originalMd)) !== null) {
+        const rawInfo = (m[3] || '').trim();
+        let lang = rawInfo;
+        if (!rawInfo || /^(?:undefined|null)$/i.test(rawInfo) || !/[A-Za-z0-9_-]/.test(rawInfo)) {
+          lang = 'text';
+        }
+        fenceLangs.push(lang);
+      }
+      try { console.debug('[vfmWorker][fenceLangs]', { seq, fenceLangs }); } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* ignore fence extraction errors */
+    }
     // Ensure fenced code blocks without language get a safe default to avoid
     // highlighter errors like "The language \"undefined\" has no grammar.".
     // Handle several cases:
