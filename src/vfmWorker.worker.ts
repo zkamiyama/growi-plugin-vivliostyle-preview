@@ -4,6 +4,8 @@ self.addEventListener('message', (ev: MessageEvent) => {
   try {
     // Accept either object or JSON-string payloads. For robustness we prefer JSON string.
     let data: any = ev.data;
+    // log raw incoming type for diagnosis
+    try { console.debug('[vfmWorker][recv] rawType', typeof ev.data, ev.data && Object.keys(ev.data || {})); } catch (e) { /* ignore */ }
     if (typeof data === 'string') {
       try { data = JSON.parse(data); } catch (e) { /* leave as string */ }
     }
@@ -32,7 +34,9 @@ self.addEventListener('message', (ev: MessageEvent) => {
     } catch (e) {
       // ignore and proceed with original md
     }
-    const html = stringify(md);
+  // Debug: emit normalized markdown preview so we can see what vfm receives
+  try { console.debug('[vfmWorker][normalizedMd]', { seq, preview: md.slice(0, 200) }); } catch (e) { /* ignore */ }
+  const html = stringify(md);
     // respond with JSON string to avoid any library expecting string messages
     (self as any).postMessage(JSON.stringify({ seq, ok: true, html }));
   } catch (e) {
