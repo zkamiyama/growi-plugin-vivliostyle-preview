@@ -358,28 +358,22 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       // If fit < 1, reduce the sheet's layout size to avoid leaving extra space
       // below/around the sheet. We set explicit pixel width/height when scaled;
       // when fit === 1, clear inline sizing so CSS (e.g. '210mm') applies.
+      // apply transform to renderer wrap so the sheet is visually scaled while
+      // the sheet container keeps its original layout size (prevents background
+      // being tied to sheet pixel size)
+      if (rendererWrapRef.current) {
+        rendererWrapRef.current.style.transform = `scale(${fit})`;
+        rendererWrapRef.current.style.transformOrigin = 'top left';
+      }
+      // clear any inline sizing on sheet/viewer that previously tied background to page size
       if (sheetRef.current) {
-        if (fit < 1) {
-          const scaledW = Math.round(sRect.width * fit);
-          const scaledH = Math.round(sRect.height * fit);
-          sheetRef.current.style.width = `${scaledW}px`;
-          sheetRef.current.style.height = `${scaledH}px`;
-          sheetRef.current.style.transform = '';
-          // ensure viewer has at least the sheet area + padding so background fills around it
-          if (viewerRef.current) {
-            const pad = 24 * 2; // viewer padding top+bottom or left+right
-            viewerRef.current.style.minWidth = `${scaledW + pad}px`;
-            viewerRef.current.style.minHeight = `${scaledH + pad}px`;
-          }
-        } else {
-          sheetRef.current.style.width = '';
-          sheetRef.current.style.height = '';
-          sheetRef.current.style.transform = '';
-          if (viewerRef.current) {
-            viewerRef.current.style.minWidth = '';
-            viewerRef.current.style.minHeight = '';
-          }
-        }
+        sheetRef.current.style.width = '';
+        sheetRef.current.style.height = '';
+        sheetRef.current.style.transform = '';
+      }
+      if (viewerRef.current) {
+        viewerRef.current.style.minWidth = '';
+        viewerRef.current.style.minHeight = '';
       }
     }
     recompute();
