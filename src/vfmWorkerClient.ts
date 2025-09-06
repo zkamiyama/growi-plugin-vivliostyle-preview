@@ -91,8 +91,13 @@ export function createVfmClient() {
       }
 
       worker.onmessage = (ev) => {
-        const res = ev.data as { seq?: number; ok: boolean; html?: string; error?: string };
-        console.debug('[vfmWorkerClient] worker.onmessage', res);
+        let resRaw = ev.data;
+        // worker posts back JSON string; handle both object and string for robustness
+        if (typeof resRaw === 'string') {
+          try { resRaw = JSON.parse(resRaw); } catch (e) { console.error('[vfmWorkerClient] failed to parse worker JSON', e); resRaw = { seq: null, ok: false, error: 'invalid json from worker' }; }
+        }
+        const res = resRaw as { seq?: number; ok: boolean; html?: string; error?: string };
+        console.debug('[vfmWorkerClient] worker.onmessage', { seq: res.seq, ok: res.ok, htmlLen: res.html ? res.html.length : 0 });
         const cb = pending.get(res.seq ?? -1);
         if (cb) { pending.delete(res.seq ?? -1); cb(res); }
       };
@@ -111,8 +116,9 @@ export function createVfmClient() {
       return new Promise((resolve, reject) => {
         pending.set(id, (r) => r.ok ? resolve(r.html!) : reject(new Error(r.error || 'unknown')));
         try {
-          console.debug('[vfmWorkerClient] postMessage to worker', { seq: id, len: markdown.length });
-          w.postMessage({ seq: id, markdown });
+          const payload = JSON.stringify({ seq: id, markdown });
+          console.debug('[vfmWorkerClient] postMessage to worker (json)', { seq: id, len: markdown.length });
+          w.postMessage(payload);
         } catch (e) {
           pending.delete(id);
           reject(e);
