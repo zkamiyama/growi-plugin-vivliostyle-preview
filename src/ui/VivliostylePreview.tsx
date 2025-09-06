@@ -18,7 +18,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const blobUrlRef = React.useRef<string | null>(null);
   const [editorMd, setEditorMd] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
-  const [pageInfo, setPageInfo] = useState<{ size?: string|null; margins?: string[]; pageRuleFound: boolean }>({ pageRuleFound: false });
+  const [pageInfo, setPageInfo] = useState<{ rules?: string[]; size?: string|null; margins?: string[]; pageRuleFound: boolean }>({ pageRuleFound: false });
   const infoRef = React.useRef<HTMLDivElement | null>(null);
   const handleRef = React.useRef<HTMLDivElement | null>(null);
   const draggingRef = React.useRef(false);
@@ -69,14 +69,15 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             const marginMatches = Array.from(first.matchAll(/margin[a-z-]*:\s*[^;]+;?/g)).map(m => m[0]);
             setPageInfo({
               pageRuleFound: true,
+              rules: pageRuleMatch.map(r => r.trim()),
               size: sizeMatch ? sizeMatch[1].trim() : null,
               margins: marginMatches,
             });
           } else {
-            setPageInfo({ pageRuleFound: false });
+            setPageInfo({ pageRuleFound: false, rules: [] });
           }
         } catch (e) {
-          setPageInfo({ pageRuleFound: false });
+          setPageInfo({ pageRuleFound: false, rules: [] });
         }
         // Use Blob URL instead of base64 data URL to avoid heavy base64 encoding on large HTML
         try {
@@ -205,6 +206,19 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         setFullHtml(generated);
         setHtmlLen(generated.length);
         try {
+          // Extract @page rules for info panel
+          try {
+            const pageRuleMatch = generated.match(/@page[^}]*{[^}]*}/g);
+            if (pageRuleMatch && pageRuleMatch.length) {
+              const first = pageRuleMatch[0];
+              const sizeMatch = first.match(/size:\s*([^;]+);?/);
+              const marginMatches = Array.from(first.matchAll(/margin[a-z-]*:\s*[^;]+;?/g)).map(m => m[0]);
+              setPageInfo({ pageRuleFound: true, rules: pageRuleMatch.map(r => r.trim()), size: sizeMatch ? sizeMatch[1].trim() : null, margins: marginMatches });
+            } else {
+              setPageInfo({ pageRuleFound: false, rules: [] });
+            }
+          } catch (e) { setPageInfo({ pageRuleFound: false, rules: [] }); }
+
           const blob = new Blob([generated], { type: 'text/html' });
           const url = URL.createObjectURL(blob);
           if (signal.aborted) return;
@@ -297,6 +311,11 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const finalUserStyleSheet = userCss
     ? userCss
     : `@page{size:${pageWidth} ${pageHeight}; margin:${pageMargin};} html,body{background:#fff !important;color:#222 !important;-webkit-font-smoothing:antialiased;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Meiryo',sans-serif; height:100%; overflow:hidden !important;} body{writing-mode:vertical-rl !important; text-orientation:upright !important;} h1,h2,h3,h4,h5{color:#111 !important;} p{color:#222 !important;} a{color:#0645ad !important;}`;
+
+  // Keep a record of final stylesheet passed to Renderer for display
+  React.useEffect(() => {
+    try { setLastSentFinalCss(finalUserStyleSheet); } catch {}
+  }, [finalUserStyleSheet]);
 
   // Refs for measuring and scaling
   const viewerRef = React.useRef<HTMLDivElement | null>(null);
@@ -491,31 +510,38 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             </span>
           </div>
           <ul style={{ listStyle: 'disc', paddingLeft: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <li>Markdown chars: {markdown.length}</li>
+            <li>Characters (Markdown): {markdown.length}</li>
             <li>Lines: {markdown.split(/\r?\n/).length}</li>
-            <li>Approx words: {markdown.trim() ? markdown.trim().split(/\s+/).length : 0}</li>
+            <li>Words (approx): {markdown.trim() ? markdown.trim().split(/\s+/).length : 0}</li>
             <li>HTML length: {htmlLen}</li>
-            <li>DataURL length: {encodedLen}</li>
-            <li>@page rule: {pageInfo.pageRuleFound ? 'found' : 'none'}</li>
-            {pageInfo.size && <li>page size: {pageInfo.size}</li>}
-            {pageInfo.margins && pageInfo.margins.map((m,i)=>(<li key={i}>{m}</li>))}
+            <li>Data URL length: {encodedLen}</li>
+            <li>@page rules: {pageInfo.pageRuleFound ? '' : 'none'}</li>
+            {pageInfo.pageRuleFound && pageInfo.rules && pageInfo.rules.length > 0 && (
+              <ul style={{ marginTop: 4, marginLeft: 12, listStyle: 'circle' }}>
+                {pageInfo.rules.map((r, idx) => (
+                  <li key={idx} style={{ fontFamily: 'monospace', fontSize: 12, color: '#d9e2e6', whiteSpace: 'pre-wrap' }}>{r}</li>
+                ))}
+              </ul>
+            )}
+            {pageInfo.size && <li>Page size: {pageInfo.size}</li>}
+            {pageInfo.margins && pageInfo.margins.map((m, i) => (<li key={i}>{m}</li>))}
           </ul>
           {fullHtml && (
             <details style={{ marginTop: 8 }}>
-              <summary style={{ cursor: 'pointer' }}>Show HTML sample</summary>
+              <summary style={{ cursor: 'pointer' }}>HTML sample</summary>
               <pre style={{ maxHeight: 200, overflow: 'auto', background: 'rgba(0,0,0,0.28)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6' }}>{fullHtml.slice(0, 1200)}</pre>
             </details>
           )}
           {/* Show last sent markdown/css for debugging and copy-paste */}
           <details style={{ marginTop: 8 }}>
-            <summary style={{ cursor: 'pointer' }}>Show sent markdown / CSS</summary>
+            <summary style={{ cursor: 'pointer' }}>Sent Markdown & CSS</summary>
             <div style={{ marginTop: 6, display: 'flex', gap: 8, flexDirection: 'column' }}>
-              <label style={{ fontSize: 12, color: '#cfd6da' }}>Markdown sent to VFM (select & copy):</label>
+              <label style={{ fontSize: 12, color: '#cfd6da' }}>Markdown (sent to VFM):</label>
               <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6', userSelect: 'text' }}>{lastSentMarkdown || ''}</pre>
-              <label style={{ fontSize: 12, color: '#cfd6da' }}>Extracted user CSS (select & copy):</label>
+              <label style={{ fontSize: 12, color: '#cfd6da' }}>User CSS (extracted):</label>
               <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6', userSelect: 'text' }}>{lastSentUserCss || ''}</pre>
-              <label style={{ fontSize: 12, color: '#cfd6da' }}>Final stylesheet passed to Renderer (select & copy):</label>
-              <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6', userSelect: 'text' }}>{finalUserStyleSheet || ''}</pre>
+              <label style={{ fontSize: 12, color: '#cfd6da' }}>Final stylesheet (passed to Renderer):</label>
+              <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6', userSelect: 'text' }}>{lastSentFinalCss || ''}</pre>
             </div>
           </details>
         </div>
