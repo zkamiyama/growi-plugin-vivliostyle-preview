@@ -3,9 +3,14 @@
 // any internal references to Prism/hljs will resolve to our shims.
 (function installShims() {
   try {
+    // Global handlers: log details but prevent propagation to host console as uncaught
     (self as any).onunhandledrejection = (ev: any) => {
       try { console.error('[vfmWorker][unhandledrejection]', ev && ev.reason); } catch (e) { /* ignore */ }
       return true;
+    };
+    (self as any).onerror = (msg: any, src?: any, line?: any, col?: any, err?: any) => {
+      try { console.error('[vfmWorker][onerror]', { msg, src, line, col, err }); } catch (e) { /* ignore */ }
+      return true; // suppress default handling
     };
 
     const escapeHtml = (s: string) => s.replace(/[&<>\"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'} as any)[c]);
