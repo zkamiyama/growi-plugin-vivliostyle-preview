@@ -23,6 +23,8 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const handleRef = React.useRef<HTMLDivElement | null>(null);
   const draggingRef = React.useRef(false);
   const dragStartRef = React.useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const resizingRef = React.useRef(false);
+  const resizeStartRef = React.useRef<{ x: number; y: number; width: number; height: number; edge: string } | null>(null);
   const [lastSentMarkdown, setLastSentMarkdown] = useState<string | null>(null);
   const [lastSentUserCss, setLastSentUserCss] = useState<string>('');
   const [lastSentFinalCss, setLastSentFinalCss] = useState<string>('');
@@ -353,11 +355,19 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       if (sRect.width <= 0 || sRect.height <= 0) return;
       const fit = Math.min(availW / sRect.width, availH / sRect.height, 1);
       setScale(Number(fit.toFixed(4)));
-      // apply transform to the sheet itself so the layout box is scaled
-      // (this prevents the unscaled sheet container from leaving extra space below)
+      // If fit < 1, reduce the sheet's layout size to avoid leaving extra space
+      // below/around the sheet. We set explicit pixel width/height when scaled;
+      // when fit === 1, clear inline sizing so CSS (e.g. '210mm') applies.
       if (sheetRef.current) {
-        sheetRef.current.style.transform = `scale(${fit})`;
-        sheetRef.current.style.transformOrigin = 'top left';
+        if (fit < 1) {
+          sheetRef.current.style.width = `${Math.round(sRect.width * fit)}px`;
+          sheetRef.current.style.height = `${Math.round(sRect.height * fit)}px`;
+          sheetRef.current.style.transform = '';
+        } else {
+          sheetRef.current.style.width = '';
+          sheetRef.current.style.height = '';
+          sheetRef.current.style.transform = '';
+        }
       }
     }
     recompute();
@@ -451,43 +461,81 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           <div
             ref={infoRef}
             onPointerDown={(ev) => {
-              // Only start drag when pointer is on the header handle (so text selection in body remains possible)
-              const t = ev.target as HTMLElement | null;
-              const header = handleRef.current;
-              if (!header) return;
-              if (t && t.closest && t.closest('button,a,input,textarea,select')) return;
-              if (!header.contains(t)) return; // only allow drag from header
               const el = infoRef.current;
               if (!el) return;
-              ev.preventDefault();
-              const parent = el.offsetParent as HTMLElement | null;
-              const pRect = parent ? parent.getBoundingClientRect() : ({ left: 0, top: 0 } as DOMRect);
               const rect = el.getBoundingClientRect();
-              // switch from right to explicit left if using 'right' initially
-              const left = rect.left - pRect.left;
-              const top = rect.top - pRect.top;
-              el.style.left = `${left}px`;
-              el.style.right = 'auto';
-              el.style.top = `${top}px`;
-              draggingRef.current = true;
-              dragStartRef.current = { x: ev.clientX, y: ev.clientY, left, top };
-              const onMove = (e: PointerEvent) => {
-                if (!draggingRef.current || !dragStartRef.current || !el) return;
-                const dx = e.clientX - dragStartRef.current.x;
-                const dy = e.clientY - dragStartRef.current.y;
-                const newLeft = Math.max(0, dragStartRef.current.left + dx);
-                const newTop = Math.max(0, dragStartRef.current.top + dy);
-                el.style.left = `${newLeft}px`;
-                el.style.top = `${newTop}px`;
-              };
-              const onUp = () => {
-                draggingRef.current = false;
-                dragStartRef.current = null;
-                window.removeEventListener('pointermove', onMove);
-                window.removeEventListener('pointerup', onUp);
-              };
-              window.addEventListener('pointermove', onMove);
-              window.addEventListener('pointerup', onUp);
+              const offsetX = ev.clientX - rect.left;
+              const offsetY = ev.clientY - rect.top;
+              const edgeThreshold = 8;
+              const nearRight = rect.width - offsetX <= edgeThreshold;
+              const nearBottom = rect.height - offsetY <= edgeThreshold;
+              const nearLeft = offsetX <= edgeThreshold;
+              const nearTop = offsetY <= edgeThreshold;
+
+              // If pointer is on header handle, start dragging the panel
+              const t = ev.target as HTMLElement | null;
+              const header = handleRef.current;
+              if (header && t && header.contains(t) && !(t.closest && t.closest('button,a,input,textarea,select'))) {
+                ev.preventDefault();
+                const parent = el.offsetParent as HTMLElement | null;
+                const pRect = parent ? parent.getBoundingClientRect() : ({ left: 0, top: 0 } as DOMRect);
+                const left = rect.left - pRect.left;
+                const top = rect.top - pRect.top;
+                el.style.left = `${left}px`;
+                el.style.right = 'auto';
+                el.style.top = `${top}px`;
+                draggingRef.current = true;
+                dragStartRef.current = { x: ev.clientX, y: ev.clientY, left, top };
+                const onMove = (e: PointerEvent) => {
+                  if (!draggingRef.current || !dragStartRef.current || !el) return;
+                  const dx = e.clientX - dragStartRef.current.x;
+                  const dy = e.clientY - dragStartRef.current.y;
+                  const newLeft = Math.max(0, dragStartRef.current.left + dx);
+                  const newTop = Math.max(0, dragStartRef.current.top + dy);
+                  el.style.left = `${newLeft}px`;
+                  el.style.top = `${newTop}px`;
+                };
+                const onUp = () => {
+                  draggingRef.current = false;
+                  dragStartRef.current = null;
+                  window.removeEventListener('pointermove', onMove);
+                  window.removeEventListener('pointerup', onUp);
+                };
+                window.addEventListener('pointermove', onMove);
+                window.addEventListener('pointerup', onUp);
+                return;
+              }
+
+              // If pointer is near an edge, start resizing
+              if (nearRight || nearBottom || nearLeft || nearTop) {
+                ev.preventDefault();
+                resizingRef.current = true;
+                resizeStartRef.current = { x: ev.clientX, y: ev.clientY, width: rect.width, height: rect.height, edge: nearRight ? 'right' : nearLeft ? 'left' : nearBottom ? 'bottom' : 'top' };
+                const onResizeMove = (e: PointerEvent) => {
+                  if (!resizingRef.current || !resizeStartRef.current || !el) return;
+                  const dx = e.clientX - resizeStartRef.current.x;
+                  const dy = e.clientY - resizeStartRef.current.y;
+                  let newW = resizeStartRef.current.width;
+                  let newH = resizeStartRef.current.height;
+                  if (resizeStartRef.current.edge === 'right') newW = Math.max(220, resizeStartRef.current.width + dx);
+                  if (resizeStartRef.current.edge === 'left') newW = Math.max(220, resizeStartRef.current.width - dx);
+                  if (resizeStartRef.current.edge === 'bottom') newH = Math.max(120, resizeStartRef.current.height + dy);
+                  if (resizeStartRef.current.edge === 'top') newH = Math.max(120, resizeStartRef.current.height - dy);
+                  el.style.width = `${newW}px`;
+                  el.style.height = `${newH}px`;
+                };
+                const onResizeUp = () => {
+                  resizingRef.current = false;
+                  resizeStartRef.current = null;
+                  window.removeEventListener('pointermove', onResizeMove);
+                  window.removeEventListener('pointerup', onResizeUp);
+                };
+                window.addEventListener('pointermove', onResizeMove);
+                window.addEventListener('pointerup', onResizeUp);
+                return;
+              }
+
+              // otherwise ignore to allow text selection
             }}
             style={{
               position: 'absolute',
@@ -536,7 +584,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
                 <ul style={{ marginTop: 4, marginLeft: 12, listStyle: 'circle' }}>
                   {pageInfo.rules.map((r, idx) => (
                     <li key={idx} style={{ marginBottom: 6 }}>
-                              <div style={{ fontFamily: 'monospace', fontSize: 12, color: '#d9e2e6', whiteSpace: 'pre-wrap' }}>{r.selector}</div>
+                      <div style={{ fontFamily: 'monospace', fontSize: 12, color: '#d9e2e6' }}>{r.selector}</div>
                       {r.declarations && r.declarations.length > 0 && (
                         <ul style={{ marginTop: 4, marginLeft: 12, listStyle: 'square' }}>
                           {r.declarations.map((d, j) => (
@@ -544,6 +592,9 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
                           ))}
                         </ul>
                       )}
+                      {/* display size and margins as children summary */}
+                      {pageInfo.size && <div style={{ marginTop: 6, fontSize: 12, color: '#d9e2e6' }}>Page size: {pageInfo.size}</div>}
+                      {pageInfo.margins && pageInfo.margins.map((m, i) => (<div key={i} style={{ fontSize: 12, color: '#d9e2e6' }}>{m}</div>))}
                     </li>
                   ))}
                 </ul>
