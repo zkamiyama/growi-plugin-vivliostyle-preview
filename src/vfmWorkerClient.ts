@@ -6,6 +6,9 @@ export function createVfmClient() {
 
   const createWorkerFromUrl = () => new Worker('/vfm-worker.js');
 
+  // create worker from bundled worker file (Vite/Rollup will emit this as a separate chunk)
+  const createWorkerFromBundle = () => new Worker(new URL('./vfmWorker.worker.ts', import.meta.url), { type: 'module' });
+
   const createWorkerFromBlob = async () => {
     // try to fetch the worker script and create blob; fallback to embedded script if fetch fails
     try {
@@ -39,66 +42,64 @@ export function createVfmClient() {
         URL.revokeObjectURL(url);
         return w;
       } catch (e2) {
-        console.warn('[vfmWorkerClient] inline fetch-of-lib failed, falling back to importScripts blob', e2);
-        // last resort: inline importScripts (may fail under CSP)
-        const blob = new Blob([
-          `importScripts('https://unpkg.com/@vivliostyle/vfm@2.2.1/dist/vfm.min.js');\n` +
-          `self.onmessage = function(ev){ const seq=ev.data?.seq||null; const md=ev.data?.markdown||''; try{ const html=self.vfm.stringify(md); self.postMessage({seq,ok:true,html}); }catch(e){ self.postMessage({seq,ok:false,error:String(e)}); } };`
-        ], { type: 'application/javascript' });
-        const url = URL.createObjectURL(blob);
-        const w = new Worker(url);
-        URL.revokeObjectURL(url);
-        return w;
+        console.error('[vfmWorkerClient] inline fetch-of-lib failed; importScripts fallback disabled', e2);
+        throw e2;
       }
     }
   };
 
-  const ensureWorker = async () => {
-    if (worker) return worker;
+  const ensureWorker = async (): Promise<Worker> => {
+    if (worker) return worker as Worker;
     try {
-      // Prefer fetch-first: fetch the worker script, validate Content-Type and create a
-      // Worker from a Blob. This avoids the browser rejecting a Worker(url) when the
-      // server returns HTML or wrong MIME (x-content-type-options: nosniff makes it fatal).
+      // 1) Try bundled worker first (no network/CORS issues)
       try {
-        console.debug('[vfmWorkerClient] attempting fetch-first -> createWorkerFromBlob("/vfm-worker.js")');
-        worker = await createWorkerFromBlob();
-        console.debug('[vfmWorkerClient] worker created from fetch+blob or inline fallback');
-      } catch (e) {
-        console.warn('[vfmWorkerClient] fetch+blob fallback failed, attempting direct Worker("/vfm-worker.js") with ping', e);
-        // As a last resort try to create Worker from URL and ping it (old behavior)
-        worker = createWorkerFromUrl();
-        const pingOk = await new Promise<boolean>((resolve) => {
-          let done = false;
-          const timer = window.setTimeout(() => { if (!done) { done = true; resolve(false); } }, 1500);
-          const onMsg = (ev: MessageEvent) => {
-            const res = ev.data as { seq?: number } | undefined;
-            if (res && res.seq === 0) {
-              if (!done) { done = true; clearTimeout(timer); resolve(true); }
-            }
-          };
-          const onErr = (_ev: any) => { if (!done) { done = true; clearTimeout(timer); resolve(false); } };
-          // attach temporary handlers
-          worker!.addEventListener('message', onMsg as EventListener);
-          worker!.addEventListener('error', onErr as EventListener);
-          try { worker!.postMessage({ seq: 0, markdown: '' }); } catch (e) { if (!done) { done = true; clearTimeout(timer); resolve(false); } }
-        });
-        if (!pingOk) {
-          try { worker.terminate(); } catch (err) { /* ignore */ }
-          worker = null;
-          throw new Error('worker ping failed (possible wrong MIME or script error)');
+        console.debug('[vfmWorkerClient] attempting bundled worker createWorkerFromBundle()');
+        worker = createWorkerFromBundle();
+        console.debug('[vfmWorkerClient] worker created from bundled worker');
+      } catch (bundleErr) {
+        // 2) Try fetch-first -> Blob worker
+        try {
+          console.debug('[vfmWorkerClient] bundled worker failed, attempting fetch-first -> createWorkerFromBlob("/vfm-worker.js")', bundleErr);
+          worker = await createWorkerFromBlob();
+          console.debug('[vfmWorkerClient] worker created from fetch+blob or inline fallback');
+        } catch (e) {
+          // 3) Fallback: create worker from URL and ping it
+          console.warn('[vfmWorkerClient] fetch+blob fallback failed, attempting direct Worker("/vfm-worker.js") with ping', e);
+          worker = createWorkerFromUrl();
+          const pingOk = await new Promise<boolean>((resolve) => {
+            let done = false;
+            const timer = window.setTimeout(() => { if (!done) { done = true; resolve(false); } }, 1500);
+            const onMsg = (ev: MessageEvent) => {
+              const res = ev.data as { seq?: number } | undefined;
+              if (res && res.seq === 0) {
+                if (!done) { done = true; clearTimeout(timer); resolve(true); }
+              }
+            };
+            const onErr = (_ev: any) => { if (!done) { done = true; clearTimeout(timer); resolve(false); } };
+            // attach temporary handlers
+            worker!.addEventListener('message', onMsg as EventListener);
+            worker!.addEventListener('error', onErr as EventListener);
+            try { worker!.postMessage({ seq: 0, markdown: '' }); } catch (e2) { if (!done) { done = true; clearTimeout(timer); resolve(false); } }
+          });
+          if (!pingOk) {
+            try { worker.terminate(); } catch (err) { /* ignore */ }
+            worker = null;
+            throw new Error('worker ping failed (possible wrong MIME or script error)');
+          }
+          console.debug('[vfmWorkerClient] worker created and pinged /vfm-worker.js');
         }
-        console.debug('[vfmWorkerClient] worker created and pinged /vfm-worker.js');
       }
+
       worker.onmessage = (ev) => {
         const res = ev.data as { seq?: number; ok: boolean; html?: string; error?: string };
         console.debug('[vfmWorkerClient] worker.onmessage', res);
         const cb = pending.get(res.seq ?? -1);
         if (cb) { pending.delete(res.seq ?? -1); cb(res); }
       };
-      return worker;
-    } catch (e) {
-      console.error('[vfmWorkerClient] ensureWorker failed', e);
-      throw e;
+      return worker as Worker;
+    } catch (err) {
+      console.error('[vfmWorkerClient] ensureWorker failed', err);
+      throw err;
     }
   };
 
