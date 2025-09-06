@@ -402,16 +402,17 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   return (
     <div style={{
       width: '100%',
-      height: '100%',
+      minHeight: '100vh',
       position: 'relative',
       zIndex: 10,
-  background: '#2b2b2b',
+      background: '#2b2b2b',
       overflow: 'auto',
       display: 'flex',
       alignItems: 'center',
-      justifyContent: 'center'
+      justifyContent: 'center',
+      boxSizing: 'border-box'
     }}>
-        <div ref={viewerRef} style={{ padding: 24, overflow: 'auto', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div ref={viewerRef} style={{ padding: 24, overflow: 'auto', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
           {/* Fixed-size preview sheet. Page size comes from user CSS @page if provided, else A4 fallback. */}
           <div ref={sheetRef} style={{ width: pageWidth, height: pageHeight, background: '#fff', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', border: '1px solid #ddd', overflow: 'hidden', position: 'relative' }}>
           {errorMsg && (
