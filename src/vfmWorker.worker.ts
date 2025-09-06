@@ -76,9 +76,13 @@ self.addEventListener('message', (ev: MessageEvent) => {
         if (orig && typeof orig === 'object' && typeof orig.highlight === 'function') {
           const originalFn = orig.highlight.bind(orig);
           orig.highlight = function(a: any, b: any) {
-            try { console.debug('[vfmWorker][' + name + '.highlight] called', { lang: b, preview: (a && a.toString && a.toString().slice ? a.toString().slice(0,80) : String(a)).slice(0,80) }); } catch (e) { /* ignore */ }
+            try {
+              const preview = (a && a.toString && a.toString().slice ? a.toString().slice(0,80) : String(a)).slice(0,80);
+              const stack = (new Error()).stack;
+              console.debug('[vfmWorker][' + name + '.highlight] called', { lang: b, preview, stack });
+            } catch (e) { /* ignore */ }
             try { return originalFn(a, b); } catch (e) {
-              try { console.error('[vfmWorker][' + name + '.highlight] error', e); } catch (e2) { /* ignore */ }
+              try { console.error('[vfmWorker][' + name + '.highlight] error', e, (new Error()).stack); } catch (e2) { /* ignore */ }
               return { value: escapeHtml(String(a)) };
             }
           };
@@ -87,7 +91,7 @@ self.addEventListener('message', (ev: MessageEvent) => {
           // Provide a minimal shim that logs and returns escaped code
           globalObj[name] = {
             highlight: function(a: any, b: any) {
-              try { console.debug('[vfmWorker][' + name + '.highlight shim] called', { lang: b, preview: (a && a.toString && a.toString().slice ? a.toString().slice(0,80) : String(a)).slice(0,80) }); } catch (e) { /* ignore */ }
+              try { console.debug('[vfmWorker][' + name + '.highlight shim] called', { lang: b, preview: (a && a.toString && a.toString().slice ? a.toString().slice(0,80) : String(a)).slice(0,80), stack: (new Error()).stack }); } catch (e) { /* ignore */ }
               return { value: escapeHtml(String(a)) };
             },
           };
