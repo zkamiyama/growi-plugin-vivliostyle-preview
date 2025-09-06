@@ -1,7 +1,8 @@
+import './vfmWorker.setup';
 import { stringify } from '@vivliostyle/vfm';
 import MarkdownIt from 'markdown-it';
 
-self.addEventListener('message', (ev: MessageEvent) => {
+self.addEventListener('message', async (ev: MessageEvent) => {
   try {
     // Accept either object or JSON-string payloads. For robustness we prefer JSON string.
     let data: any = ev.data;
@@ -81,8 +82,13 @@ self.addEventListener('message', (ev: MessageEvent) => {
               const stack = (new Error()).stack;
               console.debug('[vfmWorker][' + name + '.highlight] called', { lang: b, preview, stack });
             } catch (e) { /* ignore */ }
+            // Defensive: if no language provided, avoid calling original highlight
+            // which may throw when grammar is missing. Return escaped HTML instead.
+            if (!b) {
+              return { value: escapeHtml(String(a)) };
+            }
             try { return originalFn(a, b); } catch (e) {
-              try { console.error('[vfmWorker][' + name + '.highlight] error', e, (new Error()).stack); } catch (e2) { /* ignore */ }
+              try { console.debug('[vfmWorker][' + name + '.highlight] error', e, (new Error()).stack); } catch (e2) { /* ignore */ }
               return { value: escapeHtml(String(a)) };
             }
           };
@@ -92,6 +98,7 @@ self.addEventListener('message', (ev: MessageEvent) => {
           globalObj[name] = {
             highlight: function(a: any, b: any) {
               try { console.debug('[vfmWorker][' + name + '.highlight shim] called', { lang: b, preview: (a && a.toString && a.toString().slice ? a.toString().slice(0,80) : String(a)).slice(0,80), stack: (new Error()).stack }); } catch (e) { /* ignore */ }
+              if (!b) return { value: escapeHtml(String(a)) };
               return { value: escapeHtml(String(a)) };
             },
           };
