@@ -24,15 +24,32 @@ export function createVfmClient() {
       URL.revokeObjectURL(url);
       return w;
     } catch (e) {
-      // fallback: small inline worker that imports vfm via importScripts
-      const blob = new Blob([
-        `importScripts('https://unpkg.com/@vivliostyle/vfm@2.2.1/dist/vfm.min.js');\n` +
-        `self.onmessage = function(ev){ const seq=ev.data?.seq||null; const md=ev.data?.markdown||''; try{ const html=self.vfm.stringify(md); self.postMessage({seq,ok:true,html}); }catch(e){ self.postMessage({seq,ok:false,error:String(e)}); } };`
-      ], { type: 'application/javascript' });
-      const url = URL.createObjectURL(blob);
-      const w = new Worker(url);
-      URL.revokeObjectURL(url);
-      return w;
+      // fallback: try to fetch the vfm lib on the main thread and inline it into the worker
+      try {
+        const libUrl = 'https://unpkg.com/@vivliostyle/vfm@2.2.1/dist/vfm.min.js';
+        console.debug('[vfmWorkerClient] attempting to fetch vfm lib to inline into worker', libUrl);
+        const libRes = await fetch(libUrl);
+        if (!libRes.ok) throw new Error('vfm lib fetch failed: ' + libRes.status);
+        const libTxt = await libRes.text();
+        const workerSrc = libTxt + '\n' +
+          `self.onmessage = function(ev){ var seq=ev.data&&ev.data.seq?ev.data.seq:null; var md=ev.data&&ev.data.markdown?ev.data.markdown:''; try{ var html=(typeof self.vfm!=='undefined'&&self.vfm.stringify)?self.vfm.stringify(md): (typeof vfm!=='undefined'&&vfm.stringify)?vfm.stringify(md): ''; self.postMessage({seq,ok:true,html}); }catch(e){ self.postMessage({seq,ok:false,error:String(e)}); } };`;
+        const blob = new Blob([workerSrc], { type: 'application/javascript' });
+        const url = URL.createObjectURL(blob);
+        const w = new Worker(url);
+        URL.revokeObjectURL(url);
+        return w;
+      } catch (e2) {
+        console.warn('[vfmWorkerClient] inline fetch-of-lib failed, falling back to importScripts blob', e2);
+        // last resort: inline importScripts (may fail under CSP)
+        const blob = new Blob([
+          `importScripts('https://unpkg.com/@vivliostyle/vfm@2.2.1/dist/vfm.min.js');\n` +
+          `self.onmessage = function(ev){ const seq=ev.data?.seq||null; const md=ev.data?.markdown||''; try{ const html=self.vfm.stringify(md); self.postMessage({seq,ok:true,html}); }catch(e){ self.postMessage({seq,ok:false,error:String(e)}); } };`
+        ], { type: 'application/javascript' });
+        const url = URL.createObjectURL(blob);
+        const w = new Worker(url);
+        URL.revokeObjectURL(url);
+        return w;
+      }
     }
   };
 
