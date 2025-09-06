@@ -16,12 +16,19 @@ self.addEventListener('message', (ev: MessageEvent) => {
     //  - lines like ``` undefined or ``` null -> ```text
     //  - any fence with empty/blank info string -> default to text
     try {
-      // exact empty fence
-      md = md.replace(/^(```|~~~)\s*$/gm, '$1 text');
-      // explicit 'undefined' or 'null' after fence
-      md = md.replace(/^(```|~~~)\s*(?:undefined|null)\s*$/gmi, '$1 text');
-      // fence with whitespace only
-      md = md.replace(/^(```|~~~)\s+$/gm, '$1 text');
+      // Normalize fence info by scanning fence openings robustly (handles CRLF).
+      md = md.replace(/(^|\r?\n)(```|~~~)([^\r\n]*)\r?\n/g, (match, pre, fence, info) => {
+        const infoTrim = (info || '').trim();
+        // if info is empty, 'undefined', 'null', or otherwise non-wordy, default to 'text'
+        if (!infoTrim || /^(?:undefined|null)$/i.test(infoTrim)) {
+          return `${pre}${fence} text\n`;
+        }
+        // if info contains only punctuation/quotes, treat as empty
+        if (!/[A-Za-z0-9_-]/.test(infoTrim)) {
+          return `${pre}${fence} text\n`;
+        }
+        return `${pre}${fence} ${infoTrim}\n`;
+      });
     } catch (e) {
       // ignore and proceed with original md
     }
