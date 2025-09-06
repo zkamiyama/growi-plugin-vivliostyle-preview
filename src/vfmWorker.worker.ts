@@ -38,21 +38,27 @@ self.addEventListener('message', (ev: MessageEvent) => {
     // Debug: emit normalized markdown preview so we can see what vfm receives
     try { console.debug('[vfmWorker][normalizedMd]', { seq, preview: md.slice(0, 200) }); } catch (e) { /* ignore */ }
     let html: string;
+    // Suppress uncaught error logging during stringify; capture errors and fallback.
+    const prevOnError = (self as any).onerror;
+    (self as any).onerror = () => true;
     try {
-      html = stringify(md);
-    } catch (e) {
+      try {
+        html = stringify(md);
+      } catch (e) {
       // vfm may throw when highlighter receives an invalid language; fall back to markdown-it
-      try {
-        console.error('[vfmWorker] vfm.stringify failed, falling back to markdown-it', e);
-      } catch (e2) { /* ignore */ }
-      try {
-        const mdIt = new MarkdownIt();
-        html = mdIt.render(md);
-        try { console.debug('[vfmWorker] fallback markdown-it rendered', { seq, htmlLen: html.length }); } catch (e2) { /* ignore */ }
-      } catch (e3) {
-        // last resort: empty html with error message
-        html = '<pre><code>Preview generation failed</code></pre>';
+        try { console.error('[vfmWorker] vfm.stringify failed, falling back to markdown-it', e); } catch (e2) { /* ignore */ }
+        try {
+          const mdIt = new MarkdownIt();
+          html = mdIt.render(md);
+          try { console.debug('[vfmWorker] fallback markdown-it rendered', { seq, htmlLen: html.length }); } catch (e2) { /* ignore */ }
+        } catch (e3) {
+          // last resort: empty html with error message
+          html = '<pre><code>Preview generation failed</code></pre>';
+        }
       }
+    } finally {
+      // restore previous handler
+      (self as any).onerror = prevOnError;
     }
     // respond with JSON string to avoid any library expecting string messages
     (self as any).postMessage(JSON.stringify({ seq, ok: true, html }));
