@@ -22,6 +22,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const infoRef = React.useRef<HTMLDivElement | null>(null);
   const draggingRef = React.useRef(false);
   const dragStartRef = React.useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const currentControllerRef = React.useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!isVisible) return;
@@ -34,57 +35,76 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       console.debug('[VivlioDBG][Preview] empty markdown');
       return;
     }
-    try {
-      const generated = stringify(markdown);
-      setFullHtml(generated);
-      setHtmlLen(generated.length);
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][Preview] html generated', { htmlLen: generated.length, sample: generated.slice(0, 120) });
-      // 素朴な @page 解析 (size / margin キー抽出)
+    // Cancel previous generation
+    if (currentControllerRef.current) {
+      currentControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    currentControllerRef.current = controller;
+    const signal = controller.signal;
+
+    // Async generation to allow cancellation
+    const generate = async () => {
+      if (signal.aborted) return;
       try {
-        const pageRuleMatch = generated.match(/@page[^}]*{[^}]*}/g);
-        if (pageRuleMatch && pageRuleMatch.length) {
-          const first = pageRuleMatch[0];
-          const sizeMatch = first.match(/size:\s*([^;]+);?/);
-          const marginMatches = Array.from(first.matchAll(/margin[a-z-]*:\s*[^;]+;?/g)).map(m => m[0]);
-          setPageInfo({
-            pageRuleFound: true,
-            size: sizeMatch ? sizeMatch[1].trim() : null,
-            margins: marginMatches,
-          });
-        } else {
+        const generated = stringify(markdown);
+        if (signal.aborted) return;
+        setFullHtml(generated);
+        setHtmlLen(generated.length);
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][Preview] html generated', { htmlLen: generated.length, sample: generated.slice(0, 120) });
+        // 素朴な @page 解析 (size / margin キー抽出)
+        try {
+          const pageRuleMatch = generated.match(/@page[^}]*{[^}]*}/g);
+          if (pageRuleMatch && pageRuleMatch.length) {
+            const first = pageRuleMatch[0];
+            const sizeMatch = first.match(/size:\s*([^;]+);?/);
+            const marginMatches = Array.from(first.matchAll(/margin[a-z-]*:\s*[^;]+;?/g)).map(m => m[0]);
+            setPageInfo({
+              pageRuleFound: true,
+              size: sizeMatch ? sizeMatch[1].trim() : null,
+              margins: marginMatches,
+            });
+          } else {
+            setPageInfo({ pageRuleFound: false });
+          }
+        } catch (e) {
           setPageInfo({ pageRuleFound: false });
         }
-      } catch (e) {
-        setPageInfo({ pageRuleFound: false });
-      }
-      // Use Blob URL instead of base64 data URL to avoid heavy base64 encoding on large HTML
-      try {
-        const blob = new Blob([generated], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        // revoke previous blob URL if any
-        if (blobUrlRef.current) {
-          try { URL.revokeObjectURL(blobUrlRef.current); } catch (e) { /* ignore */ }
+        // Use Blob URL instead of base64 data URL to avoid heavy base64 encoding on large HTML
+        try {
+          const blob = new Blob([generated], { type: 'text/html' });
+          const url = URL.createObjectURL(blob);
+          if (signal.aborted) return;
+          // revoke previous blob URL if any
+          if (blobUrlRef.current) {
+            try { URL.revokeObjectURL(blobUrlRef.current); } catch (e) { /* ignore */ }
+          }
+          blobUrlRef.current = url;
+          setEncodedLen(generated.length);
+          setDataUrl(url);
+        } catch (e) {
+          // fallback to data URL if Blob/URL.createObjectURL not available
+          const base64 = btoa(unescape(encodeURIComponent(generated)));
+          const url = `data:text/html;base64,${base64}`;
+          if (signal.aborted) return;
+          setEncodedLen(url.length);
+          setDataUrl(url);
         }
-        blobUrlRef.current = url;
-        setEncodedLen(generated.length);
-        setDataUrl(url);
-      } catch (e) {
-        // fallback to data URL if Blob/URL.createObjectURL not available
-        const base64 = btoa(unescape(encodeURIComponent(generated)));
-        const url = `data:text/html;base64,${base64}`;
-        setEncodedLen(url.length);
-        setDataUrl(url);
-      }
-      setErrorMsg(null);
+        setErrorMsg(null);
   // eslint-disable-next-line no-console
   console.debug('[VivlioDBG][Preview] dataUrl ready', { encodedLen: generated.length });
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('[VivlioDBG][Preview] stringify failed', e);
-      setErrorMsg((e as Error).message);
-      setDataUrl('');
-    }
+      } catch (e) {
+        if (signal.aborted) return;
+        // eslint-disable-next-line no-console
+        console.error('[VivlioDBG][Preview] stringify failed', e);
+        setErrorMsg((e as Error).message);
+        setDataUrl('');
+      }
+    };
+
+    // Use setTimeout to make it async and allow cancellation
+    setTimeout(generate, 0);
   }, [markdown, isVisible]);
 
   useEffect(() => {
@@ -145,10 +165,20 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   // If editorMd is present, regenerate fullHtml from it so renderer gets correct content.
   React.useEffect(() => {
     if (!editorMd) return;
+    // Cancel previous generation
+    if (currentControllerRef.current) {
+      currentControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    currentControllerRef.current = controller;
+    const signal = controller.signal;
+
     let to: number | null = null;
     const doGenerate = () => {
+      if (signal.aborted) return;
       try {
         const generated = stringify(editorMd);
+        if (signal.aborted) return;
         // quick validation: must contain <html and <body
         const looksLikeHtml = /<\s*!doctype|<html[\s>]/i.test(generated) && /<body[\s>]/i.test(generated);
         if (!looksLikeHtml) {
@@ -164,6 +194,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         try {
           const blob = new Blob([generated], { type: 'text/html' });
           const url = URL.createObjectURL(blob);
+          if (signal.aborted) return;
           if (blobUrlRef.current) {
             try { URL.revokeObjectURL(blobUrlRef.current); } catch (e) { /* ignore */ }
           }
@@ -173,6 +204,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         } catch (e) {
           const base64 = btoa(unescape(encodeURIComponent(generated)));
           const url = `data:text/html;base64,${base64}`;
+          if (signal.aborted) return;
           setEncodedLen(url.length);
           setDataUrl(url);
         }
@@ -181,6 +213,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         // eslint-disable-next-line no-console
         console.debug('[VivlioDBG][Preview] stringify(editorMd) ok', { htmlLen: generated.length, sample: generated.slice(0, 120) });
       } catch (e) {
+        if (signal.aborted) return;
         // eslint-disable-next-line no-console
         console.error('[VivlioDBG][Preview] stringify failed (editorMd)', e);
         setErrorMsg((e as Error).message);
@@ -292,6 +325,10 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       if (blobUrlRef.current) {
         try { URL.revokeObjectURL(blobUrlRef.current); } catch (e) { /* ignore */ }
         blobUrlRef.current = null;
+      }
+      if (currentControllerRef.current) {
+        currentControllerRef.current.abort();
+        currentControllerRef.current = null;
       }
     };
   }, []);
