@@ -20,8 +20,12 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [showInfo, setShowInfo] = useState(false);
   const [pageInfo, setPageInfo] = useState<{ size?: string|null; margins?: string[]; pageRuleFound: boolean }>({ pageRuleFound: false });
   const infoRef = React.useRef<HTMLDivElement | null>(null);
+  const handleRef = React.useRef<HTMLDivElement | null>(null);
   const draggingRef = React.useRef(false);
   const dragStartRef = React.useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const [lastSentMarkdown, setLastSentMarkdown] = useState<string | null>(null);
+  const [lastSentUserCss, setLastSentUserCss] = useState<string>('');
+  const [lastSentFinalCss, setLastSentFinalCss] = useState<string>('');
   const currentControllerRef = React.useRef<AbortController | null>(null);
   const vfmClient = React.useMemo(() => createVfmClient(), []);
 
@@ -48,6 +52,8 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     const generate = async () => {
       if (signal.aborted) return;
       try {
+  // record what markdown/css we are about to send
+  try { setLastSentMarkdown(markdown); setLastSentUserCss(extractUserCss(markdown || '')); } catch {}
         const generated = await vfmClient.stringify(markdown);
         if (signal.aborted) return;
         setFullHtml(generated);
@@ -408,14 +414,17 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         <div
           ref={infoRef}
           onPointerDown={(ev) => {
-            // ignore if target is interactive element
+            // Only start drag when pointer is on the header handle (so text selection in body remains possible)
             const t = ev.target as HTMLElement | null;
+            const header = handleRef.current;
+            if (!header) return;
             if (t && t.closest && t.closest('button,a,input,textarea,select')) return;
+            if (!header.contains(t)) return; // only allow drag from header
             const el = infoRef.current;
             if (!el) return;
             ev.preventDefault();
             const parent = el.offsetParent as HTMLElement | null;
-            const pRect = parent ? parent.getBoundingClientRect() : { left: 0, top: 0 } as DOMRect;
+            const pRect = parent ? parent.getBoundingClientRect() : ({ left: 0, top: 0 } as DOMRect);
             const rect = el.getBoundingClientRect();
             // switch from right to explicit left if using 'right' initially
             const left = rect.left - pRect.left;
@@ -466,7 +475,9 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           zIndex: 20
   }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <strong style={{ fontSize: 13, color: '#f3f4f6' }}>Vivliostyle Preview Info</strong>
+            <div ref={handleRef} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'grab' }}>
+              <strong style={{ fontSize: 13, color: '#f3f4f6' }}>Vivliostyle Preview Info</strong>
+            </div>
             <span style={{ marginLeft: 'auto' }}>
               <button
                 type="button"
@@ -495,6 +506,18 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
               <pre style={{ maxHeight: 200, overflow: 'auto', background: 'rgba(0,0,0,0.28)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6' }}>{fullHtml.slice(0, 1200)}</pre>
             </details>
           )}
+          {/* Show last sent markdown/css for debugging and copy-paste */}
+          <details style={{ marginTop: 8 }}>
+            <summary style={{ cursor: 'pointer' }}>Show sent markdown / CSS</summary>
+            <div style={{ marginTop: 6, display: 'flex', gap: 8, flexDirection: 'column' }}>
+              <label style={{ fontSize: 12, color: '#cfd6da' }}>Markdown sent to VFM (select & copy):</label>
+              <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6', userSelect: 'text' }}>{lastSentMarkdown || ''}</pre>
+              <label style={{ fontSize: 12, color: '#cfd6da' }}>Extracted user CSS (select & copy):</label>
+              <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6', userSelect: 'text' }}>{lastSentUserCss || ''}</pre>
+              <label style={{ fontSize: 12, color: '#cfd6da' }}>Final stylesheet passed to Renderer (select & copy):</label>
+              <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6', userSelect: 'text' }}>{finalUserStyleSheet || ''}</pre>
+            </div>
+          </details>
         </div>
       )}
     </div>
