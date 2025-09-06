@@ -360,13 +360,25 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       // when fit === 1, clear inline sizing so CSS (e.g. '210mm') applies.
       if (sheetRef.current) {
         if (fit < 1) {
-          sheetRef.current.style.width = `${Math.round(sRect.width * fit)}px`;
-          sheetRef.current.style.height = `${Math.round(sRect.height * fit)}px`;
+          const scaledW = Math.round(sRect.width * fit);
+          const scaledH = Math.round(sRect.height * fit);
+          sheetRef.current.style.width = `${scaledW}px`;
+          sheetRef.current.style.height = `${scaledH}px`;
           sheetRef.current.style.transform = '';
+          // ensure viewer has at least the sheet area + padding so background fills around it
+          if (viewerRef.current) {
+            const pad = 24 * 2; // viewer padding top+bottom or left+right
+            viewerRef.current.style.minWidth = `${scaledW + pad}px`;
+            viewerRef.current.style.minHeight = `${scaledH + pad}px`;
+          }
         } else {
           sheetRef.current.style.width = '';
           sheetRef.current.style.height = '';
           sheetRef.current.style.transform = '';
+          if (viewerRef.current) {
+            viewerRef.current.style.minWidth = '';
+            viewerRef.current.style.minHeight = '';
+          }
         }
       }
     }
