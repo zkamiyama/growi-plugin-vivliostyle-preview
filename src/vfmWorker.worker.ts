@@ -56,6 +56,50 @@ self.addEventListener('message', (ev: MessageEvent) => {
     }
     // Debug: emit normalized markdown preview so we can see what vfm receives
     try { console.debug('[vfmWorker][normalizedMd]', { seq, preview: md.slice(0, 200) }); } catch (e) { /* ignore */ }
+
+    // Install defensive handlers and wrappers to capture any highlighter calls
+    // that may throw (e.g. highlight.js / Prism). This helps us log the
+    // language argument and avoid uncaught exceptions during vfm.stringify.
+    try {
+      // Log unhandled promise rejections inside the worker
+      (self as any).onunhandledrejection = (ev: any) => {
+        try { console.error('[vfmWorker][unhandledrejection]', ev && ev.reason); } catch (e) { /* ignore */ }
+        // prevent default propagation
+        return true;
+      };
+
+      const escapeHtml = (s: string) => s.replace(/[&<>\"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'} as any)[c]);
+
+      const makeWrapper = (name: string) => {
+        const globalObj = (globalThis as any);
+        const orig = globalObj[name];
+        if (orig && typeof orig === 'object' && typeof orig.highlight === 'function') {
+          const originalFn = orig.highlight.bind(orig);
+          orig.highlight = function(a: any, b: any) {
+            try { console.debug('[vfmWorker][' + name + '.highlight] called', { lang: b, preview: (a && a.toString && a.toString().slice ? a.toString().slice(0,80) : String(a)).slice(0,80) }); } catch (e) { /* ignore */ }
+            try { return originalFn(a, b); } catch (e) {
+              try { console.error('[vfmWorker][' + name + '.highlight] error', e); } catch (e2) { /* ignore */ }
+              return { value: escapeHtml(String(a)) };
+            }
+          };
+          globalObj[name] = orig;
+        } else if (!globalObj[name]) {
+          // Provide a minimal shim that logs and returns escaped code
+          globalObj[name] = {
+            highlight: function(a: any, b: any) {
+              try { console.debug('[vfmWorker][' + name + '.highlight shim] called', { lang: b, preview: (a && a.toString && a.toString().slice ? a.toString().slice(0,80) : String(a)).slice(0,80) }); } catch (e) { /* ignore */ }
+              return { value: escapeHtml(String(a)) };
+            },
+          };
+        }
+      };
+
+      try { makeWrapper('hljs'); } catch (e) { /* ignore */ }
+      try { makeWrapper('Prism'); } catch (e) { /* ignore */ }
+      try { if (!(globalThis as any).highlight) { (globalThis as any).highlight = (a: any, b: any) => { try { console.debug('[vfmWorker][highlight shim] called', { lang: b }); } catch (e) {} return { value: escapeHtml(String(a)) }; }; } } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* defensive: if wrappers fail, continue without them */
+    }
     let html: string;
     // Suppress uncaught error logging during stringify; capture errors and fallback.
     const prevOnError = (self as any).onerror;
