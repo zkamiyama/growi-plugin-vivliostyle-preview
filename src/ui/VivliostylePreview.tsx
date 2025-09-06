@@ -599,8 +599,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
                   ))}
                 </ul>
               )}
-              {pageInfo.size && <li>Page size: {pageInfo.size}</li>}
-              {pageInfo.margins && pageInfo.margins.map((m, i) => (<li key={i}>{m}</li>))}
+              {/* page size/margins shown per-rule as children; no duplicate summary here */}
             </ul>
             {/* Details in order: Markdown (raw) -> HTML (VFM) -> CSS */}
             <details style={{ marginTop: 8 }}>
