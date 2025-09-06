@@ -444,138 +444,157 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             >i</button>
           )}
       {showInfo && (
-        <div
-          ref={infoRef}
-          onPointerDown={(ev) => {
-            // Only start drag when pointer is on the header handle (so text selection in body remains possible)
-            const t = ev.target as HTMLElement | null;
-            const header = handleRef.current;
-            if (!header) return;
-            if (t && t.closest && t.closest('button,a,input,textarea,select')) return;
-            if (!header.contains(t)) return; // only allow drag from header
-            const el = infoRef.current;
-            if (!el) return;
-            ev.preventDefault();
-            const parent = el.offsetParent as HTMLElement | null;
-            const pRect = parent ? parent.getBoundingClientRect() : ({ left: 0, top: 0 } as DOMRect);
-            const rect = el.getBoundingClientRect();
-            // switch from right to explicit left if using 'right' initially
-            const left = rect.left - pRect.left;
-            const top = rect.top - pRect.top;
-            el.style.left = `${left}px`;
-            el.style.right = 'auto';
-            el.style.top = `${top}px`;
-            draggingRef.current = true;
-            dragStartRef.current = { x: ev.clientX, y: ev.clientY, left, top };
-            const onMove = (e: PointerEvent) => {
-              if (!draggingRef.current || !dragStartRef.current || !el) return;
-              const dx = e.clientX - dragStartRef.current.x;
-              const dy = e.clientY - dragStartRef.current.y;
-              const newLeft = Math.max(0, dragStartRef.current.left + dx);
-              const newTop = Math.max(0, dragStartRef.current.top + dy);
-              el.style.left = `${newLeft}px`;
-              el.style.top = `${newTop}px`;
-            };
-            const onUp = () => {
-              draggingRef.current = false;
-              dragStartRef.current = null;
-              window.removeEventListener('pointermove', onMove);
-              window.removeEventListener('pointerup', onUp);
-            };
-            window.addEventListener('pointermove', onMove);
-            window.addEventListener('pointerup', onUp);
-          }}
-          style={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          width: 320,
-          maxHeight: '80%',
-          overflow: 'auto',
-          resize: 'both',
-          minWidth: 220,
-          minHeight: 120,
-          // darker frosted glass / Aero-like
-          background: 'rgba(18,20,22,0.56)',
-          backdropFilter: 'blur(8px) saturate(120%)',
-          border: '1px solid rgba(255,255,255,0.06)',
-          borderRadius: 8,
-          padding: '10px 12px',
-          fontSize: 12,
-          lineHeight: 1.4,
-          color: '#e6e6e6',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
-          zIndex: 20
-  }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <div ref={handleRef} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'grab' }}>
-              <strong style={{ fontSize: 13, color: '#f3f4f6' }}>Vivliostyle Preview Info</strong>
+        <>
+          <div
+            ref={infoRef}
+            onPointerDown={(ev) => {
+              // Only start drag when pointer is on the header handle (so text selection in body remains possible)
+              const t = ev.target as HTMLElement | null;
+              const header = handleRef.current;
+              if (!header) return;
+              if (t && t.closest && t.closest('button,a,input,textarea,select')) return;
+              if (!header.contains(t)) return; // only allow drag from header
+              const el = infoRef.current;
+              if (!el) return;
+              ev.preventDefault();
+              const parent = el.offsetParent as HTMLElement | null;
+              const pRect = parent ? parent.getBoundingClientRect() : ({ left: 0, top: 0 } as DOMRect);
+              const rect = el.getBoundingClientRect();
+              // switch from right to explicit left if using 'right' initially
+              const left = rect.left - pRect.left;
+              const top = rect.top - pRect.top;
+              el.style.left = `${left}px`;
+              el.style.right = 'auto';
+              el.style.top = `${top}px`;
+              draggingRef.current = true;
+              dragStartRef.current = { x: ev.clientX, y: ev.clientY, left, top };
+              const onMove = (e: PointerEvent) => {
+                if (!draggingRef.current || !dragStartRef.current || !el) return;
+                const dx = e.clientX - dragStartRef.current.x;
+                const dy = e.clientY - dragStartRef.current.y;
+                const newLeft = Math.max(0, dragStartRef.current.left + dx);
+                const newTop = Math.max(0, dragStartRef.current.top + dy);
+                el.style.left = `${newLeft}px`;
+                el.style.top = `${newTop}px`;
+              };
+              const onUp = () => {
+                draggingRef.current = false;
+                dragStartRef.current = null;
+                window.removeEventListener('pointermove', onMove);
+                window.removeEventListener('pointerup', onUp);
+              };
+              window.addEventListener('pointermove', onMove);
+              window.addEventListener('pointerup', onUp);
+            }}
+            style={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              width: 320,
+              maxHeight: '80%',
+              overflow: 'auto',
+              // use custom resizer at bottom-left instead of native resize
+              minWidth: 220,
+              minHeight: 120,
+              // darker frosted glass / Aero-like
+              background: 'rgba(18,20,22,0.56)',
+              backdropFilter: 'blur(8px) saturate(120%)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: 8,
+              padding: '10px 12px',
+              fontSize: 12,
+              lineHeight: 1.4,
+              color: '#e6e6e6',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+              zIndex: 20
+            }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <div ref={handleRef} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'grab' }}>
+                <strong style={{ fontSize: 13, color: '#f3f4f6' }}>Vivliostyle Preview Info</strong>
+              </div>
+              <span style={{ marginLeft: 'auto' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowInfo(false)}
+                  style={{
+                    border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0,
+                    color: '#d0d4d8'
+                  }}
+                  aria-label="close info"
+                >×</button>
+              </span>
             </div>
-            <span style={{ marginLeft: 'auto' }}>
-              <button
-                type="button"
-                onClick={() => setShowInfo(false)}
-                style={{
-                  border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0,
-                  color: '#d0d4d8'
-                }}
-                aria-label="close info"
-              >×</button>
-            </span>
-          </div>
-          <ul style={{ listStyle: 'disc', paddingLeft: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <li>Characters (Markdown): {markdown.length}</li>
-            <li>Lines: {markdown.split(/\r?\n/).length}</li>
-            <li>Words (approx): {markdown.trim() ? markdown.trim().split(/\s+/).length : 0}</li>
-            <li>HTML length: {htmlLen}</li>
-            <li>Data URL length: {encodedLen}</li>
-            <li>@page rules: {pageInfo.pageRuleFound ? '' : 'none'}</li>
-            {pageInfo.pageRuleFound && pageInfo.rules && pageInfo.rules.length > 0 && (
-              <ul style={{ marginTop: 4, marginLeft: 12, listStyle: 'circle' }}>
-                {pageInfo.rules.map((r, idx) => (
-                  <li key={idx} style={{ marginBottom: 6 }}>
-                    <div style={{ fontFamily: 'monospace', fontSize: 12, color: '#d9e2e6', whiteSpace: 'pre-wrap' }}>{r.raw}</div>
-                    {r.declarations && r.declarations.length > 0 && (
-                      <ul style={{ marginTop: 4, marginLeft: 12, listStyle: 'square' }}>
-                        {r.declarations.map((d, j) => (
-                          <li key={j} style={{ fontFamily: 'monospace', fontSize: 12, color: '#cfd6da' }}>{d}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {pageInfo.size && <li>Page size: {pageInfo.size}</li>}
-            {pageInfo.margins && pageInfo.margins.map((m, i) => (<li key={i}>{m}</li>))}
-          </ul>
-          {/* Details in order: Markdown (raw) -> HTML (VFM) -> CSS */}
-          <details style={{ marginTop: 8 }}>
-            <summary style={{ cursor: 'pointer' }}>Markdown (raw)</summary>
-            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 240, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6', userSelect: 'text' }}>{lastSentMarkdown || markdown || ''}</pre>
-          </details>
-
-          {fullHtml && (
+            <ul style={{ listStyle: 'disc', paddingLeft: 16, margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <li>Characters (Markdown): {markdown.length}</li>
+              <li>Lines: {markdown.split(/\r?\n/).length}</li>
+              <li>Words (approx): {markdown.trim() ? markdown.trim().split(/\s+/).length : 0}</li>
+              <li>@page rules: {pageInfo.pageRuleFound ? '' : 'none'}</li>
+              {pageInfo.pageRuleFound && pageInfo.rules && pageInfo.rules.length > 0 && (
+                <ul style={{ marginTop: 4, marginLeft: 12, listStyle: 'circle' }}>
+                  {pageInfo.rules.map((r, idx) => (
+                    <li key={idx} style={{ marginBottom: 6 }}>
+                      <div style={{ fontFamily: 'monospace', fontSize: 12, color: '#d9e2e6', whiteSpace: 'pre-wrap' }}>{r.raw}</div>
+                      {r.declarations && r.declarations.length > 0 && (
+                        <ul style={{ marginTop: 4, marginLeft: 12, listStyle: 'square' }}>
+                          {r.declarations.map((d, j) => (
+                            <li key={j} style={{ fontFamily: 'monospace', fontSize: 12, color: '#cfd6da' }}>{d}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {pageInfo.size && <li>Page size: {pageInfo.size}</li>}
+              {pageInfo.margins && pageInfo.margins.map((m, i) => (<li key={i}>{m}</li>))}
+            </ul>
+            {/* Details in order: Markdown (raw) -> HTML (VFM) -> CSS */}
             <details style={{ marginTop: 8 }}>
-              <summary style={{ cursor: 'pointer' }}>HTML (VFM)</summary>
-              <pre style={{ maxHeight: 240, overflow: 'auto', background: 'rgba(0,0,0,0.28)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6' }}>{fullHtml.slice(0, 1200)}</pre>
+              <summary style={{ cursor: 'pointer' }}>Markdown (raw)</summary>
+              <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 240, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6', userSelect: 'text' }}>{lastSentMarkdown || markdown || ''}</pre>
             </details>
-          )}
 
-          <details style={{ marginTop: 8 }}>
-            <summary style={{ cursor: 'pointer' }}>CSS</summary>
-            <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-              <div style={{ flex: 1, minWidth: 120 }}>
-                <label style={{ fontSize: 12, color: '#cfd6da' }}>User CSS (extracted)</label>
-                <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6', userSelect: 'text' }}>{lastSentUserCss || ''}</pre>
-              </div>
-              <div style={{ flex: 1, minWidth: 120 }}>
-                <label style={{ fontSize: 12, color: '#cfd6da' }}>Final stylesheet (passed to Renderer)</label>
-                <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6', userSelect: 'text' }}>{lastSentFinalCss || ''}</pre>
-              </div>
-            </div>
-          </details>
-        </div>
+            {fullHtml && (
+              <details style={{ marginTop: 8 }}>
+                <summary style={{ cursor: 'pointer' }}>HTML (VFM)</summary>
+                <pre style={{ maxHeight: 480, overflow: 'auto', background: 'rgba(0,0,0,0.28)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6' }}>{fullHtml}</pre>
+              </details>
+            )}
+
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: 'pointer' }}>Final CSS (Renderer)</summary>
+              <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 320, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6', userSelect: 'text' }}>{lastSentFinalCss || ''}</pre>
+            </details>
+          </div>
+          {/* custom resize handle (bottom-left) */}
+          {infoRef.current && (
+            <div
+              onPointerDown={(ev) => {
+                const el = infoRef.current;
+                if (!el) return;
+                ev.preventDefault();
+                const startX = ev.clientX;
+                const startY = ev.clientY;
+                const startRect = el.getBoundingClientRect();
+                const startWidth = startRect.width;
+                const startHeight = startRect.height;
+                const onMove = (e: PointerEvent) => {
+                  const dx = startX - e.clientX; // left handle: moving right reduces width
+                  const dy = e.clientY - startY; // moving down increases height
+                  const newWidth = Math.max(220, startWidth + dx);
+                  const newHeight = Math.max(120, startHeight + dy);
+                  el.style.width = `${newWidth}px`;
+                  el.style.height = `${newHeight}px`;
+                };
+                const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+                window.addEventListener('pointermove', onMove);
+                window.addEventListener('pointerup', onUp);
+              }}
+              style={{ position: 'absolute', left: 8, bottom: 8, width: 14, height: 14, background: 'rgba(255,255,255,0.06)', borderRadius: 2, cursor: 'nwse-resize', zIndex: 30 }}
+              aria-hidden
+            />
+          )}
+        </>
       )}
     </div>
   );
