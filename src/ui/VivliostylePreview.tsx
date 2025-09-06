@@ -18,7 +18,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const blobUrlRef = React.useRef<string | null>(null);
   const [editorMd, setEditorMd] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
-  const [pageInfo, setPageInfo] = useState<{ rules?: Array<{ raw: string; declarations: string[] }>; size?: string|null; margins?: string[]; pageRuleFound: boolean }>({ pageRuleFound: false });
+  const [pageInfo, setPageInfo] = useState<{ rules?: Array<{ selector?: string; declarations: string[] }>; size?: string|null; margins?: string[]; pageRuleFound: boolean }>({ pageRuleFound: false });
   const infoRef = React.useRef<HTMLDivElement | null>(null);
   const handleRef = React.useRef<HTMLDivElement | null>(null);
   const draggingRef = React.useRef(false);
@@ -66,10 +66,12 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           if (pageRuleMatch && pageRuleMatch.length) {
             const rules = pageRuleMatch.map((r) => {
               const raw = r.trim();
+              const headerMatch = raw.match(/^@page\s*([^\{]*)\{/i);
+              const selector = headerMatch ? headerMatch[1].trim() || '@page' : '@page';
               const insideMatch = raw.match(/\{([\s\S]*)\}/);
               const inside = insideMatch ? insideMatch[1] : '';
               const decls = inside.split(';').map(d => d.trim()).filter(Boolean).map(s => s.replace(/;$/, ''));
-              return { raw, declarations: decls };
+              return { selector, declarations: decls };
             });
             const first = pageRuleMatch[0];
             const sizeMatch = first.match(/size:\s*([^;]+);?/);
@@ -387,7 +389,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       height: '100%',
       position: 'relative',
       zIndex: 10,
-      background: '#e9ecef',
+  background: '#2b2b2b',
       overflow: 'auto',
       display: 'flex',
       alignItems: 'center',
@@ -534,7 +536,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
                 <ul style={{ marginTop: 4, marginLeft: 12, listStyle: 'circle' }}>
                   {pageInfo.rules.map((r, idx) => (
                     <li key={idx} style={{ marginBottom: 6 }}>
-                      <div style={{ fontFamily: 'monospace', fontSize: 12, color: '#d9e2e6', whiteSpace: 'pre-wrap' }}>{r.raw}</div>
+                              <div style={{ fontFamily: 'monospace', fontSize: 12, color: '#d9e2e6', whiteSpace: 'pre-wrap' }}>{r.selector}</div>
                       {r.declarations && r.declarations.length > 0 && (
                         <ul style={{ marginTop: 4, marginLeft: 12, listStyle: 'square' }}>
                           {r.declarations.map((d, j) => (
@@ -550,6 +552,10 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
               {pageInfo.margins && pageInfo.margins.map((m, i) => (<li key={i}>{m}</li>))}
             </ul>
             {/* Details in order: Markdown (raw) -> HTML (VFM) -> CSS */}
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: 'pointer' }}>User CSS (extracted from Markdown)</summary>
+              <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6', userSelect: 'text' }}>{userCss || ''}</pre>
+            </details>
             <details style={{ marginTop: 8 }}>
               <summary style={{ cursor: 'pointer' }}>Markdown (raw)</summary>
               <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 240, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6', userSelect: 'text' }}>{lastSentMarkdown || markdown || ''}</pre>
