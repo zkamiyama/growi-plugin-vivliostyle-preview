@@ -33,18 +33,29 @@ export function createVfmClient() {
     if (worker) return worker;
     try {
       try {
+        // Try to construct worker directly from URL first. This may throw in some hosts.
+        console.debug('[vfmWorkerClient] attempting Worker("/vfm-worker.js")');
         worker = createWorkerFromUrl();
+        console.debug('[vfmWorkerClient] worker created from /vfm-worker.js');
       } catch (e) {
-        // try blob fallback
-        worker = await createWorkerFromBlob();
+        console.warn('[vfmWorkerClient] Worker(/vfm-worker.js) failed, attempting fetch+blob fallback', e);
+        try {
+          worker = await createWorkerFromBlob();
+          console.debug('[vfmWorkerClient] worker created from blob/fetch fallback');
+        } catch (e2) {
+          console.error('[vfmWorkerClient] blob fallback failed, attempting inline blob worker', e2);
+          worker = await createWorkerFromBlob();
+        }
       }
       worker.onmessage = (ev) => {
         const res = ev.data as { seq?: number; ok: boolean; html?: string; error?: string };
+        console.debug('[vfmWorkerClient] worker.onmessage', res);
         const cb = pending.get(res.seq ?? -1);
         if (cb) { pending.delete(res.seq ?? -1); cb(res); }
       };
       return worker;
     } catch (e) {
+      console.error('[vfmWorkerClient] ensureWorker failed', e);
       throw e;
     }
   };
@@ -57,6 +68,7 @@ export function createVfmClient() {
       return new Promise((resolve, reject) => {
         pending.set(id, (r) => r.ok ? resolve(r.html!) : reject(new Error(r.error || 'unknown')));
         try {
+          console.debug('[vfmWorkerClient] postMessage to worker', { seq: id, len: markdown.length });
           w.postMessage({ seq: id, markdown });
         } catch (e) {
           pending.delete(id);
