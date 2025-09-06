@@ -11,9 +11,17 @@ self.addEventListener('message', (ev: MessageEvent) => {
     let md: string = data && data.markdown ? data.markdown : '';
     // Ensure fenced code blocks without language get a safe default to avoid
     // highlighter errors like "The language \"undefined\" has no grammar.".
-    // Replace lines that are exactly ``` (optionally with spaces) with ```text
+    // Handle several cases:
+    //  - lines that are exactly ``` or ~~~ -> ```text / ~~~text
+    //  - lines like ``` undefined or ``` null -> ```text
+    //  - any fence with empty/blank info string -> default to text
     try {
-      md = md.replace(/^```\s*$/gm, '```text');
+      // exact empty fence
+      md = md.replace(/^(```|~~~)\s*$/gm, '$1 text');
+      // explicit 'undefined' or 'null' after fence
+      md = md.replace(/^(```|~~~)\s*(?:undefined|null)\s*$/gmi, '$1 text');
+      // fence with whitespace only
+      md = md.replace(/^(```|~~~)\s+$/gm, '$1 text');
     } catch (e) {
       // ignore and proceed with original md
     }
