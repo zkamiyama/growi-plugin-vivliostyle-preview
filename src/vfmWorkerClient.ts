@@ -39,13 +39,17 @@ export function createVfmClient() {
   const ensureWorker = async () => {
     if (worker) return worker;
     try {
+      // Prefer fetch-first: fetch the worker script, validate Content-Type and create a
+      // Worker from a Blob. This avoids the browser rejecting a Worker(url) when the
+      // server returns HTML or wrong MIME (x-content-type-options: nosniff makes it fatal).
       try {
-        // Try to construct worker directly from URL first. This may succeed but the script
-        // may be served with wrong MIME (text/html). We'll detect that by sending a ping
-        // message (seq:0) and waiting briefly for a response or an error event.
-        console.debug('[vfmWorkerClient] attempting Worker("/vfm-worker.js")');
+        console.debug('[vfmWorkerClient] attempting fetch-first -> createWorkerFromBlob("/vfm-worker.js")');
+        worker = await createWorkerFromBlob();
+        console.debug('[vfmWorkerClient] worker created from fetch+blob or inline fallback');
+      } catch (e) {
+        console.warn('[vfmWorkerClient] fetch+blob fallback failed, attempting direct Worker("/vfm-worker.js") with ping', e);
+        // As a last resort try to create Worker from URL and ping it (old behavior)
         worker = createWorkerFromUrl();
-        // prepare a one-shot ping responder
         const pingOk = await new Promise<boolean>((resolve) => {
           let done = false;
           const timer = window.setTimeout(() => { if (!done) { done = true; resolve(false); } }, 1500);
@@ -62,21 +66,11 @@ export function createVfmClient() {
           try { worker!.postMessage({ seq: 0, markdown: '' }); } catch (e) { if (!done) { done = true; clearTimeout(timer); resolve(false); } }
         });
         if (!pingOk) {
-          // worker created but not responding (likely MIME/script error) -> fallback
-          try { worker.terminate(); } catch (e) { /* ignore */ }
+          try { worker.terminate(); } catch (err) { /* ignore */ }
           worker = null;
           throw new Error('worker ping failed (possible wrong MIME or script error)');
         }
         console.debug('[vfmWorkerClient] worker created and pinged /vfm-worker.js');
-      } catch (e) {
-        console.warn('[vfmWorkerClient] Worker(/vfm-worker.js) failed or unresponsive, attempting fetch+blob fallback', e);
-        try {
-          worker = await createWorkerFromBlob();
-          console.debug('[vfmWorkerClient] worker created from blob/fetch fallback');
-        } catch (e2) {
-          console.error('[vfmWorkerClient] blob fallback failed, attempting inline blob worker', e2);
-          worker = await createWorkerFromBlob();
-        }
       }
       worker.onmessage = (ev) => {
         const res = ev.data as { seq?: number; ok: boolean; html?: string; error?: string };
