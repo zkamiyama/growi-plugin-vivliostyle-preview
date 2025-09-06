@@ -28,7 +28,7 @@ const CM5_ROOTS = [
 ];
 
 export function useEditorMarkdown(opts: Options = {}) {
-  const { debounceMs = 200 } = opts;
+  const { debounceMs = 300 } = opts;
   const [markdown, setMarkdown] = React.useState<string>('');
   const lastRawRef = React.useRef<string>('');
   const attachPhaseRef = React.useRef<string>('init');
@@ -331,8 +331,10 @@ export function useEditorMarkdown(opts: Options = {}) {
                       try { read(); } catch (e) { /* ignore */ }
                     }
                   };
+                  // Observe only the editor root instead of document.body
+                  const editorRoot = view.dom?.closest('.cm-editor') || view.dom?.parentElement || document.body;
                   observerRef.current = new MutationObserver(mutationCb);
-                  observerRef.current.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true });
+                  observerRef.current.observe(editorRoot, { childList: true, subtree: true, characterData: true, attributes: true });
 
                   msgHandler = (ev: MessageEvent) => { try { read(); } catch (e) { /* ignore */ } };
                   window.addEventListener('message', msgHandler);

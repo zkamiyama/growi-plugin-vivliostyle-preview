@@ -1,8 +1,8 @@
 // ui/VivliostylePreview.tsx
 // Vivliostyle React Renderer を使って Markdown を即時プレビュー表示する最終版コンポーネント
 import React, { useState, useEffect } from 'react';
-import { stringify } from '@vivliostyle/vfm';
 import { Renderer } from '@vivliostyle/react';
+import { createVfmClient } from '../vfmWorkerClient';
 
 interface VivliostylePreviewProps {
   markdown: string;
@@ -23,6 +23,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const draggingRef = React.useRef(false);
   const dragStartRef = React.useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const currentControllerRef = React.useRef<AbortController | null>(null);
+  const vfmClient = React.useMemo(() => createVfmClient(), []);
 
   useEffect(() => {
     if (!isVisible) return;
@@ -47,7 +48,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     const generate = async () => {
       if (signal.aborted) return;
       try {
-        const generated = stringify(markdown);
+        const generated = await vfmClient.stringify(markdown);
         if (signal.aborted) return;
         setFullHtml(generated);
         setHtmlLen(generated.length);
@@ -103,8 +104,14 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       }
     };
 
-    // Use setTimeout to make it async and allow cancellation
-    setTimeout(generate, 0);
+    // Use scheduler.yield if available for better INP
+    const runGenerate = async () => {
+      await generate();
+      if (typeof (window as any).scheduler?.yield === 'function') {
+        await (window as any).scheduler.yield();
+      }
+    };
+    setTimeout(runGenerate, 0);
   }, [markdown, isVisible]);
 
   useEffect(() => {
@@ -174,10 +181,10 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     const signal = controller.signal;
 
     let to: number | null = null;
-    const doGenerate = () => {
+    const doGenerate = async () => {
       if (signal.aborted) return;
       try {
-        const generated = stringify(editorMd);
+        const generated = await vfmClient.stringify(editorMd);
         if (signal.aborted) return;
         // quick validation: must contain <html and <body
         const looksLikeHtml = /<\s*!doctype|<html[\s>]/i.test(generated) && /<body[\s>]/i.test(generated);
@@ -330,8 +337,9 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         currentControllerRef.current.abort();
         currentControllerRef.current = null;
       }
+      vfmClient.terminate();
     };
-  }, []);
+  }, [vfmClient]);
 
   return (
     <div style={{
@@ -362,6 +370,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
                   source={rendererSource as string}
                   bookMode={false}
                   userStyleSheet={finalUserStyleSheet}
+                  renderAllPages={false}
                 />
               </div>
             </div>
