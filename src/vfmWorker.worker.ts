@@ -11,7 +11,8 @@ self.addEventListener('message', async (ev: MessageEvent) => {
       try { data = JSON.parse(data); } catch (e) { /* leave as string */ }
     }
     const seq = data && (data.seq ?? null);
-    let md: string = data && data.markdown ? data.markdown : '';
+  let md: string = data && data.markdown ? data.markdown : '';
+  const options = data && data.options ? data.options : undefined;
   // originalMd intentionally not captured to reduce noise; we normalize fences below
     // Ensure fenced code blocks without language get a safe default to avoid
     // highlighter errors like "The language \"undefined\" has no grammar.".
@@ -45,9 +46,11 @@ self.addEventListener('message', async (ev: MessageEvent) => {
     // Suppress uncaught error logging during stringify; capture errors.
     const prevOnError = (self as any).onerror;
     (self as any).onerror = () => true;
-    try {
-      try {
-        html = stringify(md);
+        try {
+        try {
+        // Pass options through to vfm.stringify when provided. vfm may accept
+        // markdown-it options under an `md` key depending on implementation.
+        html = typeof options !== 'undefined' ? stringify(md, options) : stringify(md);
       } catch (e) {
         try { console.error('[vfmWorker] vfm.stringify failed', e); } catch (e2) { /* ignore */ }
         // No markdown-it fallback per request — return a simple error placeholder HTML

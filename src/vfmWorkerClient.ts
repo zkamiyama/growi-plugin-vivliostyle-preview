@@ -109,14 +109,14 @@ export function createVfmClient() {
   };
 
   return {
-    async stringify(markdown: string): Promise<string> {
+  async stringify(markdown: string, options?: any): Promise<string> {
       seq += 1;
       const id = seq;
       const w = await ensureWorker();
       return new Promise((resolve, reject) => {
         pending.set(id, (r) => r.ok ? resolve(r.html!) : reject(new Error(r.error || 'unknown')));
         try {
-          const payload = JSON.stringify({ seq: id, markdown });
+      const payload = JSON.stringify({ seq: id, markdown, options });
           console.debug('[vfmWorkerClient] postMessage to worker (json)', { seq: id, len: markdown.length });
           w.postMessage(payload);
         } catch (e) {
