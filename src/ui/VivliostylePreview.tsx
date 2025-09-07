@@ -52,12 +52,13 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     const signal = controller.signal;
 
     // Async generation to allow cancellation
-    const generate = async () => {
+      const generate = async () => {
       if (signal.aborted) return;
       try {
   // record what markdown/css we are about to send
   try { setLastSentMarkdown(markdown); setLastSentUserCss(extractUserCss(markdown || '')); } catch {}
-        const generated = await vfmClient.stringify(markdown);
+          const sanitized = removeVivlioCssBlocks(markdown || '');
+          const generated = await vfmClient.stringify(sanitized);
         if (signal.aborted) return;
         setFullHtml(generated);
         setHtmlLen(generated.length);
@@ -200,10 +201,11 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     const signal = controller.signal;
 
     let to: number | null = null;
-    const doGenerate = async () => {
+  const doGenerate = async () => {
       if (signal.aborted) return;
       try {
-        const generated = await vfmClient.stringify(editorMd);
+    const sanitizedEditor = removeVivlioCssBlocks(editorMd || '');
+    const generated = await vfmClient.stringify(sanitizedEditor);
         if (signal.aborted) return;
         // quick validation: must contain <html and <body
         const looksLikeHtml = /<\s*!doctype|<html[\s>]/i.test(generated) && /<body[\s>]/i.test(generated);
@@ -298,6 +300,15 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       }
     }
     return '';
+  };
+
+  // Remove all ```vivliocss ... ``` blocks from markdown so they are not
+  // rendered into the HTML by vfm. We keep extractUserCss to pull the CSS
+  // for insertion into the Renderer, but the markdown passed to vfm must
+  // have those fences removed.
+  const removeVivlioCssBlocks = (md: string) => {
+    if (!md) return md;
+    return md.replace(/```vivliocss\b[\s\S]*?```/ig, '').trim();
   };
 
   const userCss = extractUserCss(markdown || '');
