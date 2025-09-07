@@ -325,15 +325,12 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const pageHeight = pageSpec.height || '297mm';
   const pageMargin = pageSpec.margin || '0mm';
 
-  // Build final stylesheet to pass into Renderer. If user provided CSS, use it verbatim (user controls all CSS).
-  // If none provided, provide fallback A4 portrait no-margin + vertical writing-mode.
-  const finalUserStyleSheet = userCss
-    ? userCss
-    : `@page{size:${pageWidth} ${pageHeight}; margin:${pageMargin};} html,body{background:#fff !important;color:#222 !important;-webkit-font-smoothing:antialiased;font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Meiryo',sans-serif; height:100%; overflow:hidden !important;} body{writing-mode:vertical-rl !important; text-orientation:upright !important;} h1,h2,h3,h4,h5{color:#111 !important;} p{color:#222 !important;} a{color:#0645ad !important;}`;
+  // Pass user CSS if present. Do not inject a default stylesheet as a fallback.
+  const finalUserStyleSheet = userCss || '';
 
   // Keep a record of final stylesheet passed to Renderer for display
   React.useEffect(() => {
-    try { setLastSentFinalCss(finalUserStyleSheet); } catch {}
+  try { setLastSentFinalCss(finalUserStyleSheet || ''); } catch {}
   }, [finalUserStyleSheet]);
 
   // Refs for measuring and scaling
