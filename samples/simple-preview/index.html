@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Simple Vivliostyle Preview</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial; margin: 0; padding: 20px; background: #f2f4f6; }
+      .container { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 560px; gap: 16px; }
+      textarea { width: 100%; height: 640px; box-sizing: border-box; padding: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace; font-size: 13px; }
+      iframe { width: 100%; height: 640px; border: 1px solid #ccc; background: #fff; }
+      .controls { display:flex; gap:8px; margin-bottom:8px; }
+      button { padding: 8px 12px; border-radius:6px; border:1px solid #bbb; background:#fff; cursor:pointer; }
+      h1 { font-size: 18px; margin: 0 0 8px 0; }
+      .right { display:flex; flex-direction:column; }
+      pre.meta { background:#0b1220; color:#dbeafe; padding:8px; border-radius:6px; font-size:12px; overflow:auto; max-height: 120px; }
+    </style>
+  </head>
+  <body>
+    <h1>Simple md → vfm → Vivliostyle preview</h1>
+    <div class="container">
+      <div>
+        <div class="controls">
+          <button id="renderBtn">Render</button>
+          <button id="clearBtn">Clear</button>
+          <button id="sampleBtn">Load sample</button>
+        </div>
+        <textarea id="md" spellcheck="false"># Example
+
+```vivliocss
+@page { size: A5; margin: 24mm; }
+body { font-family: 'Hiragino Kaku Gothic ProN', sans-serif; }
+```
+
+This is a minimal demo of vivliostyle preview. The user CSS above is extracted from the fenced code block and injected into the generated HTML so @page rules are honored.
+
+## Section
+
+ここに縦書きや縦中横のテストを書いてください。
+
+- item 1
+- item 2
+</textarea>
+      </div>
+      <div class="right">
+        <div style="margin-bottom:8px"><strong>Preview</strong></div>
+        <iframe id="preview" sandbox="allow-same-origin allow-scripts"></iframe>
+        <div style="margin-top:10px">
+          <div style="font-size:13px; margin-bottom:6px"><strong>Last injected CSS</strong></div>
+          <pre id="injectedCss" class="meta">(none)</pre>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      // Load vfm from UNPKG (ES module build). Using an explicit version helps reproducibility.
+      const vfmModuleUrl = 'https://unpkg.com/@vivliostyle/vfm@2.2.1/dist/vfm.esm.js';
+
+      let vfm = null;
+      try {
+        const mod = await import(vfmModuleUrl);
+        // the module may export `VFM` or named exports; prefer `stringify` if available
+        vfm = mod && (mod.stringify ? mod : (mod.VFM && mod.VFM.stringify ? mod.VFM : mod));
+      } catch (e) {
+        console.error('Failed to import vfm from', vfmModuleUrl, e);
+        document.getElementById('preview').srcdoc = `<pre style="padding:20px;color:#900">Failed to load vfm module: ${String(e)}</pre>`;
+      }
+
+      const mdEl = document.getElementById('md');
+      const iframe = document.getElementById('preview');
+      const injectedCssEl = document.getElementById('injectedCss');
+
+      const extractUserCss = (md) => {
+        const m = md.match(/```vivliocss\s*([\s\S]*?)```/i);
+        return m ? m[1].trim() : '';
+      };
+
+      const removeUserCssFences = (md) => md.replace(/```vivliocss\b[\s\S]*?```/ig, '').trim();
+
+      const render = async () => {
+        if (!vfm) return;
+        const md = mdEl.value || '';
+        const userCss = extractUserCss(md);
+        const sanitized = removeUserCssFences(md);
+
+        let html = null;
+        try {
+          // vfm may be exported as default or under VFM; try to call stringify
+          const stringify = vfm.stringify || (vfm.VFM && vfm.VFM.stringify) || vfm.default && vfm.default.stringify;
+          if (!stringify) throw new Error('vfm.stringify not found on imported module');
+          html = stringify(sanitized);
+        } catch (e) {
+          console.error('vfm.stringify failed', e);
+          iframe.srcdoc = `<pre style="padding:20px;color:#900">vfm.stringify failed: ${String(e)}</pre>`;
+          return;
+        }
+
+        // Inject user CSS into generated HTML's head so @page rules are available at load time
+        let finalHtml = html;
+        if (userCss && userCss.trim()) {
+          const styleTag = `<style id="vivlio-user-css">${userCss}</style>`;
+          if (/\<\s*head[^>]*>/i.test(finalHtml)) {
+            finalHtml = finalHtml.replace(/<\s*\/head\s*>/i, `${styleTag}</head>`);
+          } else if (/\<\s*html[^>]*>/i.test(finalHtml)) {
+            finalHtml = finalHtml.replace(/<\s*html[^>]*>/i, (m) => `${m}\n${styleTag}`);
+          } else {
+            finalHtml = styleTag + finalHtml;
+          }
+        } else {
+          // ensure a reasonable default @page if none is present
+          if (!/@page\b/i.test(finalHtml)) {
+            const defaultStyle = `<style>@page{size:A4;margin:20mm;}</style>`;
+            if (/\<\s*head[^>]*>/i.test(finalHtml)) {
+              finalHtml = finalHtml.replace(/<\s*\/head\s*>/i, `${defaultStyle}</head>`);
+            } else {
+              finalHtml = defaultStyle + finalHtml;
+            }
+          }
+        }
+
+        iframe.srcdoc = finalHtml;
+        injectedCssEl.textContent = userCss || '(none)';
+      };
+
+      document.getElementById('renderBtn').addEventListener('click', render);
+      document.getElementById('clearBtn').addEventListener('click', () => { mdEl.value = ''; injectedCssEl.textContent = '(none)'; iframe.srcdoc = ''; });
+      document.getElementById('sampleBtn').addEventListener('click', () => {
+        mdEl.value = '# Sample with custom page\\n\\n```vivliocss\\n@page { size: A5; margin: 30mm; }\\nbody { font-family: serif; }\\n```\\n\\nThis is sample content to demonstrate page margins.';
+      });
+
+      // initial render
+      setTimeout(() => { render().catch(() => {}); }, 50);
+    </script>
+  </body>
+</html>
