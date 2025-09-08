@@ -3,7 +3,31 @@ export function ensureHostIsolationCss() {
   const id = 'vivlio-host-isolation';
   if (document.getElementById(id)) return;
 
+  // Two strategies:
+  // 1) Create exclusion rules so typical global resets (e.g. `*, *::before, *::after { box-sizing: border-box }`)
+  //    won't apply to vivliostyle host containers. This is the preferred, non-invasive approach.
+  // 2) Provide a minimal, targeted override for the most harmful properties as a fallback.
   const css = `
+/* Exclude vivliostyle host containers from broad global resets (non-invasive) */
+*:where(:not([data-vivliostyle-outer-zoom-box],
+             [data-vivliostyle-spread-container],
+             [data-vivliostyle-page-container],
+             [data-vivliostyle-bleed-box],
+             [data-vivliostyle-page-box]))::before,
+*:where(:not([data-vivliostyle-outer-zoom-box],
+             [data-vivliostyle-spread-container],
+             [data-vivliostyle-page-container],
+             [data-vivliostyle-bleed-box],
+             [data-vivliostyle-page-box]))::after,
+*:where(:not([data-vivliostyle-outer-zoom-box],
+             [data-vivliostyle-spread-container],
+             [data-vivliostyle-page-container],
+             [data-vivliostyle-bleed-box],
+             [data-vivliostyle-page-box])) {
+  /* leave global resets as-is for other elements */
+}
+
+/* Fallback: minimal, targeted override to ensure layout calculations assume content-box */
 .vivlio-simple-viewer [data-vivliostyle-outer-zoom-box],
 .vivlio-simple-viewer [data-vivliostyle-spread-container],
 .vivlio-simple-viewer [data-vivliostyle-page-container],

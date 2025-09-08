@@ -39,33 +39,11 @@ export function buildVfmHtml(markdown: string, options?: {
   });
 
   // 2) インラインCSSを <head> に足す（CORSを避けるための推奨策）
-  // Isolation CSS: prevent host/global CSS from leaking into Vivliostyle internals
-  // Use `revert`/`initial` carefully; `revert` restores the cascade to user-agent or user styles.
-  // Add high-specificity reset for known Vivliostyle container attributes to keep layout calculations stable.
-  const isolationCss = `
-/* Vivliostyle isolation: prevent host CSS leakage which can break centering */
-[data-vivliostyle-outer-zoom-box],
-[data-vivliostyle-spread-container],
-[data-vivliostyle-page-container],
-[data-vivliostyle-bleed-box],
-[data-vivliostyle-page-area],
-[data-vivliostyle-page-box] {
-  all: revert !important;
-  box-sizing: content-box !important; /* ensure original content-box for layout calc */
-}
-
-/* additionally ensure pseudo elements inside these containers are reset */
-[data-vivliostyle-outer-zoom-box]::before,
-[data-vivliostyle-outer-zoom-box]::after,
-[data-vivliostyle-spread-container]::before,
-[data-vivliostyle-spread-container]::after,
-[data-vivliostyle-page-container]::before,
-[data-vivliostyle-page-container]::after {
-  all: revert !important;
-}
-`;
-
-  let finalCss = isolationCss + '\n' + baseCss;
+  // NOTE: Do NOT use `all: revert` or similar here — Vivliostyle's host-level
+  // containers are created in the host document and content-side `revert` will
+  // undo Vivliostyle's own layout rules, breaking centering. Host-side
+  // isolation/overrides are applied elsewhere.
+  let finalCss = baseCss;
   if (inlineCss) {
     finalCss += '\n' + inlineCss;
   }
