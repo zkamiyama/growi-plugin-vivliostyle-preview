@@ -27,20 +27,25 @@
 
 /* The actual paper including bleed/crop is represented by data-vivliostyle-bleed-box */
 [data-vivliostyle-bleed-box] {
-  background: #fff; /* white paper */
-  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
   border: 1px solid #ddd;
 }
 
 /* Page area includes the margin as border-width via Vivliostyle implementation */
 [data-vivliostyle-page-area] {
-  background: rgba(144, 238, 144, 0.18); /* translucent green for margin visualization (debug) */
+  background: rgba(144, 238, 144, .25); /* translucent green for margin visualization (debug) */
   background-clip: border-box; /* ensure background covers border (= margin) */
 }
 
 /* page-box is the content area (smaller when @page margin is present) */
 [data-vivliostyle-page-box] {
-  background: rgba(100, 149, 237, 0.12); /* translucent blue for content area (debug) */
+  background: rgba(100, 149, 237, .25);
+  /* Center the page-box within its container to avoid left-top anchoring */
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 /* Avoid double-paper: hide any external sheet wrapper created outside Renderer */
