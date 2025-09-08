@@ -7,6 +7,7 @@ import PreviewShell from './src/ui/PreviewShell';
 import ExternalToggle from './src/ui/ExternalToggle';
 import { AppProvider } from './src/context/AppContext';
 import config from './package.json';
+import { ensureHostIsolationCss } from './src/vfm/hostIsolation';
 
 // 早期ロード確認ログ (script が読み込まれているか最初に出る)
 // eslint-disable-next-line no-console
@@ -66,6 +67,8 @@ function mount() {
   }
 
   // --- プレビュー & トグル単一ルートマウント ---
+  // Ensure host-side isolation CSS is installed before mounting renderer
+  try { ensureHostIsolationCss(); } catch (e) { /* ignore */ }
   const previewContainer = locatePreviewContainer();
   // eslint-disable-next-line no-console
   console.debug('[VivlioDBG][mount] query preview container', { found: !!previewContainer, candidates: PREVIEW_CONTAINER_CANDIDATES });

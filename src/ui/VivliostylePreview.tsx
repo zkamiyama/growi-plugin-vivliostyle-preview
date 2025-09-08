@@ -126,7 +126,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   }
 
   return (
-    <div style={{ height: '100%', width: '100%', position: 'relative' }}>
+    <div className="vivlio-simple-viewer" style={{ height: '100%', width: '100%', position: 'relative' }}>
       {/* Information button */}
       <button
         onClick={() => setShowInfo(!showInfo)}
