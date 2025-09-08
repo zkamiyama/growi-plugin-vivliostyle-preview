@@ -3,7 +3,7 @@ import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import PreviewShell from './src/ui/PreviewShell';
 // Plugin-specific preview styles
-import './src/styles/preview.css';
+// import './src/styles/preview.css';
 import ExternalToggle from './src/ui/ExternalToggle';
 import { AppProvider } from './src/context/AppContext';
 import config from './package.json';
