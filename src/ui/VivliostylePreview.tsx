@@ -340,6 +340,33 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   // Pass user CSS if present. Do not inject a default stylesheet as a fallback.
   const finalUserStyleSheet = userCss || '';
 
+  // Injected helper CSS applied inside the Vivliostyle-rendered document.
+  // - style the bleed/page-area/page-box per recommendation
+  // - ensure the bleed-box (paper) is centered inside the renderer document
+  const injectedRendererCss = `
+/* Plugin-injected: center bleed-box and visual helpers */
+html, body { height: 100%; margin: 0; padding: 0; }
+body { display: flex; align-items: center; justify-content: center; }
+
+[data-vivliostyle-bleed-box] {
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  border: 1px solid #ddd;
+}
+
+[data-vivliostyle-page-area] {
+  background: rgba(144, 238, 144, .25);
+  background-clip: border-box;
+}
+
+[data-vivliostyle-page-box] {
+  background: rgba(100, 149, 237, .25);
+}
+`;
+
+  // Combine user's extracted CSS with our injected helpers so they both apply inside the Renderer.
+  const rendererUserStyleSheet = `${finalUserStyleSheet}\n${injectedRendererCss}`;
+
   // Keep a record of final stylesheet passed to Renderer for display
   React.useEffect(() => {
   try { setLastSentFinalCss(finalUserStyleSheet || ''); } catch {}
@@ -546,7 +573,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
                       /* keep stable mounting */
                       source={rendererSource as string}
                       bookMode={false}
-                      userStyleSheet={finalUserStyleSheet}
+                      userStyleSheet={rendererUserStyleSheet}
                       renderAllPages={false}
                     />
                   </div>

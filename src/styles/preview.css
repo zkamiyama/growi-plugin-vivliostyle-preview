@@ -41,11 +41,9 @@
 /* page-box is the content area (smaller when @page margin is present) */
 [data-vivliostyle-page-box] {
   background: rgba(100, 149, 237, .25);
-  /* Center the page-box within its container to avoid left-top anchoring */
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  /* page-box is the content area (smaller when @page margin is present).
+     Do NOT change positioning here — centering must be handled by the host
+     container (parent) or injected stylesheet inside the renderer. */
 }
 
 /* Avoid double-paper: hide any external sheet wrapper created outside Renderer */
