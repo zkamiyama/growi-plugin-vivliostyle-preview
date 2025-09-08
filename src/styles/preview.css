@@ -1,3 +1,59 @@
+/* ===== 1) プレビュー領域（親）を常に全面＆中央寄せ ===== */
+#vivlio-preview-container {
+  position: absolute;
+  inset: 0;                /* top/right/bottom/left:0 の短縮 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* 内側にスクロール余地を作りたい場合はこれを別ラッパに付与 */
+.vivlio-scroll {
+  padding: 24px;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* ===== 2) 用紙は Vivliostyle の bleed-box を装飾 =====
+   ※“外側に自作の白い板”は使わず、必ずココを装飾する */
+[data-vivliostyle-bleed-box] {
+  background: #fff;
+  border: 1px solid #ddd;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+}
+
+/* ===== 3) 余白込み / 本文だけ を見分けたい（デバッグ用） =====
+   本番では消してOK。誤って page-box を“用紙”だと思わないための可視化。 */
+[data-vivliostyle-page-area] {      /* 余白込み（borderが余白相当） */
+  background: rgba(144, 238, 144, .20);
+}
+[data-vivliostyle-page-box] {       /* 本文だけ（余白を引いた箱） */
+  background: rgba(100, 149, 237, .20);
+}
+
+/* ===== 4) デフォルトのページ設定（必要に応じて調整） =====
+   @page はインラインでは書けない → CSSファイルに置くのが正解 */
+@page {
+  size: 148mm 210mm;   /* A5 縦 */
+  margin: 20mm;        /* ここを変えれば本文箱が縮む（仕様） */
+}
+
+/* 文書全体のベース（プレビュー用途の最低限） */
+html, body {
+  margin: 0;
+  padding: 0;
+  color: #000;
+  background: transparent; /* “用紙の白”は bleed-box にだけ付与 */
+}
+
+/* 縦組みをデフォルトにしたいなら（任意） */
+html {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
 /* styles/preview.css (container replacement mode) */
 
 #vivlio-preview-container {
