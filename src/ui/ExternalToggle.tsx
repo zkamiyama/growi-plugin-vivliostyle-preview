@@ -61,7 +61,7 @@ function findAnchorOnce(): HTMLElement | null {
 }
 
 export const ExternalToggle: React.FC = () => {
-  const { isOpen, toggle } = useAppContext();
+  const { isOpen, toggle, forceUpdateMarkdown } = useAppContext();
   const [wrapperEl, setWrapperEl] = React.useState<HTMLElement | null>(null);
   const [anchorClasses, setAnchorClasses] = React.useState<string>('');
   const [anchorMetrics, setAnchorMetrics] = React.useState<Record<string, string> | null>(null);
@@ -322,6 +322,42 @@ export const ExternalToggle: React.FC = () => {
       onClick={(e) => {
         // eslint-disable-next-line no-console
         console.debug('[VivlioDBG][ExternalToggle] click', { isOpenBefore: isOpen, time: Date.now(), anchorClasses });
+        // Try to synchronously read current editor Markdown and push it into context so
+        // the Vivliostyle preview uses the freshest content when opened.
+        try {
+          const readEditorMarkdown = (): string => {
+            try {
+              // Try CodeMirror6 EditorView first
+              const EditorView = (window as any).EditorView || (window as any).CodeMirror?.EditorView;
+              if (EditorView && typeof EditorView.findFromDOM === 'function') {
+                const cmRoot = document.querySelector('.cm-editor') as HTMLElement | null;
+                if (cmRoot) {
+                  const view = EditorView.findFromDOM(cmRoot);
+                  if (view && view.state) {
+                    if (view.state.doc && typeof view.state.doc.toString === 'function') return view.state.doc.toString();
+                    if (typeof view.state.sliceDoc === 'function') return view.state.sliceDoc();
+                  }
+                }
+              }
+            } catch (e) { /* ignore */ }
+            try {
+              // Fallback: visible textarea selectors
+              const ta = document.querySelector('textarea.editor, #page-editor textarea, .page-editor textarea, [data-testid="editor-textarea"]') as HTMLTextAreaElement | null;
+              if (ta) return ta.value;
+            } catch (e) { /* ignore */ }
+            try {
+              // CM5 hidden textarea fallback
+              const hidden = document.querySelector('.CodeMirror textarea') as HTMLTextAreaElement | null;
+              if (hidden) return hidden.value;
+            } catch (e) { /* ignore */ }
+            return '';
+          };
+          const md = readEditorMarkdown();
+          if (md && typeof forceUpdateMarkdown === 'function') {
+            try { forceUpdateMarkdown(md); } catch (e) { /* ignore */ }
+          }
+        } catch (e) { /* ignore */ }
+
         toggle();
       }}
       aria-pressed={isOpen}
