@@ -531,7 +531,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     }}>
         <div ref={viewerRef} style={{ padding: 24, overflow: 'auto', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', maxWidth: '100%', maxHeight: '100%', boxSizing: 'border-box' }}>
           {/* Fixed-size preview sheet. Page size comes from user CSS @page if provided, else A4 fallback. */}
-          <div ref={sheetRef} style={{ width: pageWidth, height: pageHeight, background: '#fff', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', border: '1px solid #ddd', overflow: 'hidden', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div ref={sheetRef} style={{ width: pageWidth, height: pageHeight, overflow: 'hidden', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {errorMsg && (
             <div style={{ position: 'absolute', top: 8, right: 8, left: 8, padding: '8px 10px', background: '#ffeeee', border: '1px solid #e99', color: '#a00', fontSize: 12, borderRadius: 4 }}>
               VFM Error: {errorMsg}
