@@ -61,7 +61,23 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           const sanitized = removeVivlioCssBlocks(markdown || '');
           const generated = await vfmClient.stringify(sanitized);
         if (signal.aborted) return;
-        setFullHtml(generated);
+        // If user provided vivliocss, inject it into the generated HTML so @page rules
+        // are present during the renderer's layout pass (some engines read @page only
+        // from document styles at load time).
+        let finalGenerated = generated;
+        if (finalUserStyleSheet && finalUserStyleSheet.trim()) {
+          const styleTag = `<style id="vivlio-user-css">${finalUserStyleSheet}</style>`;
+          if (/</.test(finalGenerated) && /<\s*head[^>]*>/i.test(finalGenerated)) {
+            finalGenerated = finalGenerated.replace(/<\s*\/head\s*>/i, `${styleTag}</head>`);
+          } else if (/</.test(finalGenerated) && /<\s*html[^>]*>/i.test(finalGenerated)) {
+            // insert after <html> if no head
+            finalGenerated = finalGenerated.replace(/<\s*html[^>]*>/i, (m) => `${m}\n${styleTag}`);
+          } else {
+            // fallback: prepend
+            finalGenerated = styleTag + finalGenerated;
+          }
+        }
+        setFullHtml(finalGenerated);
         setHtmlLen(generated.length);
         // eslint-disable-next-line no-console
         console.debug('[VivlioDBG][Preview] html generated', { htmlLen: generated.length, sample: generated.slice(0, 120) });
@@ -95,7 +111,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         }
         // Use Blob URL instead of base64 data URL to avoid heavy base64 encoding on large HTML
         try {
-          const blob = new Blob([generated], { type: 'text/html' });
+          const blob = new Blob([finalGenerated], { type: 'text/html' });
           const url = URL.createObjectURL(blob);
           if (signal.aborted) return;
           // revoke previous blob URL if any
@@ -218,7 +234,19 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           // don't update dataUrl/fullHtml to avoid feeding broken content to Renderer
           return;
         }
-        setFullHtml(generated);
+        // Inject user CSS into generated HTML as described above
+        let finalGenerated = generated;
+        if (finalUserStyleSheet && finalUserStyleSheet.trim()) {
+          const styleTag = `<style id="vivlio-user-css">${finalUserStyleSheet}</style>`;
+          if (/</.test(finalGenerated) && /<\s*head[^>]*>/i.test(finalGenerated)) {
+            finalGenerated = finalGenerated.replace(/<\s*\/head\s*>/i, `${styleTag}</head>`);
+          } else if (/</.test(finalGenerated) && /<\s*html[^>]*>/i.test(finalGenerated)) {
+            finalGenerated = finalGenerated.replace(/<\s*html[^>]*>/i, (m) => `${m}\n${styleTag}`);
+          } else {
+            finalGenerated = styleTag + finalGenerated;
+          }
+        }
+        setFullHtml(finalGenerated);
         setHtmlLen(generated.length);
         try {
           // Extract @page rules for info panel
@@ -241,7 +269,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             }
           } catch (e) { setPageInfo({ pageRuleFound: false, rules: [] }); }
 
-          const blob = new Blob([generated], { type: 'text/html' });
+          const blob = new Blob([finalGenerated], { type: 'text/html' });
           const url = URL.createObjectURL(blob);
           if (signal.aborted) return;
           if (blobUrlRef.current) {
@@ -343,7 +371,13 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   // Injected helper CSS applied inside the Vivliostyle-rendered document.
   // - style the bleed/page-area/page-box per recommendation
   // - ensure the bleed-box (paper) is centered inside the renderer document
-  const injectedRendererCss = `
+  // NOTE: if the user supplied an @page rule in their extracted CSS, prefer the user's rule
+  // so we do not override page size/margins. We therefore omit the default @page when
+  // a user @page exists and ensure the user's CSS is placed after the injected helpers
+  // so it takes precedence.
+  const userHasAtPage = /@page\b/i.test(finalUserStyleSheet);
+
+  const injectedRendererCssBase = `
 /* Plugin-injected: center bleed-box and visual helpers */
 html, body { height: 100%; margin: 0; padding: 0; }
 body { display: flex; align-items: center; justify-content: center; }
@@ -362,11 +396,13 @@ body { display: flex; align-items: center; justify-content: center; }
 [data-vivliostyle-page-box] {
   background: rgba(100, 149, 237, .25);
 }
-@page { size: 148mm 210mm; margin: 20mm; }
 `;
 
-  // Combine user's extracted CSS with our injected helpers so they both apply inside the Renderer.
-  const rendererUserStyleSheet = `${finalUserStyleSheet}\n${injectedRendererCss}`;
+  const injectedRendererCss = userHasAtPage ? injectedRendererCssBase : injectedRendererCssBase + `\n@page { size: 148mm 210mm; margin: 20mm; }\n`;
+
+  // Combine injected helpers (defaults) with user's stylesheet. User CSS is appended so
+  // that user-defined @page / rules override defaults when present.
+  const rendererUserStyleSheet = `${injectedRendererCss}\n${finalUserStyleSheet}`;
 
   // Keep a record of final stylesheet passed to Renderer for display
   React.useEffect(() => {
