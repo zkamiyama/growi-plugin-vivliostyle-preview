@@ -349,6 +349,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const viewerRef = React.useRef<HTMLDivElement | null>(null);
   const sheetRef = React.useRef<HTMLDivElement | null>(null);
   const rendererWrapRef = React.useRef<HTMLDivElement | null>(null);
+  const scaleInnerRef = React.useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = React.useState<number>(1);
 
   // Collect debug information from the Vivliostyle-rendered iframe when available
@@ -461,15 +462,16 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       const fit = Math.min(availW / sheetRect.width, availH / sheetRect.height, 1);
       setScale(Number(fit.toFixed(4)));
 
-      // scale rendererWrap visually; keep sheet container layout size stable
+      // Keep rendererWrap as the layout container (flex centering). Apply CSS transform
+      // to an inner element so the transform does not change the layout flow (avoids left/top anchoring).
       if (rendererWrapRef.current) {
-        // scale from center so vertical-rl and other direction-sensitive layouts remain centered
-        rendererWrapRef.current.style.transformOrigin = 'center center';
-        rendererWrapRef.current.style.transform = `scale(${fit})`;
-        // ensure rendererWrap uses flex centering so the scaled content is visually centered
         rendererWrapRef.current.style.display = 'flex';
         rendererWrapRef.current.style.alignItems = 'center';
         rendererWrapRef.current.style.justifyContent = 'center';
+      }
+      if (scaleInnerRef.current) {
+        scaleInnerRef.current.style.transformOrigin = 'center center';
+        scaleInnerRef.current.style.transform = `translate(-0px, -0px) scale(${fit})`;
       }
 
   // update diagnostic with the sheetRect we actually used
@@ -536,18 +538,20 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             </div>
           )}
           {rendererSource ? (
-            <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
-              {/* rendererWrapRef is scaled to fit the sheet into viewer */}
-              <div ref={rendererWrapRef} style={{ width: '100%', height: '100%', overflow: 'hidden', willChange: 'transform' }}>
-                <Renderer
-                  /* keep stable mounting */
-                  source={rendererSource as string}
-                  bookMode={false}
-                  userStyleSheet={finalUserStyleSheet}
-                  renderAllPages={false}
-                />
+              <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
+                {/* rendererWrapRef centers content; scaleInnerRef receives transform so layout remains centered */}
+                <div ref={rendererWrapRef} style={{ width: '100%', height: '100%', overflow: 'hidden', willChange: 'transform' }}>
+                  <div ref={scaleInnerRef} style={{ width: '100%', height: '100%' }}>
+                    <Renderer
+                      /* keep stable mounting */
+                      source={rendererSource as string}
+                      bookMode={false}
+                      userStyleSheet={finalUserStyleSheet}
+                      renderAllPages={false}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
           ) : !errorMsg ? (
             <div style={{ padding: '2em', textAlign: 'center', color: '#666' }}>Markdownを入力してください...</div>
           ) : null}

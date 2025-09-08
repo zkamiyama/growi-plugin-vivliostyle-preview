@@ -2,6 +2,8 @@
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import PreviewShell from './src/ui/PreviewShell';
+// Plugin-specific preview styles
+import './src/styles/preview.css';
 import ExternalToggle from './src/ui/ExternalToggle';
 import { AppProvider } from './src/context/AppContext';
 import config from './package.json';
@@ -53,10 +55,12 @@ function mount() {
   if (!host) {
     host = document.createElement('div');
     host.id = CONTAINER_ID;
-  // ベーススタイル: 親と同幅/高さ (高さは後で補正)。display は PreviewShell が制御。
-  host.style.width = '100%';
-  host.style.height = '100%';
-  host.style.position = 'relative';
+  // ベーススタイル: host を親内で絶対に広げる (height:100% チェーン依存を避ける)
+  host.style.position = 'absolute';
+  host.style.top = '0';
+  host.style.left = '0';
+  host.style.right = '0';
+  host.style.bottom = '0';
   host.style.display = 'none';
     previewContainer.appendChild(host);
   // eslint-disable-next-line no-console
