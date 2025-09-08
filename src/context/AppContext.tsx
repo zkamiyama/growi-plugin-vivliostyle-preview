@@ -26,8 +26,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // デバッグ: このContextインスタンスにIDを付与
   const contextIdRef = React.useRef(Math.random().toString(36).slice(2, 8));
 
-  // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][AppProvider] created', { contextId: contextIdRef.current });
+  // Markdown 更新イベントをlisten
+  React.useEffect(() => {
+    const handleMarkdownUpdate = (event: CustomEvent) => {
+      const newMarkdown = event.detail.markdown;
+      setForced(newMarkdown);
+    };
+    window.addEventListener('vivlio:markdown-updated', handleMarkdownUpdate as EventListener);
+    return () => {
+      window.removeEventListener('vivlio:markdown-updated', handleMarkdownUpdate as EventListener);
+    };
+  }, []);
 
   const toggle = React.useCallback(() => {
     // eslint-disable-next-line no-console

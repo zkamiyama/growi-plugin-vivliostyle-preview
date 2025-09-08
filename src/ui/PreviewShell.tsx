@@ -90,7 +90,7 @@ const PreviewShell: React.FC = () => {
   }
   return (
     <div data-vivlio-shell-root>
-      <VivliostylePreview markdown={markdown} isVisible={isOpen} />
+      <VivliostylePreview markdown={markdown} />
     </div>
   );
 };

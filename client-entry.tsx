@@ -22,6 +22,32 @@ const PREVIEW_CONTAINER_CANDIDATES = [
   '.page-editor-preview-body', // 最後の手段: body 自体をホストにしないが存在検知用
 ];
 
+function getMarkdown(): string {
+  // GROWIのエディタからMarkdownを取得
+  // CodeMirror 6 (GROWI v6+)
+  const cm6 = document.querySelector('.cm-editor') as HTMLElement;
+  if (cm6) {
+    const view = (cm6 as any).cmView?.view;
+    if (view) {
+      return view.state.doc.toString();
+    }
+  }
+  // CodeMirror 5 (GROWI v5)
+  const cm5 = document.querySelector('.CodeMirror') as HTMLElement;
+  if (cm5) {
+    const cm = (cm5 as any).CodeMirror;
+    if (cm) {
+      return cm.getValue();
+    }
+  }
+  // textarea fallback
+  const textarea = document.querySelector('textarea#editor, textarea[name="body"]') as HTMLTextAreaElement;
+  if (textarea) {
+    return textarea.value;
+  }
+  return '';
+}
+
 function locatePreviewContainer(): Element | null {
   for (const sel of PREVIEW_CONTAINER_CANDIDATES) {
     const el = document.querySelector(sel);
@@ -89,6 +115,32 @@ function mount() {
   );
   // eslint-disable-next-line no-console
   console.debug('[VivlioDBG][mount] mount finished', { hostChildrenAfter: host.childElementCount });
+
+  // Markdown 更新監視
+  const updateMarkdown = () => {
+    const md = getMarkdown();
+    if (md) {
+      // AppContext の markdown を更新
+      const event = new CustomEvent('vivlio:markdown-updated', { detail: { markdown: md } });
+      window.dispatchEvent(event);
+    }
+  };
+
+  // MutationObserver でエディタ変更を監視
+  const observer = new MutationObserver(() => {
+    updateMarkdown();
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // 定期ポーリング (MutationObserver 漏れ対策)
+  const pollInterval = setInterval(updateMarkdown, 1000);
+
+  // 初回更新
+  updateMarkdown();
+
+  // unmount 用に保存
+  (window as any).__vivlio_observer = observer;
+  (window as any).__vivlio_pollInterval = pollInterval;
 }
 
 function unmount() {
@@ -103,6 +155,18 @@ function unmount() {
   }
   const host = document.getElementById(CONTAINER_ID);
   if (host?.parentNode) host.parentNode.removeChild(host);
+
+  // 監視クリーンアップ
+  const observer = (window as any).__vivlio_observer;
+  if (observer) {
+    observer.disconnect();
+    delete (window as any).__vivlio_observer;
+  }
+  const pollInterval = (window as any).__vivlio_pollInterval;
+  if (pollInterval) {
+    clearInterval(pollInterval);
+    delete (window as any).__vivlio_pollInterval;
+  }
 }
 
 const activate = () => {
