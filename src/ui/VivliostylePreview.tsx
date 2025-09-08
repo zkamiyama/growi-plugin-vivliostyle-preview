@@ -727,6 +727,30 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
               <summary style={{ cursor: 'pointer' }}>Final CSS (Renderer)</summary>
               <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 320, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6', userSelect: 'text' }}>{lastSentFinalCss || ''}</pre>
             </details>
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: 'pointer' }}>Vivliostyle iframe debug (runtime)</summary>
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => { try { collectVivlioDebug(); } catch (e) { /* ignore */ } }}
+                    style={{ padding: '6px 8px', fontSize: 12, cursor: 'pointer', borderRadius: 4 }}
+                  >Refresh</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        if (vivlioDebug) navigator.clipboard?.writeText(JSON.stringify(vivlioDebug, null, 2));
+                      } catch (e) { /* ignore */ }
+                    }}
+                    style={{ padding: '6px 8px', fontSize: 12, cursor: 'pointer', borderRadius: 4 }}
+                  >Copy JSON</button>
+                </div>
+                <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 320, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, border: '1px solid rgba(255,255,255,0.04)', color: '#e6e6e6', fontSize: 12 }}>
+                  {vivlioDebug ? JSON.stringify(vivlioDebug, null, 2) : 'No debug information collected. Open the panel, wait a moment and click Refresh.'}
+                </pre>
+              </div>
+            </details>
           </div>
           {/* custom resize handle (bottom-left) */}
           {infoRef.current && (
