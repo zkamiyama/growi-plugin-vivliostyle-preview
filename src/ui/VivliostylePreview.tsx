@@ -7,36 +7,37 @@ interface VivliostylePreviewProps {
 }
 
 export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown }) => {
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [sourceUrl, setSourceUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!markdown) {
-      setBlobUrl(null);
+      setSourceUrl(null);
       return;
     }
 
     try {
       const html = buildVfmHtml(markdown);
-      const blob = new Blob([html], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      setBlobUrl(url);
+      // Blob URLの代わりにdata URLを使用
+      const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+      setSourceUrl(dataUrl);
 
+      // Blob URLの場合はrevokeが必要だが、data URLは不要
       return () => {
-        URL.revokeObjectURL(url);
+        // data URLの場合は何もしない
       };
     } catch (error) {
       console.error('[VivlioDBG] Error building HTML:', error);
-      setBlobUrl(null);
+      setSourceUrl(null);
     }
   }, [markdown]);
 
-  if (!blobUrl) {
+  if (!sourceUrl) {
     return <div>Loading...</div>;
   }
 
   return (
     <div style={{ height: '100%', width: '100%' }}>
-      <Renderer source={blobUrl} />
+      <Renderer source={sourceUrl} />
     </div>
   );
 };
