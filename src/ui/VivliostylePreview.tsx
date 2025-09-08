@@ -360,35 +360,46 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         return;
       }
       const iframe = wrap.querySelector('iframe') as HTMLIFrameElement | null;
-      if (!iframe) {
-        // include small snapshot of wrapper to help debugging
-        const inner = (wrap && (wrap as HTMLElement).innerHTML) ? String((wrap as HTMLElement).innerHTML).slice(0, 1000) : null;
-        setVivlioDebug({ error: 'no-iframe', wrapSnapshot: inner, collectedAt: Date.now() });
-        return;
+
+      // Support two rendering modes:
+      // 1) Renderer renders into an iframe (old path) -> inspect iframe.document
+      // 2) Renderer renders directly into DOM under rendererWrap (no iframe) -> inspect wrap
+      let rootIsDocument = false;
+      let rootDoc: Document | Element = wrap;
+      let getCS: ((el: Element) => CSSStyleDeclaration | null) | null = null;
+
+      if (iframe) {
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (doc) {
+          rootIsDocument = true;
+          rootDoc = doc as Document;
+          getCS = (el: Element) => (iframe.contentWindow ? iframe.contentWindow.getComputedStyle(el as Element) : null);
+        }
       }
-      const doc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (!doc) {
-        const inner = (wrap && (wrap as HTMLElement).innerHTML) ? String((wrap as HTMLElement).innerHTML).slice(0, 1000) : null;
-        setVivlioDebug({ error: 'no-doc', wrapSnapshot: inner, collectedAt: Date.now() });
-        return;
+
+      if (!rootIsDocument) {
+        // fallback to inspecting the rendererWrap DOM directly
+        rootDoc = wrap as Element;
+        getCS = (el: Element) => window.getComputedStyle(el as Element);
       }
 
       // find candidate page containers using Vivliostyle data attributes or common page markers
-      const candidates: Element[] = Array.from(doc.querySelectorAll('[data-vivliostyle-page-side], [data-vivliostyle-auto-page-width], [data-vivliostyle-auto-page-height]'));
+      const q = '[data-vivliostyle-page-side], [data-vivliostyle-auto-page-width], [data-vivliostyle-auto-page-height]';
+      const candidates: Element[] = Array.from((rootDoc as any).querySelectorAll ? Array.from((rootDoc as any).querySelectorAll(q) as NodeListOf<Element>) : []);
       if (candidates.length === 0) {
         // fallback: common page container heuristics
-        const fallbacks = Array.from(doc.querySelectorAll('.vivliostyle-page, .page, [role="document"], article'));
-        candidates.push(...fallbacks);
+        const fallbacks = Array.from((rootDoc as any).querySelectorAll ? Array.from((rootDoc as any).querySelectorAll('.vivliostyle-page, .page, [role="document"], article') as NodeListOf<Element>) : []);
+        candidates.push(...(fallbacks as Element[]));
       }
 
       const entries = candidates.slice(0, 6).map((el) => {
         const inline = el.getAttribute('style') || '';
         const ds: any = {};
         try { Object.keys((el as HTMLElement).dataset || {}).forEach((k) => { ds[k] = (el as HTMLElement).dataset[k as any]; }); } catch (e) { /* ignore */ }
-        const cs = iframe.contentWindow ? iframe.contentWindow.getComputedStyle(el as Element) : null;
+        const cs = getCS ? getCS(el) : null;
         const comp = cs ? { width: cs.width, height: cs.height, left: cs.left, top: cs.top, padding: cs.padding } : null;
         // try to find bleed/crop related child
-        const bleed = (el as Element).querySelector('[data-bleed], .bleed, .vivliostyle-bleed, [data-vivliostyle-bleed]') as Element | null;
+        const bleed = (el as Element).querySelector ? (el as Element).querySelector('[data-bleed], .bleed, .vivliostyle-bleed, [data-vivliostyle-bleed]') as Element | null : null;
         const bleedInline = bleed ? (bleed.getAttribute('style') || '') : null;
         return {
           tag: el.tagName.toLowerCase(),
@@ -405,14 +416,14 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       let pageSheetWidth: string | null = null;
       let pageSheetHeight: string | null = null;
       try {
-        const anyContainer = doc.querySelector('[data-vivliostyle-page-side], .vivliostyle-page, .page') as HTMLElement | null;
+        const anyContainer = (rootDoc as any).querySelector ? (rootDoc as any).querySelector('[data-vivliostyle-page-side], .vivliostyle-page, .page') as HTMLElement | null : null;
         if (anyContainer) {
-          pageSheetWidth = anyContainer.style.width || null;
-          pageSheetHeight = anyContainer.style.height || null;
+          pageSheetWidth = anyContainer.getAttribute('style') ? (anyContainer.style.width || null) : null;
+          pageSheetHeight = anyContainer.getAttribute('style') ? (anyContainer.style.height || null) : null;
         }
       } catch (e) { /* ignore */ }
 
-  setVivlioDebug({ entries, pageSheetWidth, pageSheetHeight, collectedAt: Date.now() });
+      setVivlioDebug({ entries, pageSheetWidth, pageSheetHeight, rootIsDocument, collectedAt: Date.now() });
     } catch (e) {
   // capture error for display
   setVivlioDebug({ error: (e as Error).message, collectedAt: Date.now() });
