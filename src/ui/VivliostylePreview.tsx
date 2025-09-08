@@ -362,6 +362,7 @@ body { display: flex; align-items: center; justify-content: center; }
 [data-vivliostyle-page-box] {
   background: rgba(100, 149, 237, .25);
 }
+@page { size: 148mm 210mm; margin: 20mm; }
 `;
 
   // Combine user's extracted CSS with our injected helpers so they both apply inside the Renderer.

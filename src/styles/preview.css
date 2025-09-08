@@ -34,25 +34,12 @@
   background: rgba(100, 149, 237, .20);
 }
 
-/* ===== 4) デフォルトのページ設定（必要に応じて調整） =====
-   @page はインラインでは書けない → CSSファイルに置くのが正解 */
-@page {
-  size: 148mm 210mm;   /* A5 縦 */
-  margin: 20mm;        /* ここを変えれば本文箱が縮む（仕様） */
-}
+/* ===== 4) 注意: 以下はホスト文書全体に影響するため、レンダードキュメント側で @page を注入しています.
+   - @page は Renderer 内に注入するのが正解です。 */
 
-/* 文書全体のベース（プレビュー用途の最低限） */
-html, body {
-  margin: 0;
-  padding: 0;
-  color: #000;
-  background: transparent; /* “用紙の白”は bleed-box にだけ付与 */
-}
-
-/* 縦組みをデフォルトにしたいなら（任意） */
-html {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
+/* 文書全体のベース（プレビュー用途の最低限）: ホストに影響させないためスコープする */
+#vivlio-preview-container, #vivlio-preview-container * {
+  box-sizing: border-box;
 }
 /* styles/preview.css (container replacement mode) */
 
