@@ -19,6 +19,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [editorMd, setEditorMd] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [pageInfo, setPageInfo] = useState<{ rules?: Array<{ selector?: string; declarations: string[] }>; size?: string|null; margins?: string[]; pageRuleFound: boolean }>({ pageRuleFound: false });
+  const [vivlioDebug, setVivlioDebug] = useState<any>(null);
   const infoRef = React.useRef<HTMLDivElement | null>(null);
   const handleRef = React.useRef<HTMLDivElement | null>(null);
   const draggingRef = React.useRef(false);
@@ -350,6 +351,68 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const rendererWrapRef = React.useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = React.useState<number>(1);
 
+  // Collect debug information from the Vivliostyle-rendered iframe when available
+  const collectVivlioDebug = async () => {
+    try {
+      const wrap = rendererWrapRef.current;
+      if (!wrap) return;
+      const iframe = wrap.querySelector('iframe') as HTMLIFrameElement | null;
+      if (!iframe) {
+        setVivlioDebug(null);
+        return;
+      }
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!doc) {
+        setVivlioDebug(null);
+        return;
+      }
+
+      // find candidate page containers using Vivliostyle data attributes or common page markers
+      const candidates: Element[] = Array.from(doc.querySelectorAll('[data-vivliostyle-page-side], [data-vivliostyle-auto-page-width], [data-vivliostyle-auto-page-height]'));
+      if (candidates.length === 0) {
+        // fallback: common page container heuristics
+        const fallbacks = Array.from(doc.querySelectorAll('.vivliostyle-page, .page, [role="document"], article'));
+        candidates.push(...fallbacks);
+      }
+
+      const entries = candidates.slice(0, 6).map((el) => {
+        const inline = el.getAttribute('style') || '';
+        const ds: any = {};
+        try { Object.keys((el as HTMLElement).dataset || {}).forEach((k) => { ds[k] = (el as HTMLElement).dataset[k as any]; }); } catch (e) { /* ignore */ }
+        const cs = iframe.contentWindow ? iframe.contentWindow.getComputedStyle(el as Element) : null;
+        const comp = cs ? { width: cs.width, height: cs.height, left: cs.left, top: cs.top, padding: cs.padding } : null;
+        // try to find bleed/crop related child
+        const bleed = (el as Element).querySelector('[data-bleed], .bleed, .vivliostyle-bleed, [data-vivliostyle-bleed]') as Element | null;
+        const bleedInline = bleed ? (bleed.getAttribute('style') || '') : null;
+        return {
+          tag: el.tagName.toLowerCase(),
+          id: (el as HTMLElement).id || null,
+          className: (el as HTMLElement).className || null,
+          dataset: ds,
+          inlineStyle: inline,
+          computed: comp,
+          bleedInline,
+        };
+      });
+
+      // also try to surface top-level container sizes (sheet width/height) from inline styles
+      let pageSheetWidth: string | null = null;
+      let pageSheetHeight: string | null = null;
+      try {
+        const anyContainer = doc.querySelector('[data-vivliostyle-page-side], .vivliostyle-page, .page') as HTMLElement | null;
+        if (anyContainer) {
+          pageSheetWidth = anyContainer.style.width || null;
+          pageSheetHeight = anyContainer.style.height || null;
+        }
+      } catch (e) { /* ignore */ }
+
+      setVivlioDebug({ entries, pageSheetWidth, pageSheetHeight, collectedAt: Date.now() });
+    } catch (e) {
+      // ignore cross-origin/timing issues silently
+      setVivlioDebug({ error: (e as Error).message });
+    }
+  };
+
   // Compute fit-to-container scale so the entire sheet is visible (never upscale beyond 1)
   React.useLayoutEffect(() => {
     function recompute() {
@@ -383,23 +446,17 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
 
       // scale rendererWrap visually; keep sheet container layout size stable
       if (rendererWrapRef.current) {
+        // scale from center so vertical-rl and other direction-sensitive layouts remain centered
+        rendererWrapRef.current.style.transformOrigin = 'center center';
         rendererWrapRef.current.style.transform = `scale(${fit})`;
-        rendererWrapRef.current.style.transformOrigin = 'top left';
+        // ensure rendererWrap uses flex centering so the scaled content is visually centered
+        rendererWrapRef.current.style.display = 'flex';
+        rendererWrapRef.current.style.alignItems = 'center';
+        rendererWrapRef.current.style.justifyContent = 'center';
       }
 
-      // clear inline sizing on sheet/viewer to avoid tying background to sheet pixels
-      if (sheetRef.current) {
-        sheetRef.current.style.width = '';
-        sheetRef.current.style.height = '';
-        sheetRef.current.style.transform = '';
-      }
-      if (viewerRef.current) {
-        viewerRef.current.style.minWidth = '';
-        viewerRef.current.style.minHeight = '';
-      }
-
-      // update diagnostic with the sheetRect we actually used
-      setSheetSizePx({ width: Math.round(sheetRect.width), height: Math.round(sheetRect.height) });
+  // update diagnostic with the sheetRect we actually used
+  setSheetSizePx({ width: Math.round(sheetRect.width), height: Math.round(sheetRect.height) });
     }
 
     recompute();
@@ -409,6 +466,21 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     if (sheetRef.current) ro.observe(sheetRef.current);
     return () => { window.removeEventListener('resize', recompute); ro.disconnect(); };
   }, [fullHtml, dataUrl, userCss, pageWidth, pageHeight]);
+
+  // run debug collection when dataUrl changes and when info panel is open
+  React.useEffect(() => {
+    if (!dataUrl) return;
+    // collect shortly after iframe loads; blob-based iframe should be same-origin
+    const t = window.setTimeout(() => { try { collectVivlioDebug(); } catch (e) { /* ignore */ } }, 300);
+    return () => { clearTimeout(t); };
+  }, [dataUrl]);
+
+  React.useEffect(() => {
+    if (showInfo) {
+      // immediate attempt when panel is opened
+      collectVivlioDebug();
+    }
+  }, [showInfo]);
 
   // cleanup blob URL on unmount
   React.useEffect(() => {
@@ -440,7 +512,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     }}>
         <div ref={viewerRef} style={{ padding: 24, overflow: 'auto', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', maxWidth: '100%', maxHeight: '100%', boxSizing: 'border-box' }}>
           {/* Fixed-size preview sheet. Page size comes from user CSS @page if provided, else A4 fallback. */}
-          <div ref={sheetRef} style={{ width: pageWidth, height: pageHeight, background: '#fff', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', border: '1px solid #ddd', overflow: 'hidden', position: 'relative' }}>
+          <div ref={sheetRef} style={{ width: pageWidth, height: pageHeight, background: '#fff', boxShadow: '0 8px 24px rgba(0,0,0,0.25)', border: '1px solid #ddd', overflow: 'hidden', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {errorMsg && (
             <div style={{ position: 'absolute', top: 8, right: 8, left: 8, padding: '8px 10px', background: '#ffeeee', border: '1px solid #e99', color: '#a00', fontSize: 12, borderRadius: 4 }}>
               VFM Error: {errorMsg}
