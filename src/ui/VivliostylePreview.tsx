@@ -105,7 +105,14 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           [data-vivliostyle-page-box] {
             background: rgba(100, 149, 237, 0.3) !important;
           }
-        ` : undefined
+        ` : undefined,
+        inlineScript: `
+          window.addEventListener('load', () => {
+            if (window.vivliostyle && window.vivliostyle.viewer) {
+              window.vivliostyle.viewer.setOptions({ spread: false });
+            }
+          });
+        `
       });
       // Blob URLの代わりにdata URLを使用
       const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;

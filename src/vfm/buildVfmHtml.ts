@@ -17,6 +17,8 @@ export function buildVfmHtml(markdown: string, options?: {
   inlineCss?: string;
   /** MathJaxを有効にするか（VFMはデフォルト有効。falseで無効化） */
   enableMath?: boolean;
+  /** <script> として挿入するJavaScript（body末尾に挿入） */
+  inlineScript?: string;
 }): string {
   const {
     title = 'Preview',
@@ -24,6 +26,7 @@ export function buildVfmHtml(markdown: string, options?: {
     styleUrls,
     inlineCss,
     enableMath = true,
+    inlineScript,
   } = options || {};
 
   // 1) VFM → 完全HTML
@@ -48,10 +51,11 @@ export function buildVfmHtml(markdown: string, options?: {
     finalCss += '\n' + inlineCss;
   }
   const withCss = injectInlineStyle(html, finalCss);
+  const withScript = inlineScript ? injectInlineScript(withCss, inlineScript) : withCss;
 
   // 3) ブラウザ挿入前にサニタイズを推奨（HTML Sanitizer API）
   // ただし、ここでは文字列として Blob にするため、後段で DOM に挿入する際に sanitize する。
-  return withCss;
+  return withScript;
 }
 
 /** </head> の直前に <style> を挿入する */
@@ -62,6 +66,17 @@ function injectInlineStyle(html: string, css: string): string {
     // head がない異常系：先頭に style を刺す
     return tag + html;
     }
+  return html.slice(0, idx) + tag + html.slice(idx);
+}
+
+/** </body> の直前に <script> を挿入する */
+function injectInlineScript(html: string, script: string): string {
+  const tag = `<script>${script}</script>`;
+  const idx = html.indexOf('</body>');
+  if (idx === -1) {
+    // body がない異常系：末尾に script を刺す
+    return html + tag;
+  }
   return html.slice(0, idx) + tag + html.slice(idx);
 }
 
