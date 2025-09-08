@@ -355,15 +355,21 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const collectVivlioDebug = async () => {
     try {
       const wrap = rendererWrapRef.current;
-      if (!wrap) return;
+      if (!wrap) {
+        setVivlioDebug({ error: 'no-wrap', collectedAt: Date.now() });
+        return;
+      }
       const iframe = wrap.querySelector('iframe') as HTMLIFrameElement | null;
       if (!iframe) {
-        setVivlioDebug(null);
+        // include small snapshot of wrapper to help debugging
+        const inner = (wrap && (wrap as HTMLElement).innerHTML) ? String((wrap as HTMLElement).innerHTML).slice(0, 1000) : null;
+        setVivlioDebug({ error: 'no-iframe', wrapSnapshot: inner, collectedAt: Date.now() });
         return;
       }
       const doc = iframe.contentDocument || iframe.contentWindow?.document;
       if (!doc) {
-        setVivlioDebug(null);
+        const inner = (wrap && (wrap as HTMLElement).innerHTML) ? String((wrap as HTMLElement).innerHTML).slice(0, 1000) : null;
+        setVivlioDebug({ error: 'no-doc', wrapSnapshot: inner, collectedAt: Date.now() });
         return;
       }
 
@@ -406,10 +412,10 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         }
       } catch (e) { /* ignore */ }
 
-      setVivlioDebug({ entries, pageSheetWidth, pageSheetHeight, collectedAt: Date.now() });
+  setVivlioDebug({ entries, pageSheetWidth, pageSheetHeight, collectedAt: Date.now() });
     } catch (e) {
-      // ignore cross-origin/timing issues silently
-      setVivlioDebug({ error: (e as Error).message });
+  // capture error for display
+  setVivlioDebug({ error: (e as Error).message, collectedAt: Date.now() });
     }
   };
 
