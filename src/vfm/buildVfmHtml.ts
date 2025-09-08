@@ -22,7 +22,7 @@ export function buildVfmHtml(markdown: string, options?: {
     title = 'Preview',
     language = 'ja',
     styleUrls,
-    inlineCss = baseCss,
+    inlineCss,
     enableMath = true,
   } = options || {};
 
@@ -39,7 +39,11 @@ export function buildVfmHtml(markdown: string, options?: {
   });
 
   // 2) インラインCSSを <head> に足す（CORSを避けるための推奨策）
-  const withCss = inlineCss ? injectInlineStyle(html, inlineCss) : html;
+  let finalCss = baseCss;
+  if (inlineCss) {
+    finalCss += '\n' + inlineCss;
+  }
+  const withCss = injectInlineStyle(html, finalCss);
 
   // 3) ブラウザ挿入前にサニタイズを推奨（HTML Sanitizer API）
   // ただし、ここでは文字列として Blob にするため、後段で DOM に挿入する際に sanitize する。
