@@ -11,15 +11,12 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  page-break-after: avoid;
   margin-top: 1.5em;
   margin-bottom: 0.5em;
 }
 
 p {
   margin: 0.5em 0;
-  orphans: 3;
-  widows: 3;
 }
 
 pre, code {
@@ -27,37 +24,29 @@ pre, code {
 }
 
 pre {
-  page-break-inside: avoid;
   margin: 1em 0;
   padding: 1em;
-  background: #f5f5f5;
-  border: 1px solid #ddd;
-  overflow: visible;
   white-space: pre-wrap;
 }
 
 table {
-  page-break-inside: avoid;
   width: 100%;
   border-collapse: collapse;
   margin: 1em 0;
 }
 
 th, td {
-  border: 1px solid #ddd;
   padding: 0.5em;
 }
 
 img {
   max-width: 100%;
   height: auto;
-  page-break-inside: avoid;
 }
 
 blockquote {
   margin: 1em 2em;
   padding-left: 1em;
-  border-left: 4px solid #ccc;
 }
 
 ul, ol {
@@ -75,7 +64,6 @@ a {
 }
 
 hr {
-  page-break-after: avoid;
   border: none;
   border-top: 1px solid #ccc;
   margin: 2em 0;
