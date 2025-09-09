@@ -64,11 +64,9 @@ export function ensureHostIsolationCss() {
 .vivlio-simple-viewer [data-vivliostyle-bleed-box],
 .vivlio-simple-viewer [data-vivliostyle-page-box],
 .vivlio-simple-viewer [data-vivliostyle-page-area] {
-  position: absolute !important;
-  left: 0 !important;
-  top: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
+  /* Do not force absolute/full-stretch positioning here — let Vivliostyle
+     author the stacking/positioning of these internal boxes. For safety,
+     only normalize spacing and box-sizing so global resets don't break layout. */
   margin: 0 !important;
   padding: 0 !important;
   box-sizing: border-box !important;
@@ -89,20 +87,17 @@ export function ensureHostIsolationCss() {
   const safeAdjust = (pc: Element) => {
     try {
       const el = pc as HTMLElement;
-      // Ensure the outer container uses flex centering so the sheet is visually centered
-      el.style.display = 'flex';
-      el.style.justifyContent = 'center';
-      el.style.alignItems = 'flex-start';
+      // DO NOT mutate layout here; centering/positioning should come from
+      // viewer-viewport CSS (we already set that above). Only perform a
+      // one-time measurement so we can detect mismatches without interfering.
 
-      // One-time measurement: if both bleed-box and page-box exist, log sizes and
-      // detect obvious double-bleed / mismatch without modifying sizes.
       const bleed = el.querySelector('[data-vivliostyle-bleed-box]') as HTMLElement | null;
       const pageBox = el.querySelector('[data-vivliostyle-page-box]') as HTMLElement | null;
       if (bleed && pageBox) {
         // Use bounding client rect to get rendered size (includes transforms)
         const bRect = bleed.getBoundingClientRect();
         const pRect = pageBox.getBoundingClientRect();
-        const expectedDiffPx = (3 * 2) * mmToPx(1); // bleed 3mm both sides
+        const expectedDiffPx = mmToPx(6); // 3mm bleed each side => 6mm total
         const actualDiff = Math.abs((bRect.width - pRect.width) - expectedDiffPx);
         if (actualDiff > 8) { // threshold: 8px (tunable)
           // Log a warning to help debugging; do not mutate sizes here
