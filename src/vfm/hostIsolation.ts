@@ -118,7 +118,7 @@ export function ensureHostIsolationCss() {
 
         const expectedDiffPx = measureMmPx(el as HTMLElement, 6); // 3mm bleed each side => 6mm total
         const actualDiff = Math.abs((bRect.width - pRect.width) - expectedDiffPx);
-        if (actualDiff > 8) { // threshold: 8px (tunable)
+  if (actualDiff > 8) { // threshold: 8px (tunable)
           // Collect richer diagnostics to help root-cause analysis without
           // mutating the viewer DOM. This includes computed styles, offset/
           // client sizes and any transforms applied to the elements or their
@@ -164,6 +164,22 @@ export function ensureHostIsolationCss() {
               pageAncestorTransform: pageAncestor,
               devicePixelRatio: (typeof window !== 'undefined' && (window as any).devicePixelRatio) || 1
             });
+            // As a fast diagnostic, try temporarily disabling any ancestor transform
+            // that might be affecting the rendered scale. Restore after 3000ms.
+            try {
+              const bleedAncestor = findAncestorTransform(bleed as HTMLElement);
+              const pageAncestor = findAncestorTransform(pageBox as HTMLElement);
+              let changed = false;
+              if (bleedAncestor) changed = overrideAncestorTransform(bleedAncestor) || changed;
+              if (pageAncestor) changed = overrideAncestorTransform(pageAncestor) || changed;
+              if (changed) {
+                // eslint-disable-next-line no-console
+                console.info('[VivlioDBG] temporarily disabled ancestor transform(s) for diagnosis; call window.__vivlio_restoreTransform() to restore immediately.');
+                setTimeout(() => { try { restoreTransformOverrides(); } catch (e) {} }, 3000);
+              }
+            } catch (e) {
+              // ignore
+            }
           } catch (innerErr) {
             // fallback to simple log if diagnostics collection fails
             // eslint-disable-next-line no-console
@@ -199,4 +215,40 @@ export function ensureHostIsolationCss() {
 
   // Run once immediately in case elements already exist
   document.querySelectorAll('[data-vivliostyle-page-container]').forEach(safeAdjust);
+
+  // Keep track of any temporary transform overrides so we can restore them
+  const transformOverrides = new Map<HTMLElement, string | null>();
+  const overrideAncestorTransform = (candidate: { el: Element; transform: string } | null) => {
+    if (!candidate || !candidate.el) return false;
+    const el = candidate.el as HTMLElement;
+    if (transformOverrides.has(el)) return false; // already overridden
+    try {
+      const orig = el.style.transform || null;
+      transformOverrides.set(el, orig);
+      // Apply a non-destructive override
+      el.style.transform = 'none';
+      // Also set transform-origin to neutral to avoid shift in some browsers
+      el.style.transformOrigin = '0 0';
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+  const restoreTransformOverrides = () => {
+    for (const [el, orig] of transformOverrides) {
+      try {
+        if (orig === null) {
+          el.style.removeProperty('transform');
+        } else {
+          el.style.transform = orig;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    transformOverrides.clear();
+  };
+
+  // Expose restore hook for manual testing in the console
+  try { (window as any).__vivlio_restoreTransform = restoreTransformOverrides; } catch (e) { /* ignore */ }
 }
