@@ -95,8 +95,32 @@ export function ensureHostIsolationCss() {
       const pageBox = el.querySelector('[data-vivliostyle-page-box]') as HTMLElement | null;
       if (bleed && pageBox) {
         // Use bounding client rect to get rendered size (includes transforms)
-        const bRect = bleed.getBoundingClientRect();
-        const pRect = pageBox.getBoundingClientRect();
+          const bRect = bleed.getBoundingClientRect();
+          // Choose the best candidate to represent the rendered page width:
+          // 1) prefer an explicit spread container if present (covers spreads/double-pages)
+          // 2) if multiple page-box elements exist, sum their widths (covers side-by-side pages)
+          // 3) fallback to the single page-box rect
+          const spread = el.querySelector('[data-vivliostyle-spread-container]') as HTMLElement | null;
+          const pageBoxes = el.querySelectorAll('[data-vivliostyle-page-box]');
+          let pRect: DOMRect;
+          if (spread) {
+            pRect = spread.getBoundingClientRect();
+          } else if (pageBoxes && pageBoxes.length > 1) {
+            // compute combined width and take min/top from first item for bounding-like object
+            let totalW = 0;
+            let minLeft = Number.POSITIVE_INFINITY;
+            let top = 0;
+            let height = 0;
+            for (let i = 0; i < pageBoxes.length; ++i) {
+              const r = (pageBoxes[i] as HTMLElement).getBoundingClientRect();
+              totalW += r.width;
+              if (r.left < minLeft) minLeft = r.left;
+              if (i === 0) { top = r.top; height = r.height; }
+            }
+            pRect = { x: minLeft, y: top, left: minLeft, top: top, width: totalW, height, right: minLeft + totalW, bottom: top + height } as unknown as DOMRect;
+          } else {
+            pRect = pageBox.getBoundingClientRect();
+          }
         // Instead of assuming 96dpi, measure rendered px for a given mm inside
         // the same page-container so transforms and page-scales are accounted for.
         const measureMmPx = (parent: HTMLElement, mm: number) => {
@@ -148,8 +172,35 @@ export function ensureHostIsolationCss() {
             const pageAncestor = findAncestorTransform(pageBox as HTMLElement);
 
             // eslint-disable-next-line no-console
+            // Provide richer diagnostics to ease root-cause analysis in the wild.
+            const getElementPath = (node?: Element | null) => {
+              try {
+                if (!node) return null;
+                const parts: string[] = [];
+                let cur: Element | null = node;
+                while (cur && cur.nodeType === 1) {
+                  let part = cur.tagName.toLowerCase();
+                  if ((cur as HTMLElement).id) part += `#${(cur as HTMLElement).id}`;
+                  else if (cur.classList && cur.classList.length) part += `.${Array.from(cur.classList).slice(0,3).join('.')}`;
+                  const parent = cur.parentElement;
+                  if (parent) {
+                    const idx = Array.prototype.indexOf.call(parent.children, cur) + 1;
+                    part += `:nth-child(${idx})`;
+                  }
+                  parts.unshift(part);
+                  cur = cur.parentElement;
+                }
+                return parts.join(' > ');
+              } catch (e) { return null; }
+            };
+            const truncate = (s: string | null | undefined, n = 200) => {
+              if (!s) return s;
+              return s.length > n ? s.slice(0, n) + '…' : s;
+            };
+
             console.warn('[VivlioDBG] page/bleed size mismatch detected', {
               pageContainer: el,
+              pageContainerRect: el.getBoundingClientRect(),
               bleedSize: { w: bRect.width, h: bRect.height },
               pageBoxSize: { w: pRect.width, h: pRect.height },
               expectedBleedPx: expectedDiffPx,
@@ -162,6 +213,14 @@ export function ensureHostIsolationCss() {
               pageOffsets: pageSizes,
               bleedAncestorTransform: bleedAncestor,
               pageAncestorTransform: pageAncestor,
+              // helpful, human-readable locations
+              bleedPath: getElementPath(bleed as Element),
+              pageBoxPath: getElementPath(pageBox as Element),
+              // avoid dumping huge HTML, but provide a short snippet for context
+              bleedOuterSnippet: truncate((bleed as HTMLElement).outerHTML, 300),
+              pageBoxOuterSnippet: truncate((pageBox as HTMLElement).outerHTML, 300),
+              // counts to show unexpected wrappers/content
+              pageContainerChildCounts: { total: el.querySelectorAll('*').length, directChildren: (el as HTMLElement).children.length },
               devicePixelRatio: (typeof window !== 'undefined' && (window as any).devicePixelRatio) || 1
             });
             // As a fast diagnostic, try temporarily disabling any ancestor transform
