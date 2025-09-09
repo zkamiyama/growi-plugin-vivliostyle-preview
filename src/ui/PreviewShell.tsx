@@ -14,8 +14,13 @@ const PreviewShell: React.FC = () => {
     const host = document.getElementById('vivlio-preview-container');
     const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
     if (!host || !previewContainer) return;
-    host.style.width = `${previewContainer.clientWidth}px`;
-    host.style.height = `${previewContainer.clientHeight}px`;
+  // use boundingClientRect to account for transforms / fractional pixels
+  const rect = previewContainer.getBoundingClientRect();
+  const width = Math.max(0, Math.round(rect.width));
+  const height = Math.max(0, Math.round(rect.height));
+  host.style.boxSizing = 'border-box';
+  host.style.width = `${width}px`;
+  host.style.height = `${height}px`;
   }, []);
 
   // 初回マウントログ
@@ -121,7 +126,7 @@ const PreviewShell: React.FC = () => {
     return null;
   }
   return (
-    <div data-vivlio-shell-root style={{ position: 'relative' }}>
+    <div data-vivlio-shell-root style={{ position: 'relative', height: '100%' }}>
       {/* Minimal controls: manual fit button only (auto-fit always enabled via ResizeObserver) */}
       <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 1002 }}>
         <button
