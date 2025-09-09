@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 // Renderer replaced by isolated iframe to avoid host CSS leakage
-import { buildVfmHtml } from '../vfm/buildVfmHtml';
+import { buildVfmHtml, buildVfmPayload } from '../vfm/buildVfmHtml';
 
 interface VivliostylePreviewProps {
   markdown: string;
@@ -10,6 +10,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [vivlioDebug, setVivlioDebug] = useState<any>(null);
+  const [vivlioPayload, setVivlioPayload] = useState<any>(null);
   const [showMargins, setShowMargins] = useState(false);
   const rendererWrapRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -116,7 +117,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     }
 
     try {
-      const html = buildVfmHtml(markdown, {
+  const payload = buildVfmPayload(markdown, {
         inlineCss: showMargins ? `
           /* reset UA body margins to avoid visual confusion */
           html, body { margin: 0 !important; padding: 0 !important; }
@@ -161,9 +162,11 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             }
           });
         `
-      });
+  });
+  // store payload for Info panel
+  setVivlioPayload(payload);
   // Use data URL to load the generated full HTML into an isolated iframe
-  const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+  const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(payload.html)}`;
   setSourceUrl(dataUrl);
   return () => { /* no-op for data URL */ };
     } catch (error) {
@@ -227,7 +230,39 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             <div><strong>Pages found:</strong> {vivlioDebug?.entries?.length ?? 0}</div>
             <div><strong>Collected:</strong> {vivlioDebug?.collectedAt ? new Date(vivlioDebug.collectedAt).toLocaleTimeString() : '-'}</div>
           </div>
-          <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', background: 'rgba(0,0,0,0.25)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioDebug ? JSON.stringify(vivlioDebug, null, 2) : 'No debug information collected. Click Refresh.'}</pre>
+
+          {/* New payload inspector sections */}
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <strong style={{ fontSize: 12 }}>Extracted user CSS</strong>
+              <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.userCss || '')}>Copy</button>
+            </div>
+            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'auto', background: 'rgba(0,0,0,0.22)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.userCss || '(none)') : '(not built yet)'}</pre>
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <strong style={{ fontSize: 12 }}>Composed CSS (base + user + inline)</strong>
+              <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.finalCss || '')}>Copy</button>
+            </div>
+            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.finalCss || '(none)') : '(not built yet)'}</pre>
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <strong style={{ fontSize: 12 }}>Raw Markdown</strong>
+              <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.rawMarkdown || '')}>Copy</button>
+            </div>
+            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'auto', background: 'rgba(0,0,0,0.12)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.rawMarkdown || '(empty)') : '(not built yet)'}</pre>
+          </div>
+
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <strong style={{ fontSize: 12 }}>Final HTML (passed to Vivliostyle)</strong>
+              <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.html || '')}>Copy</button>
+            </div>
+            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', background: 'rgba(0,0,0,0.08)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.html || '(none)') : '(not built yet)'}</pre>
+          </div>
         </div>
       )}
 
