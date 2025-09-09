@@ -200,12 +200,20 @@ export function ensureHostIsolationCss() {
             const ptInline = parsePx(sl.paddingTop || null);
             const pbInline = parsePx(sl.paddingBottom || null);
             if (plInline || prInline || ptInline || pbInline) {
-              pagePadding = { left: plInline, right: prInline, top: ptInline, bottom: pbInline };
-              // check computed box-sizing before subtracting inline padding
-              try { representativeBoxSizing = getComputedStyle(pbEl).boxSizing || null; } catch (e) { representativeBoxSizing = null; }
-              if (representativeBoxSizing === 'content-box' && (plInline + prInline) > 1) {
-                pWidthForComparison = Math.max(0, pRect.width - (plInline + prInline));
-              }
+                pagePadding = { left: plInline, right: prInline, top: ptInline, bottom: pbInline };
+                // check computed box-sizing before adjusting. However, if the
+                // inline style also specifies a width value, the author likely
+                // intended that width in content-box terms (width + padding).
+                // In that case compute an expected outer width from the inline
+                // declarations so we compare against bleed correctly.
+                try { representativeBoxSizing = getComputedStyle(pbEl).boxSizing || null; } catch (e) { representativeBoxSizing = null; }
+                const inlineWidthPx = parsePx(sl.width || null);
+                if (inlineWidthPx && (plInline + prInline) > 0) {
+                  // Treat inline width as content-box: outer = width + paddings
+                  pWidthForComparison = Math.max(0, inlineWidthPx + plInline + prInline);
+                } else if (representativeBoxSizing === 'content-box' && (plInline + prInline) > 1) {
+                  pWidthForComparison = Math.max(0, pRect.width - (plInline + prInline));
+                }
             } else {
               const pageCSforPad = getComputedStyle(pbEl);
               const pl = parsePx(pageCSforPad.paddingLeft);
