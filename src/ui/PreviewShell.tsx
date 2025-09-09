@@ -16,11 +16,27 @@ const PreviewShell: React.FC = () => {
   const host = document.getElementById('vivlio-preview-container');
   const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
   if (!host || !previewContainer) return;
+  host.style.boxSizing = 'border-box';
+  // If host was appended to the preview container (preferred path), use
+  // inset:0 overlay so it reliably covers children and doesn't depend on
+  // viewport rounding. Otherwise, position by bounding rect on the body.
+  if (host.dataset.vivlioAttachedTo === 'previewContainer') {
+    host.style.position = 'absolute';
+    host.style.left = '0';
+    host.style.top = '0';
+    host.style.right = '0';
+    host.style.bottom = '0';
+    host.style.width = '100%';
+    host.style.height = '100%';
+    host.style.inset = '0';
+    host.style.zIndex = '100000';
+    host.style.pointerEvents = 'auto';
+    return;
+  }
   const rect = previewContainer.getBoundingClientRect();
   const scrollX = window.scrollX || window.pageXOffset || 0;
   const scrollY = window.scrollY || window.pageYOffset || 0;
   // position host in viewport absolute coordinates so it overlays correctly
-  host.style.boxSizing = 'border-box';
   host.style.position = 'absolute';
   host.style.left = `${Math.round(rect.left + scrollX)}px`;
   host.style.top = `${Math.round(rect.top + scrollY)}px`;
