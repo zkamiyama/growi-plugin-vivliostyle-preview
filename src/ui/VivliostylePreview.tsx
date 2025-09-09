@@ -34,7 +34,13 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         setVivlioDebug(null);
         return;
       }
-      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      // avoid cross-origin access: we only inspect same-origin (data:) iframes
+      const src = iframe.getAttribute('src') || '';
+      if (!src.startsWith('data:')) {
+        setVivlioDebug({ error: 'cross-origin: cannot access iframe document' });
+        return;
+      }
+      const doc = iframe.contentDocument;
       if (!doc) {
         setVivlioDebug(null);
         return;
@@ -175,7 +181,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         onClick={() => setShowInfo(!showInfo)}
         title="Toggle info"
         aria-label="Toggle info"
-        style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, ...btnBase, padding: '6px' }}
+        style={{ position: 'absolute', top: 10, right: 24, zIndex: 1000, ...btnBase, padding: '6px' }}
       >
         ℹ️
       </button>
@@ -185,7 +191,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         onClick={() => setShowMargins(!showMargins)}
         title={showMargins ? 'Disable margins' : 'Enable margins'}
         aria-label="Toggle margins"
-        style={{ position: 'absolute', top: 10, right: 80, zIndex: 1000, ...btnBase, padding: '6px', background: showMargins ? 'rgba(255,165,0,0.9)' : btnBase.background }}
+        style={{ position: 'absolute', top: 10, right: 64, zIndex: 1000, ...btnBase, padding: '6px', background: showMargins ? 'rgba(255,165,0,0.9)' : btnBase.background }}
       >
         📐
       </button>
@@ -202,7 +208,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
               onClick={collectVivlioDebug}
               title="Refresh info"
               aria-label="Refresh info"
-              style={{ marginRight: 8, ...btnBase, padding: '6px', fontSize: 12 }}
+              style={{ marginRight: 6, ...btnBase, padding: '6px', fontSize: 12 }}
             >
               🔄
             </button>
