@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Renderer } from '@vivliostyle/react';
 // Renderer replaced by isolated iframe to avoid host CSS leakage
 import { buildVfmHtml, buildVfmPayload } from '../vfm/buildVfmHtml';
 
@@ -12,7 +13,12 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [vivlioDebug, setVivlioDebug] = useState<any>(null);
   const [vivlioPayload, setVivlioPayload] = useState<any>(null);
   const [showMargins, setShowMargins] = useState(false);
+  const [isSpread, setIsSpread] = useState<boolean>(false);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageCount, setPageCount] = useState<number>(0);
   const rendererWrapRef = React.useRef<HTMLDivElement | null>(null);
+  const viewerRef = React.useRef<any>(null);
+  const rawWindowRef = React.useRef<Window | null>(null);
 
   
   // collapsible Section helper — compact header with emphasized border and small right-aligned Copy
@@ -178,10 +184,102 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   // run debug collection when sourceUrl changes and when info panel is open
   React.useEffect(() => {
     if (!sourceUrl) return;
-    // collect shortly after iframe loads; data-based iframe should be same-origin
+    // collect shortly after renderer/iframe loads
     const t = window.setTimeout(() => { try { collectVivlioDebug(); } catch (e) { /* ignore */ } }, 300);
     return () => { clearTimeout(t); };
   }, [sourceUrl]);
+
+  // Helper: find page elements inside renderer or iframe and determine current index
+  const findPages = () => {
+    const wrap = rendererWrapRef.current;
+    if (!wrap) return { pages: [] as Element[], rootIsIframe: false, iframe: null as HTMLIFrameElement | null };
+    const iframe = wrap.querySelector('iframe') as HTMLIFrameElement | null;
+    if (iframe && iframe.contentDocument) {
+      const doc = iframe.contentDocument;
+      const pages = Array.from(doc.querySelectorAll('.vivliostyle-page, .page, [data-vivliostyle-page-side]')) as Element[];
+      return { pages, rootIsIframe: true, iframe };
+    }
+    // fallback: renderer container (in-document)
+    const pages = Array.from(wrap.querySelectorAll('.vivliostyle-page, .page, [data-vivliostyle-page-side]')) as Element[];
+    return { pages, rootIsIframe: false, iframe: null };
+  };
+
+  const refreshPages = () => {
+    try {
+      const { pages, rootIsIframe, iframe } = findPages();
+      setPageCount(pages.length || 0);
+
+      let foundIndex = 0;
+      try {
+        const rects = pages.map((el) => (el as HTMLElement).getBoundingClientRect());
+        let best = { idx: 0, dist: Infinity };
+        rects.forEach((r, i) => {
+          const dist = Math.abs(r.top - 20);
+          if (dist < best.dist) { best = { idx: i, dist }; }
+        });
+        foundIndex = best.idx;
+      } catch (e) { /* ignore */ }
+
+      setCurrentPage(foundIndex + 1);
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const gotoPageIndex = (index: number) => {
+    const { pages, rootIsIframe, iframe } = findPages();
+    if (!pages || pages.length === 0) return;
+    const idx = Math.max(0, Math.min(pages.length - 1, index));
+    const el = pages[idx] as HTMLElement;
+    try {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (e) {
+      try { (el as any).scrollIntoView(); } catch (err) { /* ignore */ }
+    }
+    setCurrentPage(idx + 1);
+  };
+
+  const prevPage = () => gotoPageIndex(currentPage - 2);
+  const nextPage = () => gotoPageIndex(currentPage);
+
+  const toggleSpread = () => {
+    try {
+      const viewer = viewerRef.current;
+      if (viewer && typeof viewer.setOptions === 'function') {
+        viewer.setOptions({ spread: !isSpread });
+        setIsSpread(!isSpread);
+        setTimeout(refreshPages, 200);
+        return;
+      }
+    } catch (e) { /* ignore */ }
+
+    // fallback: toggle CSS class in the renderer root
+    const wrap = rendererWrapRef.current;
+    if (!wrap) { setIsSpread((s) => !s); return; }
+    const bodyLike = wrap.querySelector('body') as HTMLElement | null;
+    if (bodyLike) {
+      if (!isSpread) bodyLike.classList.add('vivlio-spread-mode');
+      else bodyLike.classList.remove('vivlio-spread-mode');
+    }
+    setIsSpread((s) => !s);
+    setTimeout(refreshPages, 200);
+  };
+
+  const openRawHtml = () => {
+    if (!sourceUrl) return;
+    // open in a new tab/window so user can inspect the full generated HTML separately
+    try {
+      if (rawWindowRef.current && !rawWindowRef.current.closed) {
+        rawWindowRef.current.location.href = sourceUrl;
+        rawWindowRef.current.focus();
+        return;
+      }
+      rawWindowRef.current = window.open(sourceUrl, '_blank');
+    } catch (e) {
+      // fallback: copy to clipboard
+      try { navigator.clipboard?.writeText(vivlioPayload?.html || ''); } catch (err) { /* ignore */ }
+    }
+  };
 
   React.useEffect(() => {
     if (showInfo) {
@@ -271,6 +369,27 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         ℹ️
       </button>
 
+      {/* Raw HTML button - opens the current generated HTML in a new tab for inspection */}
+      <button
+        onClick={openRawHtml}
+        title="Open raw HTML"
+        aria-label="Open raw HTML"
+        style={{ position: 'absolute', top: 10, right: 104, zIndex: 1000, ...btnBase, padding: '6px' }}
+      >
+        🧾
+      </button>
+
+      {/* Simple viewer controls: prev/next, spread toggle, page indicator */}
+      <div style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 1000, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <button onClick={prevPage} aria-label="Prev page" style={{ ...btnBase, padding: '6px 8px' }}>◀</button>
+        <div style={{ minWidth: 120, display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(0,0,0,0.38)', padding: '6px 8px', borderRadius: 8 }}>
+          <button onClick={() => gotoPageIndex(0)} style={{ ...btnBase, padding: '6px 8px' }}>First</button>
+          <div style={{ color: 'white', fontSize: 13 }}>{currentPage} / {pageCount || '–'}</div>
+          <button onClick={() => gotoPageIndex((pageCount || 1) - 1)} style={{ ...btnBase, padding: '6px 8px' }}>Last</button>
+        </div>
+        <button onClick={nextPage} aria-label="Next page" style={{ ...btnBase, padding: '6px 8px' }}>▶</button>
+        <button onClick={toggleSpread} aria-pressed={isSpread} title="Toggle single/spread" style={{ ...btnBase, padding: '6px 8px', background: isSpread ? 'rgba(60,160,60,0.85)' : btnBase.background }}>双頁</button>
+      </div>
       {/* Margin visualization toggle button */}
       <button
         onClick={() => setShowMargins(!showMargins)}
@@ -322,18 +441,23 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         }}
       >
         {sourceUrl && (
-          <iframe
+          <Renderer
             key={sourceUrl + (showMargins ? '_m' : '_n')}
-            src={sourceUrl}
-            title="Vivliostyle Preview"
-            style={{ width: '100%', height: '100%', border: 0 }}
-            // allow scripts to run inside the data: URL context
-            // do NOT set sandbox here so viewer scripts can execute
-            onLoad={() => {
-              // collect debug info after iframe content loads
-              try { collectVivlioDebug(); } catch (e) { /* ignore */ }
+            source={sourceUrl}
+            onLoad={(params: any) => {
+              try {
+                // params may include container and viewer depending on version
+                const viewer = params.viewer || (params as any).vivliostyleViewer || null;
+                viewerRef.current = viewer || viewerRef.current;
+                // allow external debug collector
+                try { collectVivlioDebug(); } catch (e) { /* ignore */ }
+                // refresh page list
+                setTimeout(refreshPages, 120);
+              } catch (e) { /* ignore */ }
             }}
-          />
+          >
+            {({ container }: any) => container}
+          </Renderer>
         )}
       </div>
     </div>
