@@ -64,6 +64,7 @@ const PreviewShell: React.FC = () => {
 
     host.dataset.vivlioMount = 'true';
     host.style.display = isOpen ? 'block' : 'none';
+    // Prepare overlay to fully intercept pointer input
     if (isOpen) {
       // ensure host exactly fills the preview container
       host.style.position = 'absolute';
@@ -74,15 +75,22 @@ const PreviewShell: React.FC = () => {
       host.style.width = '100%';
       host.style.height = '100%';
       host.style.overflow = 'hidden';
-      host.style.zIndex = '10';
-      // disable underlying preview container scrollbars to avoid user
-      // interacting with them and causing the overlay to drift.
+      // keep zIndex very high so overlay intercepts scrollbar drags
+      host.style.zIndex = '100000';
+      // As an aggressive fallback to prevent user-driven drift, disable
+      // pointer events on the original preview container so its scrollbar
+      // cannot be grabbed. We still restore the previous value on close.
       try {
         if (previewContainer) {
           if ((previewContainer as HTMLElement).dataset.vivlioPrevOverflow === undefined) {
             (previewContainer as HTMLElement).dataset.vivlioPrevOverflow = (previewContainer as HTMLElement).style.overflow || '';
           }
           (previewContainer as HTMLElement).style.overflow = 'hidden';
+
+          if ((previewContainer as HTMLElement).dataset.vivlioPrevPointerEvents === undefined) {
+            (previewContainer as HTMLElement).dataset.vivlioPrevPointerEvents = (previewContainer as HTMLElement).style.pointerEvents || '';
+          }
+          (previewContainer as HTMLElement).style.pointerEvents = 'none';
         }
       } catch (e) { /* ignore */ }
     }
@@ -105,15 +113,70 @@ const PreviewShell: React.FC = () => {
       children: childrenInfo,
       previewChildren: previewContainer ? previewContainer.children.length : -1,
     });
-    // when closing, restore preview container overflow
+    // when closing, restore preview container overflow/pointerEvents
     if (!isOpen) {
       try {
         if (previewContainer && (previewContainer as HTMLElement).dataset.vivlioPrevOverflow !== undefined) {
           (previewContainer as HTMLElement).style.overflow = (previewContainer as HTMLElement).dataset.vivlioPrevOverflow || '';
           delete (previewContainer as HTMLElement).dataset.vivlioPrevOverflow;
         }
+        if (previewContainer && (previewContainer as HTMLElement).dataset.vivlioPrevPointerEvents !== undefined) {
+          (previewContainer as HTMLElement).style.pointerEvents = (previewContainer as HTMLElement).dataset.vivlioPrevPointerEvents || '';
+          delete (previewContainer as HTMLElement).dataset.vivlioPrevPointerEvents;
+        }
       } catch (e) { /* ignore */ }
     }
+
+    // Additionally, capture and block input that would cause scrolling even if
+    // the scrollbar area were reachable (wheel, touchmove, keyboard keys).
+    // These handlers are added only while the overlay is open and removed on cleanup.
+    let wheelHandler: ((e: Event) => void) | null = null;
+    let touchHandler: ((e: Event) => void) | null = null;
+    let keyHandler: ((e: KeyboardEvent) => void) | null = null;
+    if (isOpen) {
+      wheelHandler = (e: Event) => {
+        try { e.preventDefault(); e.stopPropagation(); } catch (err) { /**/ }
+        return false;
+      };
+      touchHandler = wheelHandler;
+      keyHandler = (e: KeyboardEvent) => {
+        const k = e.key;
+        if (k === 'ArrowUp' || k === 'ArrowDown' || k === 'PageUp' || k === 'PageDown' || k === 'Home' || k === 'End' || k === ' ') {
+          try { e.preventDefault(); e.stopPropagation(); } catch (err) { /**/ }
+          return false;
+        }
+        return true;
+      };
+      try {
+        window.addEventListener('wheel', wheelHandler as EventListener, { passive: false, capture: true });
+        window.addEventListener('touchmove', touchHandler as EventListener, { passive: false, capture: true });
+        window.addEventListener('keydown', keyHandler as EventListener, true);
+      } catch (e) { /* ignore */ }
+    }
+
+    // cleanup for added handlers when effect re-runs / unmounts
+    return () => {
+      try {
+        if (wheelHandler) window.removeEventListener('wheel', wheelHandler as EventListener, true);
+      } catch (e) { /* ignore */ }
+      try {
+        if (touchHandler) window.removeEventListener('touchmove', touchHandler as EventListener, true);
+      } catch (e) { /* ignore */ }
+      try {
+        if (keyHandler) window.removeEventListener('keydown', keyHandler as EventListener, true);
+      } catch (e) { /* ignore */ }
+      // restore preview container styles in case effect cleanup ran due to unmount
+      try {
+        if (previewContainer && (previewContainer as HTMLElement).dataset.vivlioPrevOverflow !== undefined) {
+          (previewContainer as HTMLElement).style.overflow = (previewContainer as HTMLElement).dataset.vivlioPrevOverflow || '';
+          delete (previewContainer as HTMLElement).dataset.vivlioPrevOverflow;
+        }
+        if (previewContainer && (previewContainer as HTMLElement).dataset.vivlioPrevPointerEvents !== undefined) {
+          (previewContainer as HTMLElement).style.pointerEvents = (previewContainer as HTMLElement).dataset.vivlioPrevPointerEvents || '';
+          delete (previewContainer as HTMLElement).dataset.vivlioPrevPointerEvents;
+        }
+      } catch (e) { /* ignore */ }
+    };
   }, [isOpen]);
 
   // Auto-fit behavior: when enabled, observe the editor preview container and
