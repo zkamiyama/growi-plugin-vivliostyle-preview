@@ -130,14 +130,13 @@ function mount() {
   if (!host) {
     host = document.createElement('div');
     host.id = CONTAINER_ID;
-  // ベーススタイル: host を親内で絶対に広げる (height:100% チェーン依存を避ける)
+  // ベーススタイル: overlay 用に body に直接追加する。具体的な位置合わせは
+  // PreviewShell.fitToContainer が行う（bounding rect に基づく絶対配置）。
   host.style.position = 'absolute';
-  host.style.top = '0';
-  host.style.left = '0';
-  host.style.right = '0';
-  host.style.bottom = '0';
   host.style.display = 'none';
-    previewContainer.appendChild(host);
+  host.style.zIndex = '10000';
+    // append to body so we don't get hidden / reparented by preview container changes
+    document.body.appendChild(host);
   // eslint-disable-next-line no-console
   console.debug('[VivlioDBG][mount] host container created and appended');
   }

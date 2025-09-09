@@ -11,19 +11,19 @@ const PreviewShell: React.FC = () => {
   const roRef = React.useRef<ResizeObserver | null>(null);
 
   const fitToContainer = React.useCallback(() => {
-    const host = document.getElementById('vivlio-preview-container');
-    const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
-    if (!host || !previewContainer) return;
-  // Use absolute inset to exactly fill the preview container and avoid
-  // fractional-pixel rounding differences that create tiny scroll offsets.
+  const host = document.getElementById('vivlio-preview-container');
+  const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
+  if (!host || !previewContainer) return;
+  const rect = previewContainer.getBoundingClientRect();
+  const scrollX = window.scrollX || window.pageXOffset || 0;
+  const scrollY = window.scrollY || window.pageYOffset || 0;
+  // position host in viewport absolute coordinates so it overlays correctly
   host.style.boxSizing = 'border-box';
   host.style.position = 'absolute';
-  host.style.top = '0';
-  host.style.left = '0';
-  host.style.right = '0';
-  host.style.bottom = '0';
-  host.style.width = '100%';
-  host.style.height = '100%';
+  host.style.left = `${Math.round(rect.left + scrollX)}px`;
+  host.style.top = `${Math.round(rect.top + scrollY)}px`;
+  host.style.width = `${Math.round(rect.width)}px`;
+  host.style.height = `${Math.round(rect.height)}px`;
   }, []);
 
   // 初回マウントログ
@@ -95,9 +95,16 @@ const PreviewShell: React.FC = () => {
     });
     ro.observe(previewContainer);
     roRef.current = ro;
+
+    const onScroll = () => { fitToContainer(); };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+
     return () => {
       try { ro.disconnect(); } catch (e) {}
       roRef.current = null;
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
     };
   }, [fitToContainer]);
 
