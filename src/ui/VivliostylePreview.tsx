@@ -99,6 +99,11 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     try {
       const html = buildVfmHtml(markdown, {
         inlineCss: showMargins ? `
+          @page {
+            size: A5;
+            marks: crop cross;
+            bleed: 3mm;
+          }
           [data-vivliostyle-page-area] {
             background: rgba(144, 238, 144, 0.3) !important;
           }
