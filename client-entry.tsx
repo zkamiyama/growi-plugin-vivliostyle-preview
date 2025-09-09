@@ -50,14 +50,28 @@ function getMarkdown(): string {
 }
 
 function locatePreviewContainer(): Element | null {
+  // Fast path: prefer the exact inner preview container used by modern GROWI
+  const preferred = document.querySelector('.page-editor-preview-container.flex-expand-vert.overflow-y-auto');
+  if (preferred) {
+    // ensure it's attached and has size
+    try {
+      const rc = (preferred as HTMLElement).getBoundingClientRect();
+      if (rc.width > 0 && rc.height > 0) {
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][locatePreviewContainer] chosen preferred exact selector', { selector: '.page-editor-preview-container.flex-expand-vert.overflow-y-auto', rect: rc });
+        return preferred;
+      }
+    } catch (e) { /* ignore */ }
+  }
+
   for (const sel of PREVIEW_CONTAINER_CANDIDATES) {
     const nodes = Array.from(document.querySelectorAll(sel));
     if (nodes.length === 0) continue;
+
     // Prefer a visible node that looks like the editor's preview pane.
     const visible = nodes.filter((n) => {
       try {
         const rc = (n as HTMLElement).getBoundingClientRect();
-        // visible area and attached to layout
         return rc.width > 0 && rc.height > 0;
       } catch (e) {
         return false;
@@ -68,15 +82,23 @@ function locatePreviewContainer(): Element | null {
     if (visible.length > 0) {
       for (const v of visible) {
         if ((v as Element).querySelector('.page-editor-preview-body') || (v as Element).querySelector('.page-editor-preview')) {
+          // eslint-disable-next-line no-console
+          console.debug('[VivlioDBG][locatePreviewContainer] chosen visible node with preview body', { sel, candidate: v });
           return v;
         }
       }
       // fallback to first visible
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][locatePreviewContainer] chosen first visible node for selector', { sel, candidate: visible[0] });
       return visible[0];
     }
 
     // otherwise, take the first node (may be hidden due to responsive classes)
-    if (nodes.length > 0) return nodes[0];
+    if (nodes.length > 0) {
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][locatePreviewContainer] chosen first node (non-visible) for selector', { sel, candidate: nodes[0] });
+      return nodes[0];
+    }
   }
   return null;
 }
