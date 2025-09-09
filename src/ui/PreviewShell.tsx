@@ -8,21 +8,12 @@ import { useAppContext } from '../context/AppContext';
 // シンプルな差し替え方式。ポップアップは廃止。
 const PreviewShell: React.FC = () => {
   const { isOpen, markdown } = useAppContext();
-  const dragState = React.useRef<{
-    startX: number;
-    startY: number;
-    startWidth: number;
-    startHeight: number;
-    mode: 'none' | 'h' | 'corner';
-  }>({ startX: 0, startY: 0, startWidth: 0, startHeight: 0, mode: 'none' });
-  const [autoFit, setAutoFit] = React.useState(false);
   const roRef = React.useRef<ResizeObserver | null>(null);
 
   const fitToContainer = React.useCallback(() => {
     const host = document.getElementById('vivlio-preview-container');
     const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
     if (!host || !previewContainer) return;
-    // size to inner content area
     host.style.width = `${previewContainer.clientWidth}px`;
     host.style.height = `${previewContainer.clientHeight}px`;
   }, []);
@@ -105,16 +96,10 @@ const PreviewShell: React.FC = () => {
 
   // Auto-fit behavior: when enabled, observe the editor preview container and
   // size the host to match. Also provide a manual 'Fit now' action.
+  // Always-on fit: observe the editor preview container and size the host to match
   React.useEffect(() => {
     const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
     const host = document.getElementById('vivlio-preview-container');
-    if (!autoFit) {
-      if (roRef.current) {
-        roRef.current.disconnect();
-        roRef.current = null;
-      }
-      return;
-    }
     if (!previewContainer || !host) return;
     // initial fit
     fitToContainer();
@@ -127,103 +112,9 @@ const PreviewShell: React.FC = () => {
       try { ro.disconnect(); } catch (e) {}
       roRef.current = null;
     };
-  }, [autoFit, fitToContainer]);
+  }, [fitToContainer]);
 
-  // Resize handlers: adjust host width/height by dragging handles rendered inside the React tree
-  React.useEffect(() => {
-    const onPointerMove = (ev: PointerEvent) => {
-      const ds = dragState.current;
-      if (ds.mode === 'none') return;
-      const host = document.getElementById('vivlio-preview-container');
-      if (!host) return;
-      if (ds.mode === 'h') {
-        const dx = ev.clientX - ds.startX;
-        // left-edge handle: moving right decreases width
-        const newWidth = Math.max(300, ds.startWidth - dx);
-        host.style.width = `${newWidth}px`;
-      } else if (ds.mode === 'corner') {
-        const dx = ev.clientX - ds.startX;
-        const dy = ev.clientY - ds.startY;
-        const newWidth = Math.max(300, ds.startWidth + dx);
-        const newHeight = Math.max(200, ds.startHeight + dy);
-        host.style.width = `${newWidth}px`;
-        host.style.height = `${newHeight}px`;
-      }
-      ev.preventDefault();
-    };
 
-    const onPointerUp = () => {
-      dragState.current.mode = 'none';
-      document.removeEventListener('pointermove', onPointerMove);
-      document.removeEventListener('pointerup', onPointerUp);
-    };
-
-    // attach when dragging starts via handlers below
-    return () => {
-      document.removeEventListener('pointermove', onPointerMove);
-      document.removeEventListener('pointerup', onPointerUp);
-    };
-  }, []);
-
-  const startHorizontalResize = (e: React.PointerEvent) => {
-    const host = document.getElementById('vivlio-preview-container');
-    if (!host) return;
-    const rect = host.getBoundingClientRect();
-    dragState.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      startWidth: rect.width,
-      startHeight: rect.height,
-      mode: 'h'
-    };
-    // attach global listeners
-    const onPointerMove = (ev: PointerEvent) => {
-      const ds = dragState.current;
-      if (ds.mode !== 'h') return;
-      const dx = ev.clientX - ds.startX;
-      const newWidth = Math.max(300, ds.startWidth - dx);
-      host.style.width = `${newWidth}px`;
-      ev.preventDefault();
-    };
-    const onPointerUp = () => {
-      dragState.current.mode = 'none';
-      document.removeEventListener('pointermove', onPointerMove);
-      document.removeEventListener('pointerup', onPointerUp);
-    };
-    document.addEventListener('pointermove', onPointerMove);
-    document.addEventListener('pointerup', onPointerUp, { once: true });
-  };
-
-  const startCornerResize = (e: React.PointerEvent) => {
-    const host = document.getElementById('vivlio-preview-container');
-    if (!host) return;
-    const rect = host.getBoundingClientRect();
-    dragState.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      startWidth: rect.width,
-      startHeight: rect.height,
-      mode: 'corner'
-    };
-    const onPointerMove = (ev: PointerEvent) => {
-      const ds = dragState.current;
-      if (ds.mode !== 'corner') return;
-      const dx = ev.clientX - ds.startX;
-      const dy = ev.clientY - ds.startY;
-      const newWidth = Math.max(300, ds.startWidth + dx);
-      const newHeight = Math.max(200, ds.startHeight + dy);
-      host.style.width = `${newWidth}px`;
-      host.style.height = `${newHeight}px`;
-      ev.preventDefault();
-    };
-    const onPointerUp = () => {
-      dragState.current.mode = 'none';
-      document.removeEventListener('pointermove', onPointerMove);
-      document.removeEventListener('pointerup', onPointerUp);
-    };
-    document.addEventListener('pointermove', onPointerMove);
-    document.addEventListener('pointerup', onPointerUp, { once: true });
-  };
 
   // Host (#vivlio-preview-container) 内にマウントされるのでラッパ不要
   if (!isOpen) {
@@ -231,53 +122,15 @@ const PreviewShell: React.FC = () => {
   }
   return (
     <div data-vivlio-shell-root style={{ position: 'relative' }}>
-      {/* Fit controls */}
-      <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 1002, display: 'flex', gap: 8 }}>
+      {/* Minimal controls: manual fit button only (auto-fit always enabled via ResizeObserver) */}
+      <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 1002 }}>
         <button
           onClick={() => { fitToContainer(); }}
           style={{ padding: '6px 8px', fontSize: 12 }}
         >
           Fit now
         </button>
-        <button
-          onClick={() => { setAutoFit(v => !v); }}
-          style={{ padding: '6px 8px', fontSize: 12, background: autoFit ? '#0a84ff' : undefined, color: autoFit ? 'white' : undefined }}
-        >
-          Auto fit
-        </button>
       </div>
-      {/* Vertical drag handle on the left for horizontal resize */}
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        onPointerDown={startHorizontalResize}
-        style={{
-          position: 'absolute',
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: 8,
-          cursor: 'ew-resize',
-          zIndex: 1001,
-          background: 'transparent'
-        }}
-      />
-
-      {/* Corner handle for width+height */}
-      <div
-        onPointerDown={startCornerResize}
-        style={{
-          position: 'absolute',
-          right: 4,
-          bottom: 4,
-          width: 16,
-          height: 16,
-          background: '#666',
-          borderRadius: 2,
-          cursor: 'nwse-resize',
-          zIndex: 1001
-        }}
-      />
 
       <VivliostylePreview markdown={markdown} />
     </div>
