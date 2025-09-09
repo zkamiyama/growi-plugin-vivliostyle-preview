@@ -14,6 +14,19 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [showMargins, setShowMargins] = useState(false);
   const rendererWrapRef = React.useRef<HTMLDivElement | null>(null);
 
+  // collapsible Section helper
+  const Section: React.FC<{ title: string; collapsed: boolean; onToggle: () => void; children?: React.ReactNode }> = ({ title, collapsed, onToggle, children }) => (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <strong style={{ fontSize: 12 }}>{title}</strong>
+        <button onClick={onToggle} style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }}>{collapsed ? '▸' : '▾'}</button>
+      </div>
+      {!collapsed && <div>{children}</div>}
+    </div>
+  );
+
+  const [collapsed, setCollapsed] = useState<{ md: boolean; userCss: boolean; compCss: boolean; html: boolean }>({ md: false, userCss: false, compCss: false, html: false });
+
   // unified button base style
   const btnBase: React.CSSProperties = {
   padding: '6px 12px',
@@ -203,7 +216,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
 
       {/* Information panel (simplified) */}
   {showInfo && (
-  <div style={{ position: 'absolute', top: 50, right: 24, width: 320, maxHeight: 400, background: 'rgba(28,28,30,0.75)', color: 'rgba(255,255,255,0.95)', borderRadius: 10, padding: 12, zIndex: 1000, overflow: 'auto', fontSize: 12, backdropFilter: 'blur(6px)', boxShadow: '0 8px 22px rgba(0,0,0,0.28)', border: '1px solid rgba(255,255,255,0.04)' }}>
+  <div style={{ position: 'absolute', top: 40, right: 20, width: 760, height: '72vh', background: 'rgba(28,28,30,0.85)', color: 'rgba(255,255,255,0.95)', borderRadius: 10, padding: 12, zIndex: 1000, overflow: 'auto', fontSize: 12, backdropFilter: 'blur(6px)', boxShadow: '0 12px 40px rgba(0,0,0,0.36)', border: '1px solid rgba(255,255,255,0.04)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <strong style={{ fontSize: 13 }}>Vivliostyle Info</strong>
             <span style={{ fontSize: 12, opacity: 0.9 }}>{showMargins ? 'Margins ON' : 'Margins OFF'}</span>
@@ -231,38 +244,33 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             <div><strong>Collected:</strong> {vivlioDebug?.collectedAt ? new Date(vivlioDebug.collectedAt).toLocaleTimeString() : '-'}</div>
           </div>
 
-          {/* New payload inspector sections */}
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong style={{ fontSize: 12 }}>Extracted user CSS</strong>
-              <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.userCss || '')}>Copy</button>
-            </div>
-            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'auto', background: 'rgba(0,0,0,0.22)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.userCss || '(none)') : '(not built yet)'}</pre>
-          </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong style={{ fontSize: 12 }}>Composed CSS (base + user + inline)</strong>
-              <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.finalCss || '')}>Copy</button>
-            </div>
-            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.finalCss || '(none)') : '(not built yet)'}</pre>
-          </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong style={{ fontSize: 12 }}>Raw Markdown</strong>
+          <Section title="Raw Markdown" collapsed={collapsed.md} onToggle={() => setCollapsed((s) => ({ ...s, md: !s.md }))}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
               <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.rawMarkdown || '')}>Copy</button>
             </div>
-            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'auto', background: 'rgba(0,0,0,0.12)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.rawMarkdown || '(empty)') : '(not built yet)'}</pre>
-          </div>
+            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', background: 'rgba(0,0,0,0.06)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.rawMarkdown || '(empty)') : '(not built yet)'}</pre>
+          </Section>
 
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong style={{ fontSize: 12 }}>Final HTML (passed to Vivliostyle)</strong>
+          <Section title="Extracted user CSS" collapsed={collapsed.userCss} onToggle={() => setCollapsed((s) => ({ ...s, userCss: !s.userCss }))}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+              <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.userCss || '')}>Copy</button>
+            </div>
+            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', background: 'rgba(0,0,0,0.09)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.userCss || '(none)') : '(not built yet)'}</pre>
+          </Section>
+
+          <Section title="Composed CSS (base + user + inline)" collapsed={collapsed.compCss} onToggle={() => setCollapsed((s) => ({ ...s, compCss: !s.compCss }))}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+              <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.finalCss || '')}>Copy</button>
+            </div>
+            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', background: 'rgba(0,0,0,0.12)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.finalCss || '(none)') : '(not built yet)'}</pre>
+          </Section>
+
+          <Section title="Final HTML (passed to Vivliostyle)" collapsed={collapsed.html} onToggle={() => setCollapsed((s) => ({ ...s, html: !s.html }))}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
               <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.html || '')}>Copy</button>
             </div>
-            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', background: 'rgba(0,0,0,0.08)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.html || '(none)') : '(not built yet)'}</pre>
-          </div>
+            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 320, overflow: 'auto', background: 'rgba(0,0,0,0.04)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.html || '(none)') : '(not built yet)'}</pre>
+          </Section>
         </div>
       )}
 
