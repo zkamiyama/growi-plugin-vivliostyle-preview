@@ -30,14 +30,14 @@ export function ensureHostIsolationCss() {
   /* leave global resets as-is for other elements */
 }
 
-/* Fallback: minimal, targeted override to ensure layout calculations assume content-box */
+/* Fallback: minimal, targeted override to ensure layout calculations assume content-box
+   Only normalize the outer container and spread; do NOT forcibly remove padding/margin
+   from author-controlled page boxes or page areas (that breaks layout/margins). */
 .vivlio-simple-viewer [data-vivliostyle-outer-zoom-box],
 .vivlio-simple-viewer [data-vivliostyle-spread-container],
-.vivlio-simple-viewer [data-vivliostyle-page-container],
-.vivlio-simple-viewer [data-vivliostyle-bleed-box],
-.vivlio-simple-viewer [data-vivliostyle-page-box] {
+.vivlio-simple-viewer [data-vivliostyle-page-container] {
   box-sizing: content-box !important;
-  padding: 0 !important;
+  /* Do not force padding/margin here — preserve author intent on page-box/page-area */
   border: 0 !important;
 }
 
@@ -61,14 +61,15 @@ export function ensureHostIsolationCss() {
   overflow: hidden;
   box-sizing: content-box !important;
 }
-.vivlio-simple-viewer [data-vivliostyle-bleed-box],
+.vivlio-simple-viewer [data-vivliostyle-bleed-box] {
+  /* Minimal normalization for the bleed container only; leave page-box/area
+     margins and paddings alone so authored layout remains intact. */
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
 .vivlio-simple-viewer [data-vivliostyle-page-box],
 .vivlio-simple-viewer [data-vivliostyle-page-area] {
-  /* Do not force absolute/full-stretch positioning here — let Vivliostyle
-     author the stacking/positioning of these internal boxes. For safety,
-     only normalize spacing and box-sizing so global resets don't break layout. */
-  margin: 0 !important;
-  padding: 0 !important;
+  /* Preserve author margin/padding; only enforce box-sizing to avoid host leakage */
   box-sizing: border-box !important;
 }
 `;
