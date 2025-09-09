@@ -9,8 +9,6 @@ import { useAppContext } from '../context/AppContext';
 const PreviewShell: React.FC = () => {
   const { isOpen, markdown } = useAppContext();
   const roRef = React.useRef<ResizeObserver | null>(null);
-  const attemptRef = React.useRef<number>(0);
-  const visibilityObserverRef = React.useRef<MutationObserver | null>(null);
 
   const fitToContainer = React.useCallback(() => {
   const host = document.getElementById('vivlio-preview-container');
@@ -106,27 +104,11 @@ const PreviewShell: React.FC = () => {
     const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
     const host = document.getElementById('vivlio-preview-container');
     if (!previewContainer || !host) return;
-    // initial fit attempt
-    attemptRef.current = 0;
-    const attemptPosition = () => {
-      attemptRef.current += 1;
+    // initial fit: perform once and reveal immediately; observers will correct
+    try {
       fitToContainer();
-      const cw = host.clientWidth;
-      const ch = host.clientHeight;
-      // if host is too small (likely because target was hidden or not laid out), retry
-      if (cw <= 8 || ch <= 8) {
-        // keep hidden until stable
-        host.style.display = 'none';
-        if (attemptRef.current < 12) {
-          // schedule a retry with backoff
-          window.setTimeout(attemptPosition, 100 * attemptRef.current);
-        }
-        return;
-      }
-      // valid size: reveal host
-      host.style.display = 'block';
-    };
-    attemptPosition();
+    } catch (e) { /* ignore */ }
+    host.style.display = 'block';
     const ro = new (window as any).ResizeObserver(() => {
       fitToContainer();
     });
@@ -139,20 +121,17 @@ const PreviewShell: React.FC = () => {
 
     // watch previewContainer attribute/class changes (visibility toggles)
     try {
-      visibilityObserverRef.current = new MutationObserver(() => {
-        // attempt to reposition when classes/attributes change
-        attemptRef.current = 0;
-        attemptPosition();
+      const mo = new MutationObserver(() => {
+        try { fitToContainer(); } catch (e) { /* ignore */ }
       });
-      visibilityObserverRef.current.observe(previewContainer, { attributes: true, attributeFilter: ['class', 'style'] });
+      mo.observe(previewContainer, { attributes: true, attributeFilter: ['class', 'style'] });
     } catch (e) { /* ignore */ }
 
     return () => {
-      try { ro.disconnect(); } catch (e) {}
-      roRef.current = null;
+  try { ro.disconnect(); } catch (e) {}
+  roRef.current = null;
   window.removeEventListener('scroll', onScroll);
   window.removeEventListener('resize', onScroll);
-  try { visibilityObserverRef.current?.disconnect(); visibilityObserverRef.current = null; } catch (e) {}
     };
   }, [fitToContainer]);
 
