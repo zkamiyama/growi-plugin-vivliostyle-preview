@@ -14,9 +14,10 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [showMargins, setShowMargins] = useState(false);
   const rendererWrapRef = React.useRef<HTMLDivElement | null>(null);
 
-  // collapsible Section helper — compact accordion: small caret at line-start, compact padding
+  
+  // collapsible Section helper — compact header with emphasized border and small right-aligned Copy
   const Section: React.FC<{ title: string; collapsed: boolean; onToggle: () => void; copy?: () => void; children?: React.ReactNode }> = ({ title, collapsed, onToggle, copy, children }) => (
-    <div style={{ marginBottom: 8, borderRadius: 6, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.03)' }}>
+    <div style={{ marginBottom: 8, borderRadius: 6, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
       <div
         onClick={onToggle}
         role="button"
@@ -24,40 +25,40 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
+          justifyContent: 'space-between',
+          gap: 8,
           padding: '6px 8px',
           cursor: 'pointer',
           userSelect: 'none',
-          background: 'transparent'
+          background: 'rgba(0,0,0,0.08)',
+          borderBottom: '1px solid rgba(255,255,255,0.03)'
         }}
       >
-        {/* tiny caret placed flush at start of the line */}
-        <span style={{ display: 'inline-block', width: 14, textAlign: 'center', fontSize: 12, lineHeight: '12px' }}>{collapsed ? '▶' : '▼'}</span>
-        <span style={{ fontSize: 12, lineHeight: '14px' }}>{title}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ display: 'inline-block', width: 14, textAlign: 'center', fontSize: 12, lineHeight: '12px' }}>{collapsed ? '▶' : '▼'}</span>
+          <span style={{ fontSize: 12, lineHeight: '14px' }}>{title}</span>
+        </div>
+        {/* copy button on the right edge of the header; stopPropagation so it doesn't toggle */}
+        {copy && (
+          <button
+            onClick={(e) => { e.stopPropagation(); copy(); }}
+            aria-label={`Copy ${title}`}
+            style={{
+              padding: '4px 8px',
+              fontSize: 12,
+              borderRadius: 6,
+              background: 'rgba(40,40,40,0.55)',
+              color: 'white',
+              border: '1px solid rgba(255,255,255,0.04)',
+              cursor: 'pointer'
+            }}
+          >
+            Copy
+          </button>
+        )}
       </div>
       {!collapsed && (
-  <div style={{ position: 'relative', padding: 8, background: 'rgba(0,0,0,0.015)' }}>
-          {/* compact floating copy button inside content */}
-          {copy && (
-            <button
-              onClick={copy}
-              aria-label={`Copy ${title}`}
-              style={{
-                position: 'absolute',
-                top: 8,
-                right: 12, /* place adjacent to scrollbar */
-                padding: '4px 8px',
-                fontSize: 12,
-                borderRadius: 6,
-                background: 'rgba(40,40,40,0.55)',
-                color: 'white',
-                border: '1px solid rgba(255,255,255,0.04)',
-                cursor: 'pointer'
-              }}
-            >
-              Copy
-            </button>
-          )}
+        <div style={{ position: 'relative', padding: 8, background: 'rgba(0,0,0,0.02)' }}>
           <div className="vivlio-section-scroll" style={{ overflow: 'auto', maxHeight: 380 }}>{children}</div>
         </div>
       )}
