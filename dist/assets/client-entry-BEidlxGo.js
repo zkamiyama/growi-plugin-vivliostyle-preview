@@ -1802,12 +1802,29 @@ hr {
           /* reset UA body margins to avoid visual confusion */
           html, body { margin: 0 !important; padding: 0 !important; }
 
-          /* page rules: ensure margin is explicitly set so page-area size is correct */
+          /* Ensure any theme variables that control page size are overridden */
+          :root {
+            --vs-page-width: 148mm;
+            --vs-page-height: 210mm;
+            --vs-page-margin: 12mm;
+          }
+
+          /* Final @page (mm values to avoid alias resolution issues) */
           @page {
-            size: A5;
+            size: 148mm 210mm;
             margin: 12mm;
             marks: crop cross;
             bleed: 3mm;
+          }
+
+          /* Ensure :left/:right variants are overridden as well */
+          @page :left {
+            size: 148mm 210mm;
+            margin: 12mm;
+          }
+          @page :right {
+            size: 148mm 210mm;
+            margin: 12mm;
           }
 
           /* visual helpers */
