@@ -75,6 +75,16 @@ const PreviewShell: React.FC = () => {
       host.style.height = '100%';
       host.style.overflow = 'hidden';
       host.style.zIndex = '10';
+      // disable underlying preview container scrollbars to avoid user
+      // interacting with them and causing the overlay to drift.
+      try {
+        if (previewContainer) {
+          if ((previewContainer as HTMLElement).dataset.vivlioPrevOverflow === undefined) {
+            (previewContainer as HTMLElement).dataset.vivlioPrevOverflow = (previewContainer as HTMLElement).style.overflow || '';
+          }
+          (previewContainer as HTMLElement).style.overflow = 'hidden';
+        }
+      } catch (e) { /* ignore */ }
     }
 
     // Do NOT hide sibling elements. Instead, we overlay the host on top of the
@@ -95,6 +105,15 @@ const PreviewShell: React.FC = () => {
       children: childrenInfo,
       previewChildren: previewContainer ? previewContainer.children.length : -1,
     });
+    // when closing, restore preview container overflow
+    if (!isOpen) {
+      try {
+        if (previewContainer && (previewContainer as HTMLElement).dataset.vivlioPrevOverflow !== undefined) {
+          (previewContainer as HTMLElement).style.overflow = (previewContainer as HTMLElement).dataset.vivlioPrevOverflow || '';
+          delete (previewContainer as HTMLElement).dataset.vivlioPrevOverflow;
+        }
+      } catch (e) { /* ignore */ }
+    }
   }, [isOpen]);
 
   // Auto-fit behavior: when enabled, observe the editor preview container and
