@@ -15,13 +15,15 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
 
   // unified button base style
   const btnBase: React.CSSProperties = {
-    padding: '6px 12px',
-    background: 'rgba(0,0,0,0.7)',
-    color: 'white',
-    border: 'none',
-    borderRadius: 6,
-    cursor: 'pointer',
-    fontSize: 12,
+  padding: '6px 12px',
+  background: 'rgba(240,240,240,0.6)',
+  color: 'rgba(20,20,20,0.9)',
+  border: '1px solid rgba(255,255,255,0.4)',
+  backdropFilter: 'blur(6px)',
+  borderRadius: 8,
+  cursor: 'pointer',
+  fontSize: 12,
+  boxShadow: '0 2px 6px rgba(0,0,0,0.12)'
   };
 
   // Collect debug information from the Vivliostyle-rendered iframe when available
@@ -197,8 +199,8 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       </button>
 
       {/* Information panel (simplified) */}
-      {showInfo && (
-        <div style={{ position: 'absolute', top: 50, right: 10, width: 320, maxHeight: 400, background: 'rgba(20,20,20,0.95)', color: 'white', borderRadius: 8, padding: 12, zIndex: 1000, overflow: 'auto', fontSize: 12 }}>
+  {showInfo && (
+  <div style={{ position: 'absolute', top: 50, right: 10, width: 320, maxHeight: 400, background: 'rgba(245,245,245,0.7)', color: 'rgba(20,20,20,0.95)', borderRadius: 10, padding: 12, zIndex: 1000, overflow: 'auto', fontSize: 12, backdropFilter: 'blur(6px)', boxShadow: '0 6px 18px rgba(0,0,0,0.12)', border: '1px solid rgba(255,255,255,0.5)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <strong style={{ fontSize: 13 }}>Vivliostyle Info</strong>
             <span style={{ fontSize: 12, opacity: 0.9 }}>{showMargins ? 'Margins ON' : 'Margins OFF'}</span>
