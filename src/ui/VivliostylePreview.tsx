@@ -173,17 +173,21 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       {/* Information button */}
       <button
         onClick={() => setShowInfo(!showInfo)}
-        style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, ...btnBase }}
+        title="Toggle info"
+        aria-label="Toggle info"
+        style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, ...btnBase, padding: '6px' }}
       >
-        ℹ️ Info
+        ℹ️
       </button>
 
       {/* Margin visualization toggle button */}
       <button
         onClick={() => setShowMargins(!showMargins)}
-        style={{ position: 'absolute', top: 10, right: 80, zIndex: 1000, ...btnBase, background: showMargins ? 'rgba(255,165,0,0.9)' : btnBase.background }}
+        title={showMargins ? 'Disable margins' : 'Enable margins'}
+        aria-label="Toggle margins"
+        style={{ position: 'absolute', top: 10, right: 80, zIndex: 1000, ...btnBase, padding: '6px', background: showMargins ? 'rgba(255,165,0,0.9)' : btnBase.background }}
       >
-        📐 Margins
+        📐
       </button>
 
       {/* Information panel (simplified) */}
@@ -194,8 +198,22 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             <span style={{ fontSize: 12, opacity: 0.9 }}>{showMargins ? 'Margins ON' : 'Margins OFF'}</span>
           </div>
           <div style={{ marginBottom: 8 }}>
-            <button onClick={collectVivlioDebug} style={{ marginRight: 8, ...btnBase, padding: '6px 8px', fontSize: 11 }}>🔄 Refresh</button>
-            <button onClick={() => { if (vivlioDebug) navigator.clipboard?.writeText(JSON.stringify(vivlioDebug, null, 2)); }} style={{ ...btnBase, padding: '6px 8px', fontSize: 11 }}>📋 Copy JSON</button>
+            <button
+              onClick={collectVivlioDebug}
+              title="Refresh info"
+              aria-label="Refresh info"
+              style={{ marginRight: 8, ...btnBase, padding: '6px', fontSize: 12 }}
+            >
+              🔄
+            </button>
+            <button
+              onClick={() => { if (vivlioDebug) navigator.clipboard?.writeText(JSON.stringify(vivlioDebug, null, 2)); }}
+              title="Copy debug JSON"
+              aria-label="Copy debug JSON"
+              style={{ ...btnBase, padding: '6px', fontSize: 12 }}
+            >
+              📋
+            </button>
           </div>
           <div style={{ fontSize: 12, marginBottom: 8 }}>
             <div><strong>Pages found:</strong> {vivlioDebug?.entries?.length ?? 0}</div>
