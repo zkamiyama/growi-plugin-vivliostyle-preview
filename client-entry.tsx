@@ -130,15 +130,36 @@ function mount() {
   if (!host) {
     host = document.createElement('div');
     host.id = CONTAINER_ID;
-  // ベーススタイル: overlay 用に body に直接追加する。具体的な位置合わせは
-  // PreviewShell.fitToContainer が行う（bounding rect に基づく絶対配置）。
-  host.style.position = 'absolute';
-  host.style.display = 'none';
-  host.style.zIndex = '10000';
-    // append to body so we don't get hidden / reparented by preview container changes
-    document.body.appendChild(host);
-  // eslint-disable-next-line no-console
-  console.debug('[VivlioDBG][mount] host container created and appended');
+    // base overlay style - display controlled by PreviewShell
+    host.style.position = 'absolute';
+    host.style.display = 'none';
+    host.style.zIndex = '10000';
+
+    // Prefer to append to the stable inner preview container if it matches
+    // the exact selector. This allows us to use inset:0 overlay without
+    // computing viewport coords and avoids problems when preview is toggled.
+    const preferred = document.querySelector('.page-editor-preview-container.flex-expand-vert.overflow-y-auto') as HTMLElement | null;
+    if (preferred) {
+      // save original position style to restore on unmount
+      const prevPos = preferred.style.position || '';
+      preferred.dataset.vivlioPrevPosition = prevPos;
+      // ensure containing block for absolute inset positioning
+      if (window.getComputedStyle(preferred).position === 'static') {
+        preferred.style.position = 'relative';
+      }
+      preferred.appendChild(host);
+      host.dataset.vivlioAttachedTo = 'previewContainer';
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][mount] host appended to preferred preview container');
+    } else {
+      // fallback: append to body and position by bounding rect
+      document.body.appendChild(host);
+      host.dataset.vivlioAttachedTo = 'body';
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][mount] host appended to body (fallback)');
+    }
+    // eslint-disable-next-line no-console
+    console.debug('[VivlioDBG][mount] host container created');
   }
 
   let root = (window as any).__vivlio_root;
@@ -202,7 +223,19 @@ function unmount() {
   console.debug('[VivlioDBG][unmount] root unmounted');
   }
   const host = document.getElementById(CONTAINER_ID);
-  if (host?.parentNode) host.parentNode.removeChild(host);
+  if (host) {
+    const attachedTo = host.dataset.vivlioAttachedTo;
+    const parent = host.parentElement;
+    if (parent && attachedTo === 'previewContainer') {
+      // restore previous position if we mutated it
+      const prevPos = (parent as HTMLElement).dataset.vivlioPrevPosition;
+      if (prevPos !== undefined) {
+        (parent as HTMLElement).style.position = prevPos;
+        delete (parent as HTMLElement).dataset.vivlioPrevPosition;
+      }
+    }
+    if (host.parentNode) host.parentNode.removeChild(host);
+  }
 
   // 監視クリーンアップ
   const observer = (window as any).__vivlio_observer;
