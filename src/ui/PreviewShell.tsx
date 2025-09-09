@@ -15,31 +15,22 @@ const PreviewShell: React.FC = () => {
   const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
   if (!host || !previewContainer) return;
   host.style.boxSizing = 'border-box';
-  // If host was appended to the preview container (preferred path), use
-  // inset:0 overlay so it reliably covers children and doesn't depend on
-  // viewport rounding. Otherwise, position by bounding rect on the body.
-  if (host.dataset.vivlioAttachedTo === 'previewContainer') {
-    host.style.position = 'absolute';
-    host.style.left = '0';
-    host.style.top = '0';
-    host.style.right = '0';
-    host.style.bottom = '0';
-    host.style.width = '100%';
-    host.style.height = '100%';
-    host.style.inset = '0';
+  // For fixed-body-mounted overlay, compute the viewport rect of the
+  // previewContainer and set host to fixed position so it does not move
+  // during inner scrolling. Do not re-position on window scroll (avoid
+  // chaining). Only adjust on resize/mutation.
+  try {
+    const rect = previewContainer.getBoundingClientRect();
+    host.style.position = 'fixed';
+    host.style.left = `${Math.round(rect.left)}px`;
+    host.style.top = `${Math.round(rect.top)}px`;
+    host.style.width = `${Math.round(rect.width)}px`;
+    host.style.height = `${Math.round(rect.height)}px`;
     host.style.zIndex = '100000';
-    host.style.pointerEvents = 'auto';
-    return;
-  }
-  const rect = previewContainer.getBoundingClientRect();
-  const scrollX = window.scrollX || window.pageXOffset || 0;
-  const scrollY = window.scrollY || window.pageYOffset || 0;
-  // position host in viewport absolute coordinates so it overlays correctly
-  host.style.position = 'absolute';
-  host.style.left = `${Math.round(rect.left + scrollX)}px`;
-  host.style.top = `${Math.round(rect.top + scrollY)}px`;
-  host.style.width = `${Math.round(rect.width)}px`;
-  host.style.height = `${Math.round(rect.height)}px`;
+    // prevent scroll chaining
+    host.style.overscrollBehavior = 'contain';
+    host.style.touchAction = 'auto';
+  } catch (e) { /* ignore */ }
   }, []);
 
   // 初回マウントログ
@@ -157,9 +148,10 @@ const PreviewShell: React.FC = () => {
     ro.observe(previewContainer);
     roRef.current = ro;
 
-    const onScroll = () => { fitToContainer(); };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
+    // Do not reposition on scroll: fixed overlay stays put relative to
+    // viewport; only listen to resize to recompute placement.
+    const onResize = () => { fitToContainer(); };
+    window.addEventListener('resize', onResize);
 
     // watch previewContainer attribute/class changes (visibility toggles)
     try {
@@ -172,8 +164,7 @@ const PreviewShell: React.FC = () => {
     return () => {
   try { ro.disconnect(); } catch (e) {}
   roRef.current = null;
-  window.removeEventListener('scroll', onScroll);
-  window.removeEventListener('resize', onScroll);
+  window.removeEventListener('resize', onResize);
     };
   }, [fitToContainer]);
 

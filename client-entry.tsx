@@ -139,24 +139,39 @@ function mount() {
     // the exact selector. This allows us to use inset:0 overlay without
     // computing viewport coords and avoids problems when preview is toggled.
     const preferred = document.querySelector('.page-editor-preview-container.flex-expand-vert.overflow-y-auto') as HTMLElement | null;
-    if (preferred) {
-      // save original position style to restore on unmount
-      const prevPos = preferred.style.position || '';
-      preferred.dataset.vivlioPrevPosition = prevPos;
-      // ensure containing block for absolute inset positioning
-      if (window.getComputedStyle(preferred).position === 'static') {
-        preferred.style.position = 'relative';
+    // Prefer to mount to body with fixed positioning so the overlay does not
+    // follow the inner preview container's scroll. This avoids scroll chaining
+    // where editor scrolling would move our overlay.
+    document.body.appendChild(host);
+    host.dataset.vivlioAttachedTo = 'bodyFixed';
+    try {
+      if (preferred) {
+        const rc = preferred.getBoundingClientRect();
+        // position fixed relative to viewport
+        host.style.position = 'fixed';
+        host.style.left = `${Math.round(rc.left)}px`;
+        host.style.top = `${Math.round(rc.top)}px`;
+        host.style.width = `${Math.round(rc.width)}px`;
+        host.style.height = `${Math.round(rc.height)}px`;
+        host.style.zIndex = '10000';
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][mount] host appended to body as fixed overlay', { rect: rc });
+      } else {
+        // fallback to full-screen fixed overlay
+        host.style.position = 'fixed';
+        host.style.left = '0';
+        host.style.top = '0';
+        host.style.right = '0';
+        host.style.bottom = '0';
+        host.style.width = '100%';
+        host.style.height = '100%';
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][mount] host appended to body as fullscreen fixed overlay');
       }
-      preferred.appendChild(host);
-      host.dataset.vivlioAttachedTo = 'previewContainer';
+    } catch (e) {
+      // fallback append to body (already done)
       // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][mount] host appended to preferred preview container');
-    } else {
-      // fallback: append to body and position by bounding rect
-      document.body.appendChild(host);
-      host.dataset.vivlioAttachedTo = 'body';
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][mount] host appended to body (fallback)');
+      console.debug('[VivlioDBG][mount] host appended to body (fixed fallback)');
     }
     // eslint-disable-next-line no-console
     console.debug('[VivlioDBG][mount] host container created');
