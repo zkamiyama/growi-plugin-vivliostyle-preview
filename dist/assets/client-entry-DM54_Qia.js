@@ -1799,11 +1799,18 @@ hr {
 }
 `;function EMe(e,t){const{title:n="Preview",language:r="ja",styleUrls:i,inlineCss:a,enableMath:o=!0,inlineScript:s}=t||{},l=r$.stringify(e,{title:n,language:r,style:i,math:o});let u=yMe;a&&(u+=`
 `+a);const c=SMe(l,u);return s?TMe(c,s):c}function SMe(e,t){const n=`<style>${t}</style>`,r=e.indexOf("</head>");return r===-1?n+e:e.slice(0,r)+n+e.slice(r)}function TMe(e,t){const n=`<script>${t}<\/script>`,r=e.indexOf("</body>");return r===-1?e+n:e.slice(0,r)+n+e.slice(r)}const wMe=({markdown:e})=>{const[t,n]=be.useState(null),[r,i]=be.useState(!1),[a,o]=be.useState(null),[s,l]=be.useState(!1),u=yc.useRef(null),c=async()=>{var d;try{const p=u.current;if(!p)return;const f=p.querySelector("iframe");if(!f){o(null);return}const v=f.contentDocument||((d=f.contentWindow)==null?void 0:d.document);if(!v){o(null);return}const m=Array.from(v.querySelectorAll("[data-vivliostyle-page-side], [data-vivliostyle-auto-page-width], [data-vivliostyle-auto-page-height]"));if(m.length===0){const y=Array.from(v.querySelectorAll('.vivliostyle-page, .page, [role="document"], article'));m.push(...y)}const g=m.slice(0,6).map(y=>{const S=y.getAttribute("style")||"",T={};try{Object.keys(y.dataset||{}).forEach(D=>{T[D]=y.dataset[D]})}catch{}const A=f.contentWindow?f.contentWindow.getComputedStyle(y):null,x=A?{width:A.width,height:A.height,left:A.left,top:A.top,padding:A.padding}:null,_=y.querySelector("[data-bleed], .bleed, .vivliostyle-bleed, [data-vivliostyle-bleed]"),k=_?_.getAttribute("style")||"":null;return{tag:y.tagName.toLowerCase(),id:y.id||null,className:y.className||null,dataset:T,inlineStyle:S,computed:x,bleedInline:k}});let b=null,h=null;try{const y=v.querySelector("[data-vivliostyle-page-side], .vivliostyle-page, .page");y&&(b=y.style.width||null,h=y.style.height||null)}catch{}o({entries:g,pageSheetWidth:b,pageSheetHeight:h,collectedAt:Date.now()})}catch(p){o({error:p.message})}};return yc.useEffect(()=>{if(!t)return;const d=window.setTimeout(()=>{try{c()}catch{}},300);return()=>{clearTimeout(d)}},[t]),yc.useEffect(()=>{r&&c()},[r]),be.useEffect(()=>{if(!e){n(null);return}try{const d=EMe(e,{inlineCss:s?`
+          /* reset UA body margins to avoid visual confusion */
+          html, body { margin: 0 !important; padding: 0 !important; }
+
+          /* page rules: ensure margin is explicitly set so page-area size is correct */
           @page {
             size: A5;
+            margin: 12mm;
             marks: crop cross;
             bleed: 3mm;
           }
+
+          /* visual helpers */
           [data-vivliostyle-page-area] {
             background: rgba(144, 238, 144, 0.3) !important;
           }
