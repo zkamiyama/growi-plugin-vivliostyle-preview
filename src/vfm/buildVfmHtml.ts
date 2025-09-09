@@ -1,5 +1,4 @@
 import { stringify } from '@vivliostyle/vfm';
-import baseCss from './styles.css?raw';
 
 /**
  * VFM で Markdown → 完全HTML へ変換し、必要ならインラインCSSを <head> に注入。
@@ -61,8 +60,8 @@ export function buildVfmHtml(
     math: enableMath,
   });
 
-  // 2) CSS を組み立てる: baseCss -> userCss -> inlineCss
-  let finalCss = baseCss || '';
+  // 2) CSS を組み立てる: userCss -> inlineCss (baseCss removed)
+  let finalCss = '';
   if (userCss) finalCss += '\n' + userCss;
   if (inlineCss) finalCss += '\n' + inlineCss;
 
@@ -115,7 +114,7 @@ export function buildVfmPayload(inputMarkdown: string, options?: {
     math: enableMath,
   });
 
-  const finalCss = (baseCss || '') + (userCss ? '\n' + userCss : '') + (inlineCss ? '\n' + inlineCss : '');
+  const finalCss = '' + (userCss ? '\n' + userCss : '') + (inlineCss ? '\n' + inlineCss : '');
   const withCss = injectInlineStyle(html, finalCss);
   const withScript = inlineScript ? injectInlineScript(withCss, inlineScript) : withCss;
 
