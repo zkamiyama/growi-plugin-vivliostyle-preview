@@ -77,20 +77,26 @@ const PreviewShell: React.FC = () => {
       host.style.overflow = 'hidden';
       // keep zIndex very high so overlay intercepts scrollbar drags
       host.style.zIndex = '100000';
-      // As an aggressive fallback to prevent user-driven drift, disable
-      // pointer events on the original preview container so its scrollbar
-      // cannot be grabbed. We still restore the previous value on close.
+      // Try a less invasive approach: hide the visual scrollbar in the
+      // original preview container (so the UI doesn't show a scrollbar to
+      // grab) while keeping the container functional. We inject a stylesheet
+      // once and toggle a class on the preview container.
       try {
         if (previewContainer) {
-          if ((previewContainer as HTMLElement).dataset.vivlioPrevOverflow === undefined) {
-            (previewContainer as HTMLElement).dataset.vivlioPrevOverflow = (previewContainer as HTMLElement).style.overflow || '';
+          // ensure our stylesheet is present
+          if (!document.getElementById('vivlio-hide-scroll-style')) {
+            const s = document.createElement('style');
+            s.id = 'vivlio-hide-scroll-style';
+            s.textContent = `
+              .vivlio-hide-scrollbar {
+                scrollbar-width: none; /* Firefox */
+                -ms-overflow-style: none;  /* IE 10+ */
+              }
+              .vivlio-hide-scrollbar::-webkit-scrollbar { display: none; width: 0; height: 0; }
+            `;
+            document.head.appendChild(s);
           }
-          (previewContainer as HTMLElement).style.overflow = 'hidden';
-
-          if ((previewContainer as HTMLElement).dataset.vivlioPrevPointerEvents === undefined) {
-            (previewContainer as HTMLElement).dataset.vivlioPrevPointerEvents = (previewContainer as HTMLElement).style.pointerEvents || '';
-          }
-          (previewContainer as HTMLElement).style.pointerEvents = 'none';
+          (previewContainer as HTMLElement).classList.add('vivlio-hide-scrollbar');
         }
       } catch (e) { /* ignore */ }
     }
@@ -113,67 +119,21 @@ const PreviewShell: React.FC = () => {
       children: childrenInfo,
       previewChildren: previewContainer ? previewContainer.children.length : -1,
     });
-    // when closing, restore preview container overflow/pointerEvents
+    // when closing, remove our visual scrollbar-hiding class and restore
     if (!isOpen) {
       try {
-        if (previewContainer && (previewContainer as HTMLElement).dataset.vivlioPrevOverflow !== undefined) {
-          (previewContainer as HTMLElement).style.overflow = (previewContainer as HTMLElement).dataset.vivlioPrevOverflow || '';
-          delete (previewContainer as HTMLElement).dataset.vivlioPrevOverflow;
-        }
-        if (previewContainer && (previewContainer as HTMLElement).dataset.vivlioPrevPointerEvents !== undefined) {
-          (previewContainer as HTMLElement).style.pointerEvents = (previewContainer as HTMLElement).dataset.vivlioPrevPointerEvents || '';
-          delete (previewContainer as HTMLElement).dataset.vivlioPrevPointerEvents;
+        if (previewContainer) {
+          (previewContainer as HTMLElement).classList.remove('vivlio-hide-scrollbar');
         }
       } catch (e) { /* ignore */ }
     }
 
-    // Additionally, capture and block input that would cause scrolling even if
-    // the scrollbar area were reachable (wheel, touchmove, keyboard keys).
-    // These handlers are added only while the overlay is open and removed on cleanup.
-    let wheelHandler: ((e: Event) => void) | null = null;
-    let touchHandler: ((e: Event) => void) | null = null;
-    let keyHandler: ((e: KeyboardEvent) => void) | null = null;
-    if (isOpen) {
-      wheelHandler = (e: Event) => {
-        try { e.preventDefault(); e.stopPropagation(); } catch (err) { /**/ }
-        return false;
-      };
-      touchHandler = wheelHandler;
-      keyHandler = (e: KeyboardEvent) => {
-        const k = e.key;
-        if (k === 'ArrowUp' || k === 'ArrowDown' || k === 'PageUp' || k === 'PageDown' || k === 'Home' || k === 'End' || k === ' ') {
-          try { e.preventDefault(); e.stopPropagation(); } catch (err) { /**/ }
-          return false;
-        }
-        return true;
-      };
-      try {
-        window.addEventListener('wheel', wheelHandler as EventListener, { passive: false, capture: true });
-        window.addEventListener('touchmove', touchHandler as EventListener, { passive: false, capture: true });
-        window.addEventListener('keydown', keyHandler as EventListener, true);
-      } catch (e) { /* ignore */ }
-    }
-
-    // cleanup for added handlers when effect re-runs / unmounts
+    // No global input blocking anymore. Cleanup just ensures our class is removed
+    // if the effect re-runs or the component unmounts.
     return () => {
       try {
-        if (wheelHandler) window.removeEventListener('wheel', wheelHandler as EventListener, true);
-      } catch (e) { /* ignore */ }
-      try {
-        if (touchHandler) window.removeEventListener('touchmove', touchHandler as EventListener, true);
-      } catch (e) { /* ignore */ }
-      try {
-        if (keyHandler) window.removeEventListener('keydown', keyHandler as EventListener, true);
-      } catch (e) { /* ignore */ }
-      // restore preview container styles in case effect cleanup ran due to unmount
-      try {
-        if (previewContainer && (previewContainer as HTMLElement).dataset.vivlioPrevOverflow !== undefined) {
-          (previewContainer as HTMLElement).style.overflow = (previewContainer as HTMLElement).dataset.vivlioPrevOverflow || '';
-          delete (previewContainer as HTMLElement).dataset.vivlioPrevOverflow;
-        }
-        if (previewContainer && (previewContainer as HTMLElement).dataset.vivlioPrevPointerEvents !== undefined) {
-          (previewContainer as HTMLElement).style.pointerEvents = (previewContainer as HTMLElement).dataset.vivlioPrevPointerEvents || '';
-          delete (previewContainer as HTMLElement).dataset.vivlioPrevPointerEvents;
+        if (previewContainer) {
+          (previewContainer as HTMLElement).classList.remove('vivlio-hide-scrollbar');
         }
       } catch (e) { /* ignore */ }
     };
