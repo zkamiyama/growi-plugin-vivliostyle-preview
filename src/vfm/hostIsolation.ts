@@ -142,12 +142,14 @@ export function ensureHostIsolationCss() {
 
         const expectedDiffPx = measureMmPx(el as HTMLElement, 6); // 3mm bleed each side => 6mm total
 
-        // Account for pageBox padding. Vivliostyle sometimes sets padding via
-        // inline styles which might be overridden by our isolation CSS and
-        // therefore absent from getComputedStyle. Prefer inline styles when
-        // available; for multiple page-boxes sum their paddings.
-        let pWidthForComparison = pRect.width;
-        let pagePadding = { left: 0, right: 0, top: 0, bottom: 0 };
+  // Account for pageBox padding, but only subtract padding when the
+  // computed box-sizing is 'content-box'. If box-sizing is 'border-box'
+  // the bounding rect width already includes padding and subtracting it
+  // would undercount the rendered width (causing large diffs).
+  let pWidthForComparison = pRect.width;
+  let pagePadding = { left: 0, right: 0, top: 0, bottom: 0 };
+  // representative computed box-sizing for page-box(es)
+  let representativeBoxSizing: string | null = null;
         try {
           const parsePx = (s: string | null | undefined) => {
             if (!s) return 0;
@@ -162,6 +164,10 @@ export function ensureHostIsolationCss() {
             let totalPadBottom = 0;
             for (let i = 0; i < pageBoxes.length; ++i) {
               const pbEl = pageBoxes[i] as HTMLElement;
+              // determine computed box-sizing once (representative)
+              if (representativeBoxSizing === null) {
+                try { representativeBoxSizing = getComputedStyle(pbEl).boxSizing || null; } catch (e) { representativeBoxSizing = null; }
+              }
               // prefer inline style if present
               const sl = pbEl.style;
               const plInline = parsePx(sl.paddingLeft || null);
@@ -180,7 +186,12 @@ export function ensureHostIsolationCss() {
               totalPadBottom += parsePx(cs.paddingBottom);
             }
             pagePadding = { left: totalPadLR / 2, right: totalPadLR / 2, top: totalPadTop / pageBoxes.length, bottom: totalPadBottom / pageBoxes.length };
-            if (totalPadLR > 1) pWidthForComparison = Math.max(0, pRect.width - totalPadLR);
+            // Only subtract aggregated padding when the representative box-sizing
+            // indicates content-box. If unknown/default to NOT subtracting to
+            // avoid false positives.
+            if (representativeBoxSizing === 'content-box' && totalPadLR > 1) {
+              pWidthForComparison = Math.max(0, pRect.width - totalPadLR);
+            }
           } else {
             const pbEl = pageBox as HTMLElement;
             const sl = pbEl.style;
@@ -190,7 +201,11 @@ export function ensureHostIsolationCss() {
             const pbInline = parsePx(sl.paddingBottom || null);
             if (plInline || prInline || ptInline || pbInline) {
               pagePadding = { left: plInline, right: prInline, top: ptInline, bottom: pbInline };
-              if (plInline + prInline > 1) pWidthForComparison = Math.max(0, pRect.width - (plInline + prInline));
+              // check computed box-sizing before subtracting inline padding
+              try { representativeBoxSizing = getComputedStyle(pbEl).boxSizing || null; } catch (e) { representativeBoxSizing = null; }
+              if (representativeBoxSizing === 'content-box' && (plInline + prInline) > 1) {
+                pWidthForComparison = Math.max(0, pRect.width - (plInline + prInline));
+              }
             } else {
               const pageCSforPad = getComputedStyle(pbEl);
               const pl = parsePx(pageCSforPad.paddingLeft);
@@ -198,7 +213,11 @@ export function ensureHostIsolationCss() {
               const pt = parsePx(pageCSforPad.paddingTop);
               const pbv = parsePx(pageCSforPad.paddingBottom);
               pagePadding = { left: pl, right: pr, top: pt, bottom: pbv };
-              if (pl + pr > 1) pWidthForComparison = Math.max(0, pRect.width - (pl + pr));
+              // only subtract computed padding when computed box-sizing is content-box
+              representativeBoxSizing = pageCSforPad.boxSizing || null;
+              if (representativeBoxSizing === 'content-box' && (pl + pr) > 1) {
+                pWidthForComparison = Math.max(0, pRect.width - (pl + pr));
+              }
             }
           }
         } catch (e) {
