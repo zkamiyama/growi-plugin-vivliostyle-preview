@@ -14,6 +14,46 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [showMargins, setShowMargins] = useState(false);
   const rendererWrapRef = React.useRef<HTMLDivElement | null>(null);
 
+  // small collapsible section component used in the Info panel
+  const Section: React.FC<{ title: string; collapsed: boolean; onToggle: () => void; children: React.ReactNode }> = ({ title, collapsed, onToggle, children }) => (
+    <div style={{ marginBottom: 12, borderRadius: 6 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <strong style={{ fontSize: 13 }}>{title}</strong>
+        <button onClick={onToggle} style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }}>{collapsed ? '▸' : '▾'}</button>
+      </div>
+      {!collapsed && <div>{children}</div>}
+    </div>
+  );
+
+  // Info panel UI state (positioning, sizing, collapse)
+  const [panelPos, setPanelPos] = useState<{ left: number; top: number } | null>(null);
+  const [panelSize, setPanelSize] = useState<{ width: number; height: number }>({ width: 720, height: 600 });
+  const [dragging, setDragging] = useState(false);
+  const [resizing, setResizing] = useState(false);
+  const dragRef = React.useRef<{ startX: number; startY: number; startLeft: number; startTop: number } | null>(null);
+  const resizeRef = React.useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
+  const [collapsed, setCollapsed] = useState<{ md: boolean; userCss: boolean; compCss: boolean; html: boolean }>({ md: false, userCss: false, compCss: false, html: false });
+
+  // Global mouse handlers for drag/resize
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (dragging && dragRef.current && panelPos) {
+        const dx = e.clientX - dragRef.current.startX;
+        const dy = e.clientY - dragRef.current.startY;
+        setPanelPos({ left: Math.max(8, dragRef.current.startLeft + dx), top: Math.max(8, dragRef.current.startTop + dy) });
+      }
+      if (resizing && resizeRef.current) {
+        const dx = e.clientX - resizeRef.current.startX;
+        const dy = e.clientY - resizeRef.current.startY;
+        setPanelSize({ width: Math.max(320, resizeRef.current.startW + dx), height: Math.max(200, resizeRef.current.startH + dy) });
+      }
+    };
+    const onMouseUp = () => { setDragging(false); setResizing(false); dragRef.current = null; resizeRef.current = null; };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => { window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp); };
+  }, [dragging, resizing, panelPos]);
+
   // unified button base style
   const btnBase: React.CSSProperties = {
   padding: '6px 12px',
@@ -203,68 +243,100 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
 
       {/* Information panel (simplified) */}
   {showInfo && (
-  <div style={{ position: 'absolute', top: 50, right: 24, width: 320, maxHeight: 400, background: 'rgba(28,28,30,0.75)', color: 'rgba(255,255,255,0.95)', borderRadius: 10, padding: 12, zIndex: 1000, overflow: 'auto', fontSize: 12, backdropFilter: 'blur(6px)', boxShadow: '0 8px 22px rgba(0,0,0,0.28)', border: '1px solid rgba(255,255,255,0.04)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <strong style={{ fontSize: 13 }}>Vivliostyle Info</strong>
+    /* Initialize panelPos when showing */
+    (() => { if (!panelPos) { const w = panelSize.width; const left = Math.max(16, window.innerWidth - 24 - w); setPanelPos({ left, top: 50 }); } return null; })(),
+    panelPos && (
+      <div
+        role="dialog"
+        style={{
+          position: 'absolute',
+          left: panelPos.left,
+          top: panelPos.top,
+          width: panelSize.width,
+          height: panelSize.height,
+          background: 'rgba(28,28,30,0.82)',
+          color: 'rgba(255,255,255,0.95)',
+          borderRadius: 10,
+          padding: 0,
+          zIndex: 1000,
+          overflow: 'hidden',
+          fontSize: 12,
+          backdropFilter: 'blur(8px)',
+          boxShadow: '0 12px 40px rgba(0,0,0,0.36)',
+          border: '1px solid rgba(255,255,255,0.04)',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
+        {/* Header: drag handle */}
+        <div
+          onMouseDown={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.tagName.toLowerCase() === 'button') return;
+            setDragging(true);
+            dragRef.current = { startX: e.clientX, startY: e.clientY, startLeft: panelPos.left, startTop: panelPos.top };
+          }}
+          style={{ padding: '10px 12px', cursor: 'move', userSelect: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.03)' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <strong style={{ fontSize: 14 }}>Vivliostyle Info</strong>
             <span style={{ fontSize: 12, opacity: 0.9 }}>{showMargins ? 'Margins ON' : 'Margins OFF'}</span>
           </div>
-          <div style={{ marginBottom: 8 }}>
-            <button
-              onClick={collectVivlioDebug}
-              title="Refresh info"
-              aria-label="Refresh info"
-              style={{ marginRight: 6, ...btnBase, padding: '6px', fontSize: 12 }}
-            >
-              🔄
-            </button>
-            <button
-              onClick={() => { if (vivlioDebug) navigator.clipboard?.writeText(JSON.stringify(vivlioDebug, null, 2)); }}
-              title="Copy debug JSON"
-              aria-label="Copy debug JSON"
-              style={{ ...btnBase, padding: '6px', fontSize: 12 }}
-            >
-              📋
-            </button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={collectVivlioDebug} title="Refresh info" aria-label="Refresh info" style={{ ...btnBase, padding: '6px' }}>🔄</button>
+            <button onClick={() => { if (vivlioDebug) navigator.clipboard?.writeText(JSON.stringify(vivlioDebug, null, 2)); }} title="Copy debug JSON" aria-label="Copy debug JSON" style={{ ...btnBase, padding: '6px' }}>📋</button>
+            <button onClick={() => setShowInfo(false)} title="Close" aria-label="Close" style={{ ...btnBase, padding: '6px' }}>✖️</button>
           </div>
+        </div>
+
+        {/* Content area */}
+        <div style={{ padding: 12, overflow: 'auto', flex: 1 }}>
           <div style={{ fontSize: 12, marginBottom: 8 }}>
             <div><strong>Pages found:</strong> {vivlioDebug?.entries?.length ?? 0}</div>
             <div><strong>Collected:</strong> {vivlioDebug?.collectedAt ? new Date(vivlioDebug.collectedAt).toLocaleTimeString() : '-'}</div>
           </div>
 
-          {/* New payload inspector sections */}
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong style={{ fontSize: 12 }}>Extracted user CSS</strong>
-              <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.userCss || '')}>Copy</button>
-            </div>
-            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'auto', background: 'rgba(0,0,0,0.22)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.userCss || '(none)') : '(not built yet)'}</pre>
-          </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong style={{ fontSize: 12 }}>Composed CSS (base + user + inline)</strong>
-              <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.finalCss || '')}>Copy</button>
-            </div>
-            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'auto', background: 'rgba(0,0,0,0.18)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.finalCss || '(none)') : '(not built yet)'}</pre>
-          </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong style={{ fontSize: 12 }}>Raw Markdown</strong>
+          <Section title="Raw Markdown" collapsed={collapsed.md} onToggle={() => setCollapsed((s) => ({ ...s, md: !s.md }))}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
               <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.rawMarkdown || '')}>Copy</button>
             </div>
-            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'auto', background: 'rgba(0,0,0,0.12)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.rawMarkdown || '(empty)') : '(not built yet)'}</pre>
-          </div>
+            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto', background: 'rgba(0,0,0,0.06)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.rawMarkdown || '(empty)') : '(not built yet)'}</pre>
+          </Section>
 
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong style={{ fontSize: 12 }}>Final HTML (passed to Vivliostyle)</strong>
+          <Section title="Extracted user CSS" collapsed={collapsed.userCss} onToggle={() => setCollapsed((s) => ({ ...s, userCss: !s.userCss }))}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+              <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.userCss || '')}>Copy</button>
+            </div>
+            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto', background: 'rgba(0,0,0,0.09)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.userCss || '(none)') : '(not built yet)'}</pre>
+          </Section>
+
+          <Section title="Composed CSS (base + user + inline)" collapsed={collapsed.compCss} onToggle={() => setCollapsed((s) => ({ ...s, compCss: !s.compCss }))}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+              <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.finalCss || '')}>Copy</button>
+            </div>
+            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 160, overflow: 'auto', background: 'rgba(0,0,0,0.12)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.finalCss || '(none)') : '(not built yet)'}</pre>
+          </Section>
+
+          <Section title="Final HTML (passed to Vivliostyle)" collapsed={collapsed.html} onToggle={() => setCollapsed((s) => ({ ...s, html: !s.html }))}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
               <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.html || '')}>Copy</button>
             </div>
-            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', background: 'rgba(0,0,0,0.08)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.html || '(none)') : '(not built yet)'}</pre>
-          </div>
+            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 320, overflow: 'auto', background: 'rgba(0,0,0,0.04)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.html || '(none)') : '(not built yet)'}</pre>
+          </Section>
         </div>
-      )}
+
+        {/* resize handle */}
+        <div
+          onMouseDown={(e) => {
+            setResizing(true);
+            resizeRef.current = { startX: e.clientX, startY: e.clientY, startW: panelSize.width, startH: panelSize.height };
+            e.stopPropagation();
+          }}
+          style={{ position: 'absolute', right: 8, bottom: 8, width: 16, height: 16, cursor: 'nwse-resize', background: 'rgba(255,255,255,0.06)', borderRadius: 3 }}
+        />
+      </div>
+    )
+  )}
 
       {/* Renderer with margin visualization */}
       <div
