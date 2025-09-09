@@ -37,6 +37,11 @@ const PreviewShell: React.FC = () => {
   React.useEffect(() => {
     // eslint-disable-next-line no-console
     console.debug('[VivlioDBG][PreviewShell] mount', { time: Date.now() });
+    try {
+      // runtime diagnostic: React version and simple mount context
+      // eslint-disable-next-line no-console
+      console.info('[VivlioDBG][diag] React', { version: (React as any).version || null, component: 'PreviewShell' });
+    } catch (e) { /* ignore */ }
     return () => {
       // eslint-disable-next-line no-console
       console.debug('[VivlioDBG][PreviewShell] unmount', { time: Date.now() });
