@@ -36,7 +36,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         <span style={{ fontSize: 12, lineHeight: '14px' }}>{title}</span>
       </div>
       {!collapsed && (
-        <div style={{ position: 'relative', padding: 8, background: 'rgba(0,0,0,0.015)' }}>
+  <div style={{ position: 'relative', padding: 8, background: 'rgba(0,0,0,0.015)' }}>
           {/* compact floating copy button inside content */}
           {copy && (
             <button
@@ -45,7 +45,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
               style={{
                 position: 'absolute',
                 top: 8,
-                right: 44, /* move left to avoid overlapping scrollbar */
+                right: 64, /* move further left to avoid overlapping scrollbar */
                 padding: '4px 8px',
                 fontSize: 12,
                 borderRadius: 6,
@@ -58,11 +58,20 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
               Copy
             </button>
           )}
-          <div style={{ overflow: 'auto', maxHeight: 380 }}>{children}</div>
+          <div className="vivlio-section-scroll" style={{ overflow: 'auto', maxHeight: 380 }}>{children}</div>
         </div>
       )}
     </div>
   );
+
+  // local scrollbar styles for compact thin scrollbar inside the info panel
+  const localScrollStyles = `
+    .vivlio-simple-viewer .vivlio-section-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.14) transparent; }
+    .vivlio-simple-viewer .vivlio-section-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+    .vivlio-simple-viewer .vivlio-section-scroll::-webkit-scrollbar-track { background: transparent; }
+    .vivlio-simple-viewer .vivlio-section-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 8px; }
+    .vivlio-simple-viewer .vivlio-section-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+  `;
 
   const [collapsed, setCollapsed] = useState<{ md: boolean; userCss: boolean; compCss: boolean; html: boolean }>({ md: false, userCss: false, compCss: false, html: false });
 
@@ -256,6 +265,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       {/* Information panel (simplified) */}
   {showInfo && (
   <div style={{ position: 'absolute', top: 40, right: 20, width: 760, height: '72vh', background: 'rgba(28,28,30,0.85)', color: 'rgba(255,255,255,0.95)', borderRadius: 10, padding: 12, zIndex: 1000, overflow: 'auto', fontSize: 12, backdropFilter: 'blur(6px)', boxShadow: '0 12px 40px rgba(0,0,0,0.36)', border: '1px solid rgba(255,255,255,0.04)' }}>
+        <style>{localScrollStyles}</style>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <strong style={{ fontSize: 13 }}>Vivliostyle Info</strong>
             <span style={{ fontSize: 12, opacity: 0.9 }}>{showMargins ? 'Margins ON' : 'Margins OFF'}</span>
