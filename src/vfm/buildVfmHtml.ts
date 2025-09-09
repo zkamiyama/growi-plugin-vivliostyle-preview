@@ -62,8 +62,8 @@ export function buildVfmHtml(
 
   // 2) CSS を組み立てる: userCss -> inlineCss (baseCss removed)
   let finalCss = '';
-  if (userCss) finalCss += '\n' + userCss;
-  if (inlineCss) finalCss += '\n' + inlineCss;
+  if (userCss) finalCss += '\n' + sanitizeCss(userCss);
+  if (inlineCss) finalCss += '\n' + sanitizeCss(inlineCss);
 
   // 3) 生成した HTML に <style> と <script> をインジェクトして返す
   const withCss = injectInlineStyle(html, finalCss);
@@ -142,6 +142,36 @@ function injectInlineScript(html: string, script: string): string {
   }
   return html.slice(0, idx) + tag + html.slice(idx);
 
+}
+
+/**
+ * Lightweight CSS sanitizer for common generation mistakes:
+ * - remove fullwidth/unicode spaces that can break @page parsing
+ * - strip properties from @page blocks that are not allowed (e.g., color)
+ * This is defensive and intentionally conservative.
+ */
+function sanitizeCss(css: string): string {
+  if (!css) return css;
+  // Replace fullwidth spaces (U+3000) and other weird unicode whitespaces with normal space
+  let s = css.replace(/\u3000/g, ' ');
+  // normalize repeated whitespace
+  s = s.replace(/[\u00A0\s]+/g, ' ');
+
+  // Remove disallowed declarations inside @page blocks. Keep only a small
+  // whitelist (size, margin, bleed, marks). Naive approach: remove lines
+  // containing known-bad properties when inside @page { ... }.
+  const pageBlockRegex = /@page\s*[^\{]*\{([\s\S]*?)\}/gi;
+  s = s.replace(pageBlockRegex, (m, body) => {
+    const allowedProps = ['size', 'margin', 'bleed', 'marks'];
+    const lines: string[] = body.split(/;/).map((l: string) => l.trim()).filter(Boolean);
+    const filtered: string[] = lines.filter((line: string) => {
+      const prop = line.split(':')[0].trim().toLowerCase();
+      return allowedProps.some((a: string) => prop.startsWith(a));
+    });
+    return `@page { ${filtered.join('; ')} }`;
+  });
+
+  return s;
 }
 
 /**
