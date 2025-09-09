@@ -97,7 +97,26 @@ export function ensureHostIsolationCss() {
         // Use bounding client rect to get rendered size (includes transforms)
         const bRect = bleed.getBoundingClientRect();
         const pRect = pageBox.getBoundingClientRect();
-        const expectedDiffPx = mmToPx(6); // 3mm bleed each side => 6mm total
+        // Instead of assuming 96dpi, measure rendered px for a given mm inside
+        // the same page-container so transforms and page-scales are accounted for.
+        const measureMmPx = (parent: HTMLElement, mm: number) => {
+          try {
+            const probe = document.createElement('div');
+            probe.style.position = 'absolute';
+            probe.style.left = '-9999px';
+            probe.style.width = `${mm}mm`;
+            probe.style.height = '0px';
+            probe.style.visibility = 'hidden';
+            parent.appendChild(probe);
+            const val = probe.getBoundingClientRect().width;
+            parent.removeChild(probe);
+            return val;
+          } catch (e) {
+            return mmToPx(mm); // fallback
+          }
+        };
+
+        const expectedDiffPx = measureMmPx(el as HTMLElement, 6); // 3mm bleed each side => 6mm total
         const actualDiff = Math.abs((bRect.width - pRect.width) - expectedDiffPx);
         if (actualDiff > 8) { // threshold: 8px (tunable)
           // Collect richer diagnostics to help root-cause analysis without
