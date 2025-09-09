@@ -19,6 +19,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const rendererWrapRef = React.useRef<HTMLDivElement | null>(null);
   const viewerRef = React.useRef<any>(null);
   const rawWindowRef = React.useRef<Window | null>(null);
+  const [showRawInline, setShowRawInline] = useState<boolean>(false);
 
   
   // collapsible Section helper — compact header with emphasized border and small right-aligned Copy
@@ -267,18 +268,13 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
 
   const openRawHtml = () => {
     if (!sourceUrl) return;
-    // open in a new tab/window so user can inspect the full generated HTML separately
-    try {
-      if (rawWindowRef.current && !rawWindowRef.current.closed) {
-        rawWindowRef.current.location.href = sourceUrl;
-        rawWindowRef.current.focus();
-        return;
-      }
-      rawWindowRef.current = window.open(sourceUrl, '_blank');
-    } catch (e) {
-      // fallback: copy to clipboard
-      try { navigator.clipboard?.writeText(vivlioPayload?.html || ''); } catch (err) { /* ignore */ }
-    }
+    // Toggle inline raw-HTML iframe view. If already showing inline, switch back to renderer.
+    setShowRawInline((s) => {
+      const next = !s;
+      // request a debug/info refresh after switch
+      setTimeout(() => { try { collectVivlioDebug(); refreshPages(); } catch (e) { /* ignore */ } }, 120);
+      return next;
+    });
   };
 
   React.useEffect(() => {
@@ -441,23 +437,33 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         }}
       >
         {sourceUrl && (
-          <Renderer
-            key={sourceUrl + (showMargins ? '_m' : '_n')}
-            source={sourceUrl}
-            onLoad={(params: any) => {
-              try {
-                // params may include container and viewer depending on version
-                const viewer = params.viewer || (params as any).vivliostyleViewer || null;
-                viewerRef.current = viewer || viewerRef.current;
-                // allow external debug collector
-                try { collectVivlioDebug(); } catch (e) { /* ignore */ }
-                // refresh page list
-                setTimeout(refreshPages, 120);
-              } catch (e) { /* ignore */ }
-            }}
-          >
-            {({ container }: any) => container}
-          </Renderer>
+          showRawInline ? (
+            <iframe
+              key={sourceUrl + (showMargins ? '_m' : '_n') + '_raw'}
+              src={sourceUrl}
+              title="Vivliostyle Raw HTML"
+              style={{ width: '100%', height: '100%', border: 0 }}
+              onLoad={() => { try { collectVivlioDebug(); refreshPages(); } catch (e) { /* ignore */ } }}
+            />
+          ) : (
+            <Renderer
+              key={sourceUrl + (showMargins ? '_m' : '_n')}
+              source={sourceUrl}
+              onLoad={(params: any) => {
+                try {
+                  // params may include container and viewer depending on version
+                  const viewer = params.viewer || (params as any).vivliostyleViewer || null;
+                  viewerRef.current = viewer || viewerRef.current;
+                  // allow external debug collector
+                  try { collectVivlioDebug(); } catch (e) { /* ignore */ }
+                  // refresh page list
+                  setTimeout(refreshPages, 120);
+                } catch (e) { /* ignore */ }
+              }}
+            >
+              {({ container }: any) => container}
+            </Renderer>
+          )
         )}
       </div>
     </div>
