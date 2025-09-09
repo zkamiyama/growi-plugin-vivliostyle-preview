@@ -8,6 +8,13 @@ import { useAppContext } from '../context/AppContext';
 // シンプルな差し替え方式。ポップアップは廃止。
 const PreviewShell: React.FC = () => {
   const { isOpen, markdown } = useAppContext();
+  const dragState = React.useRef<{
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+    mode: 'none' | 'h' | 'corner';
+  }>({ startX: 0, startY: 0, startWidth: 0, startHeight: 0, mode: 'none' });
 
   // 初回マウントログ
   React.useEffect(() => {
@@ -33,8 +40,9 @@ const PreviewShell: React.FC = () => {
     host.style.display = isOpen ? 'block' : 'none';
     if (isOpen) {
       host.style.position = 'relative';
-      host.style.width = '100%';
-      host.style.height = '100%';
+  // if width not explicitly set, default to 60% width so resize makes sense
+  if (!host.style.width || host.style.width === '100%') host.style.width = '60%';
+  if (!host.style.height || host.style.height === '100%') host.style.height = '100%';
       host.style.overflow = 'auto';
       host.style.zIndex = '10';
       if (!host.style.minHeight) host.style.minHeight = '400px';
@@ -84,12 +92,141 @@ const PreviewShell: React.FC = () => {
     });
   }, [isOpen]);
 
+  // Resize handlers: adjust host width/height by dragging handles rendered inside the React tree
+  React.useEffect(() => {
+    const onPointerMove = (ev: PointerEvent) => {
+      const ds = dragState.current;
+      if (ds.mode === 'none') return;
+      const host = document.getElementById('vivlio-preview-container');
+      if (!host) return;
+      if (ds.mode === 'h') {
+        const dx = ev.clientX - ds.startX;
+        // left-edge handle: moving right decreases width
+        const newWidth = Math.max(300, ds.startWidth - dx);
+        host.style.width = `${newWidth}px`;
+      } else if (ds.mode === 'corner') {
+        const dx = ev.clientX - ds.startX;
+        const dy = ev.clientY - ds.startY;
+        const newWidth = Math.max(300, ds.startWidth + dx);
+        const newHeight = Math.max(200, ds.startHeight + dy);
+        host.style.width = `${newWidth}px`;
+        host.style.height = `${newHeight}px`;
+      }
+      ev.preventDefault();
+    };
+
+    const onPointerUp = () => {
+      dragState.current.mode = 'none';
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+    };
+
+    // attach when dragging starts via handlers below
+    return () => {
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+    };
+  }, []);
+
+  const startHorizontalResize = (e: React.PointerEvent) => {
+    const host = document.getElementById('vivlio-preview-container');
+    if (!host) return;
+    const rect = host.getBoundingClientRect();
+    dragState.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startWidth: rect.width,
+      startHeight: rect.height,
+      mode: 'h'
+    };
+    // attach global listeners
+    const onPointerMove = (ev: PointerEvent) => {
+      const ds = dragState.current;
+      if (ds.mode !== 'h') return;
+      const dx = ev.clientX - ds.startX;
+      const newWidth = Math.max(300, ds.startWidth - dx);
+      host.style.width = `${newWidth}px`;
+      ev.preventDefault();
+    };
+    const onPointerUp = () => {
+      dragState.current.mode = 'none';
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+    };
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp, { once: true });
+  };
+
+  const startCornerResize = (e: React.PointerEvent) => {
+    const host = document.getElementById('vivlio-preview-container');
+    if (!host) return;
+    const rect = host.getBoundingClientRect();
+    dragState.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startWidth: rect.width,
+      startHeight: rect.height,
+      mode: 'corner'
+    };
+    const onPointerMove = (ev: PointerEvent) => {
+      const ds = dragState.current;
+      if (ds.mode !== 'corner') return;
+      const dx = ev.clientX - ds.startX;
+      const dy = ev.clientY - ds.startY;
+      const newWidth = Math.max(300, ds.startWidth + dx);
+      const newHeight = Math.max(200, ds.startHeight + dy);
+      host.style.width = `${newWidth}px`;
+      host.style.height = `${newHeight}px`;
+      ev.preventDefault();
+    };
+    const onPointerUp = () => {
+      dragState.current.mode = 'none';
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+    };
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp, { once: true });
+  };
+
   // Host (#vivlio-preview-container) 内にマウントされるのでラッパ不要
   if (!isOpen) {
     return null;
   }
   return (
-    <div data-vivlio-shell-root>
+    <div data-vivlio-shell-root style={{ position: 'relative' }}>
+      {/* Vertical drag handle on the left for horizontal resize */}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        onPointerDown={startHorizontalResize}
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 8,
+          cursor: 'ew-resize',
+          zIndex: 1001,
+          background: 'transparent'
+        }}
+      />
+
+      {/* Corner handle for width+height */}
+      <div
+        onPointerDown={startCornerResize}
+        style={{
+          position: 'absolute',
+          right: 4,
+          bottom: 4,
+          width: 16,
+          height: 16,
+          background: '#666',
+          borderRadius: 2,
+          cursor: 'nwse-resize',
+          zIndex: 1001
+        }}
+      />
+
       <VivliostylePreview markdown={markdown} />
     </div>
   );
