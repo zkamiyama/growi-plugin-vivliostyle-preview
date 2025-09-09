@@ -14,14 +14,58 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [showMargins, setShowMargins] = useState(false);
   const rendererWrapRef = React.useRef<HTMLDivElement | null>(null);
 
-  // collapsible Section helper
-  const Section: React.FC<{ title: string; collapsed: boolean; onToggle: () => void; children?: React.ReactNode }> = ({ title, collapsed, onToggle, children }) => (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <strong style={{ fontSize: 12 }}>{title}</strong>
-        <button onClick={onToggle} style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }}>{collapsed ? '▸' : '▾'}</button>
+  // collapsible Section helper — compact accordion: small caret at line-start, compact padding
+  const Section: React.FC<{ title: string; collapsed: boolean; onToggle: () => void; copy?: () => void; children?: React.ReactNode }> = ({ title, collapsed, onToggle, copy, children }) => (
+    <div style={{ marginBottom: 8, borderRadius: 6, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.03)' }}>
+      <div
+        onClick={onToggle}
+        role="button"
+        tabIndex={0}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '6px 8px',
+          cursor: 'pointer',
+          userSelect: 'none',
+          background: 'transparent'
+        }}
+      >
+        {/* tiny caret placed flush at start of the line */}
+        <span style={{ display: 'inline-block', width: 14, textAlign: 'center', fontSize: 12, lineHeight: '12px' }}>{collapsed ? '▶' : '▼'}</span>
+        <span style={{ fontSize: 12, lineHeight: '14px' }}>{title}</span>
       </div>
-      {!collapsed && <div>{children}</div>}
+      {!collapsed && (
+        <div style={{ position: 'relative', padding: 8, background: 'rgba(0,0,0,0.015)' }}>
+          {/* compact floating copy button inside content */}
+          {copy && (
+            <button
+              onClick={copy}
+              aria-label={`Copy ${title}`}
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                width: 28,
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+                fontSize: 13,
+                borderRadius: 6,
+                background: 'rgba(40,40,40,0.55)',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.04)',
+                cursor: 'pointer'
+              }}
+            >
+              📋
+            </button>
+          )}
+          <div style={{ overflow: 'auto', maxHeight: 380 }}>{children}</div>
+        </div>
+      )}
     </div>
   );
 
@@ -244,31 +288,19 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             <div><strong>Collected:</strong> {vivlioDebug?.collectedAt ? new Date(vivlioDebug.collectedAt).toLocaleTimeString() : '-'}</div>
           </div>
 
-          <Section title="Raw Markdown" collapsed={collapsed.md} onToggle={() => setCollapsed((s) => ({ ...s, md: !s.md }))}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
-              <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.rawMarkdown || '')}>Copy</button>
-            </div>
+          <Section title="Raw Markdown" collapsed={collapsed.md} onToggle={() => setCollapsed((s) => ({ ...s, md: !s.md }))} copy={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.rawMarkdown || '')}>
             <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', background: 'rgba(0,0,0,0.06)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.rawMarkdown || '(empty)') : '(not built yet)'}</pre>
           </Section>
 
-          <Section title="Extracted user CSS" collapsed={collapsed.userCss} onToggle={() => setCollapsed((s) => ({ ...s, userCss: !s.userCss }))}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
-              <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.userCss || '')}>Copy</button>
-            </div>
+          <Section title="Extracted user CSS" collapsed={collapsed.userCss} onToggle={() => setCollapsed((s) => ({ ...s, userCss: !s.userCss }))} copy={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.userCss || '')}>
             <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', background: 'rgba(0,0,0,0.09)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.userCss || '(none)') : '(not built yet)'}</pre>
           </Section>
 
-          <Section title="Composed CSS (base + user + inline)" collapsed={collapsed.compCss} onToggle={() => setCollapsed((s) => ({ ...s, compCss: !s.compCss }))}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
-              <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.finalCss || '')}>Copy</button>
-            </div>
+          <Section title="Composed CSS (base + user + inline)" collapsed={collapsed.compCss} onToggle={() => setCollapsed((s) => ({ ...s, compCss: !s.compCss }))} copy={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.finalCss || '')}>
             <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', background: 'rgba(0,0,0,0.12)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.finalCss || '(none)') : '(not built yet)'}</pre>
           </Section>
 
-          <Section title="Final HTML (passed to Vivliostyle)" collapsed={collapsed.html} onToggle={() => setCollapsed((s) => ({ ...s, html: !s.html }))}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
-              <button style={{ ...btnBase, padding: '4px 8px', fontSize: 11 }} onClick={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.html || '')}>Copy</button>
-            </div>
+          <Section title="Final HTML (passed to Vivliostyle)" collapsed={collapsed.html} onToggle={() => setCollapsed((s) => ({ ...s, html: !s.html }))} copy={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.html || '')}>
             <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 320, overflow: 'auto', background: 'rgba(0,0,0,0.04)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.html || '(none)') : '(not built yet)'}</pre>
           </Section>
         </div>
