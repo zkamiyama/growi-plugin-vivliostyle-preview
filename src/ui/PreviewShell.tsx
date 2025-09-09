@@ -44,88 +44,102 @@ const PreviewShell: React.FC = () => {
   }, []);
 
   React.useEffect(() => {
-    const host = document.getElementById('vivlio-preview-container');
+    // Ensure a top-level host element exists under document.body to avoid any
+    // ancestor transforms from the editor chrome affecting the measurement
+    // inside the vivliostyle renderer. We create/move #vivlio-preview-container
+    // to document.body and style it as a fixed overlay matching the preview
+    // container's viewport rectangle.
+    let host = document.getElementById('vivlio-preview-container') as HTMLElement | null;
     const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
+
+    const ensureHostUnderBody = () => {
+      host = document.getElementById('vivlio-preview-container') as HTMLElement | null;
+      if (!host) {
+        host = document.createElement('div');
+        host.id = 'vivlio-preview-container';
+        document.body.appendChild(host);
+      } else if (host.parentElement !== document.body) {
+        // move existing host to body to escape transforms
+        document.body.appendChild(host);
+      }
+      // baseline styles to avoid inheriting transforms
+      host.style.position = 'fixed';
+      host.style.left = '0';
+      host.style.top = '0';
+      host.style.width = '100%';
+      host.style.height = '100%';
+      host.style.margin = '0';
+      host.style.padding = '0';
+      host.style.overflow = 'hidden';
+      host.style.zIndex = '100000';
+      host.dataset.vivlioMount = 'true';
+    };
+
+    try { ensureHostUnderBody(); } catch (e) { /* ignore */ }
 
     if (!host) {
       // eslint-disable-next-line no-console
-      console.warn('[VivlioDBG][PreviewShell] host container missing when toggling', { isOpen });
-      return;
+      console.warn('[VivlioDBG][PreviewShell] host container missing when toggling (after ensure)');
+      return undefined;
     }
 
-    host.dataset.vivlioMount = 'true';
     host.style.display = isOpen ? 'block' : 'none';
-    // Prepare overlay to fully intercept pointer input
-    if (isOpen) {
-      // ensure host exactly fills the preview container
-      host.style.position = 'absolute';
-      host.style.top = '0';
-      host.style.left = '0';
-      host.style.right = '0';
-      host.style.bottom = '0';
-      host.style.width = '100%';
-      host.style.height = '100%';
-      host.style.overflow = 'hidden';
-      // keep zIndex very high so overlay intercepts scrollbar drags
-      host.style.zIndex = '100000';
-      // Try a less invasive approach: hide the visual scrollbar in the
-      // original preview container (so the UI doesn't show a scrollbar to
-      // grab) while keeping the container functional. We inject a stylesheet
-      // once and toggle a class on the preview container.
+
+    // If previewContainer exists, compute its viewport rect and create an
+    // inner wrapper inside the body-host that matches the preview area. This
+    // keeps the vivliostyle renderer visually aligned while the host itself
+    // remains unaffected by ancestor transforms.
+    let innerWrapper: HTMLElement | null = host.querySelector('.vivlio-body-wrapper') as HTMLElement | null;
+    if (!innerWrapper && host) {
+      innerWrapper = document.createElement('div');
+      innerWrapper.className = 'vivlio-body-wrapper';
+      // make wrapper centered and pointer-events pass through default areas
+      innerWrapper.style.position = 'absolute';
+      innerWrapper.style.transform = 'none';
+      innerWrapper.style.left = '0';
+      innerWrapper.style.top = '0';
+      innerWrapper.style.width = '100%';
+      innerWrapper.style.height = '100%';
+      innerWrapper.style.boxSizing = 'border-box';
+      host.appendChild(innerWrapper);
+    }
+
+    if (isOpen && previewContainer && innerWrapper) {
       try {
-        if (previewContainer) {
-          // ensure our stylesheet is present
-          if (!document.getElementById('vivlio-hide-scroll-style')) {
-            const s = document.createElement('style');
-            s.id = 'vivlio-hide-scroll-style';
-            s.textContent = `
-              .vivlio-hide-scrollbar {
-                scrollbar-width: none; /* Firefox */
-                -ms-overflow-style: none;  /* IE 10+ */
-              }
-              .vivlio-hide-scrollbar::-webkit-scrollbar { display: none; width: 0; height: 0; }
-            `;
-            document.head.appendChild(s);
-          }
-          (previewContainer as HTMLElement).classList.add('vivlio-hide-scrollbar');
-        }
+        const rect = previewContainer.getBoundingClientRect();
+        // Position innerWrapper to exactly overlay the previewContainer in the
+        // viewport. Because host is fixed to the body, this positioning is free
+        // from ancestor transforms.
+        innerWrapper.style.left = `${Math.round(rect.left)}px`;
+        innerWrapper.style.top = `${Math.round(rect.top)}px`;
+        innerWrapper.style.width = `${Math.round(rect.width)}px`;
+        innerWrapper.style.height = `${Math.round(rect.height)}px`;
       } catch (e) { /* ignore */ }
     }
 
-    // Do NOT hide sibling elements. Instead, we overlay the host on top of the
-    // existing preview area so layout and accessibility are preserved. Log
-    // children for debugging.
-    let childrenInfo: string[] = [];
-    if (previewContainer) {
-      childrenInfo = Array.from(previewContainer.children).map((el, idx) => `${idx}:${el.className || el.id || el.tagName}`);
-    }
-
-    // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][PreviewShell] mount info (overlay mode)', {
-      isOpen,
-      hasHost: !!host,
-      hasPreviewContainer: !!previewContainer,
-      hostDisplay: host.style.display,
-      markdownLen: markdown.length,
-      children: childrenInfo,
-      previewChildren: previewContainer ? previewContainer.children.length : -1,
-    });
-    // when closing, remove our visual scrollbar-hiding class and restore
-    if (!isOpen) {
-      try {
-        if (previewContainer) {
-          (previewContainer as HTMLElement).classList.remove('vivlio-hide-scrollbar');
+    // Hide the original preview container scrollbar visually to avoid double
+    // scrollbars, but do not move the element in the DOM.
+    try {
+      if (previewContainer) {
+        if (!document.getElementById('vivlio-hide-scroll-style')) {
+          const s = document.createElement('style');
+          s.id = 'vivlio-hide-scroll-style';
+          s.textContent = `
+            .vivlio-hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+            .vivlio-hide-scrollbar::-webkit-scrollbar { display: none; width: 0; height: 0; }
+          `;
+          document.head.appendChild(s);
         }
-      } catch (e) { /* ignore */ }
-    }
+        previewContainer.classList.add('vivlio-hide-scrollbar');
+      }
+    } catch (e) { /* ignore */ }
 
-    // No global input blocking anymore. Cleanup just ensures our class is removed
-    // if the effect re-runs or the component unmounts.
+    // cleanup on unmount or re-run
     return () => {
       try {
-        if (previewContainer) {
-          (previewContainer as HTMLElement).classList.remove('vivlio-hide-scrollbar');
-        }
+        if (previewContainer) previewContainer.classList.remove('vivlio-hide-scrollbar');
+        // keep host in body but hide it
+        if (host) host.style.display = 'none';
       } catch (e) { /* ignore */ }
     };
   }, [isOpen]);
