@@ -5,21 +5,26 @@ import baseCss from './styles.css?raw';
  * VFM で Markdown → 完全HTML へ変換し、必要ならインラインCSSを <head> に注入。
  * 返すのは「完全HTML文字列」（<!doctype html> を含む）。
  *
- * @param markdown 変換元のMarkdown
- * @param options  title / language / styleUrls / inlineCss を指定
+ * 本実装では本文中の ```vivliocss``` コードブロックを抽出し、生成される HTML の
+ * インライン <style> に追加します（抽出後はそのコードブロックは Markdown から削除されます）。
  */
-export function buildVfmHtml(markdown: string, options?: {
-  title?: string;
-  language?: string;
-  /** <link rel="stylesheet"> で追加するURL群（CORSに注意） */
-  styleUrls?: string[];
-  /** <style> として挿入するCSS（CORS回避のため推奨） */
-  inlineCss?: string;
-  /** MathJaxを有効にするか（VFMはデフォルト有効。falseで無効化） */
-  enableMath?: boolean;
-  /** <script> として挿入するJavaScript（body末尾に挿入） */
-  inlineScript?: string;
-}): string {
+export function buildVfmHtml(
+  inputMarkdown: string,
+  options?: {
+    title?: string;
+    language?: string;
+    /** <link rel="stylesheet"> で追加するURL群（CORSに注意） */
+    styleUrls?: string[];
+    /** <style> として挿入するCSS（CORS回避のため推奨） */
+    inlineCss?: string;
+    /** MathJaxを有効にするか（VFMはデフォルト有効。falseで無効化） */
+    enableMath?: boolean;
+    /** <script> として挿入するJavaScript（body末尾に挿入） */
+    inlineScript?: string;
+    /** 本文中の ```vivliocss``` ブロックを抽出して適用するか（デフォルト true） */
+    parseVivlioUserCss?: boolean;
+  }
+): string {
   const {
     title = 'Preview',
     language = 'ja',
@@ -27,34 +32,43 @@ export function buildVfmHtml(markdown: string, options?: {
     inlineCss,
     enableMath = true,
     inlineScript,
+    parseVivlioUserCss = true,
   } = options || {};
 
+  // まず、入力 Markdown から vivliocss ブロックを抽出する（存在すれば userCss に蓄える）
+  let markdown = inputMarkdown || '';
+  let userCss = '';
+  if (parseVivlioUserCss && typeof markdown === 'string') {
+    try {
+      // ```vivliocss\n ...css... ``` をケースインセンシティブで抽出
+      markdown = markdown.replace(/```\s*vivliocss\s*\n([\s\S]*?)```/gmi, (_m, css) => {
+        if (css && css.trim()) {
+          userCss += '\n' + css.trim();
+        }
+        return ''; // 抽出したフェンスは Markdown から除去
+      });
+    } catch (e) {
+      // extraction error -> ignore and continue without userCss
+      userCss = '';
+    }
+  }
+
   // 1) VFM → 完全HTML
-  // stringify の主なオプション（style/title/language/partial）は npm のドキュメントを参照。
-  // https://www.npmjs.com/package/@vivliostyle/vfm (code タブ例)
   const html = stringify(markdown, {
     title,
     language,
     style: styleUrls,
-    // 数式制御：外部方針に合わせる（有効/無効）
     math: enableMath,
-    // 完全HTMLを出す（partial: false）
   });
 
-  // 2) インラインCSSを <head> に足す（CORSを避けるための推奨策）
-  // NOTE: Do NOT use `all: revert` or similar here — Vivliostyle's host-level
-  // containers are created in the host document and content-side `revert` will
-  // undo Vivliostyle's own layout rules, breaking centering. Host-side
-  // isolation/overrides are applied elsewhere.
-  let finalCss = baseCss;
-  if (inlineCss) {
-    finalCss += '\n' + inlineCss;
-  }
+  // 2) CSS を組み立てる: baseCss -> userCss -> inlineCss
+  let finalCss = baseCss || '';
+  if (userCss) finalCss += '\n' + userCss;
+  if (inlineCss) finalCss += '\n' + inlineCss;
+
+  // 3) 生成した HTML に <style> と <script> をインジェクトして返す
   const withCss = injectInlineStyle(html, finalCss);
   const withScript = inlineScript ? injectInlineScript(withCss, inlineScript) : withCss;
-
-  // 3) ブラウザ挿入前にサニタイズを推奨（HTML Sanitizer API）
-  // ただし、ここでは文字列として Blob にするため、後段で DOM に挿入する際に sanitize する。
   return withScript;
 }
 
@@ -65,7 +79,7 @@ function injectInlineStyle(html: string, css: string): string {
   if (idx === -1) {
     // head がない異常系：先頭に style を刺す
     return tag + html;
-    }
+  }
   return html.slice(0, idx) + tag + html.slice(idx);
 }
 
@@ -78,6 +92,7 @@ function injectInlineScript(html: string, script: string): string {
     return html + tag;
   }
   return html.slice(0, idx) + tag + html.slice(idx);
+
 }
 
 /**
@@ -91,7 +106,4 @@ export function sanitizeIntoDocument(doc: Document, html: string): void {
   // @ts-ignore: Sanitizer は型が未整備な場合あり
   const sanitizer = (window as any).Sanitizer ? new (window as any).Sanitizer() : null;
   if (!sanitizer) return;
-
-  // 例：新規 Document に安全に挿入したい場合
-  // doc.body.setHTML(html, { sanitizer }); // 互換の setHTML があればこちら
 }
