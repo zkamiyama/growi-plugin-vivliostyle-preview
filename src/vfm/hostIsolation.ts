@@ -121,8 +121,8 @@ export function ensureHostIsolationCss() {
           } else {
             pRect = pageBox.getBoundingClientRect();
           }
-        // Instead of assuming 96dpi, measure rendered px for a given mm inside
-        // the same page-container so transforms and page-scales are accounted for.
+  // Instead of assuming 96dpi, measure rendered px for a given mm inside
+  // the same page-container so transforms and page-scales are accounted for.
         const measureMmPx = (parent: HTMLElement, mm: number) => {
           try {
             const probe = document.createElement('div');
@@ -141,7 +141,27 @@ export function ensureHostIsolationCss() {
         };
 
         const expectedDiffPx = measureMmPx(el as HTMLElement, 6); // 3mm bleed each side => 6mm total
-        const actualDiff = Math.abs((bRect.width - pRect.width) - expectedDiffPx);
+
+        // Account for pageBox padding: some themes/styles place padding on the
+        // page-box so the visual 'page' inner content width differs from the
+        // element's outer bounding rect. Subtract padding-left/right when
+        // computing the page width for comparison with bleed width.
+        let pWidthForComparison = pRect.width;
+        let pagePadding = { left: 0, right: 0, top: 0, bottom: 0 };
+        try {
+          const pageCSforPad = getComputedStyle(pageBox);
+          const pl = parseFloat(pageCSforPad.paddingLeft || '0') || 0;
+          const pr = parseFloat(pageCSforPad.paddingRight || '0') || 0;
+          const pt = parseFloat(pageCSforPad.paddingTop || '0') || 0;
+          const pb = parseFloat(pageCSforPad.paddingBottom || '0') || 0;
+          pagePadding = { left: pl, right: pr, top: pt, bottom: pb };
+          // Only subtract if padding seems significant (avoid float noise)
+          if (pl + pr > 1) pWidthForComparison = Math.max(0, pRect.width - (pl + pr));
+        } catch (e) {
+          // ignore
+        }
+
+        const actualDiff = Math.abs((bRect.width - pWidthForComparison) - expectedDiffPx);
   if (actualDiff > 8) { // threshold: 8px (tunable)
           // Collect richer diagnostics to help root-cause analysis without
           // mutating the viewer DOM. This includes computed styles, offset/
@@ -209,6 +229,8 @@ export function ensureHostIsolationCss() {
               pageBounding: pRect,
               bleedComputed: { width: bleedCS.width, height: bleedCS.height, transform: bleedCS.transform, boxSizing: bleedCS.boxSizing },
               pageComputed: { width: pageCS.width, height: pageCS.height, transform: pageCS.transform, boxSizing: pageCS.boxSizing },
+              // reveal padding so we can see if padding explains the size delta
+              pagePadding,
               bleedOffsets: bleedSizes,
               pageOffsets: pageSizes,
               bleedAncestorTransform: bleedAncestor,
