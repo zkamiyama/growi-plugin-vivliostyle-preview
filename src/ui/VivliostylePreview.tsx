@@ -45,7 +45,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
               style={{
                 position: 'absolute',
                 top: 8,
-                right: 64, /* move further left to avoid overlapping scrollbar */
+                right: 12, /* place adjacent to scrollbar */
                 padding: '4px 8px',
                 fontSize: 12,
                 borderRadius: 6,
@@ -270,27 +270,9 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             <strong style={{ fontSize: 13 }}>Vivliostyle Info</strong>
             <span style={{ fontSize: 12, opacity: 0.9 }}>{showMargins ? 'Margins ON' : 'Margins OFF'}</span>
           </div>
-          <div style={{ marginBottom: 8 }}>
-            <button
-              onClick={collectVivlioDebug}
-              title="Refresh info"
-              aria-label="Refresh info"
-              style={{ marginRight: 6, ...btnBase, padding: '6px', fontSize: 12 }}
-            >
-              🔄
-            </button>
-            <button
-              onClick={() => { if (vivlioDebug) navigator.clipboard?.writeText(JSON.stringify(vivlioDebug, null, 2)); }}
-              title="Copy debug JSON"
-              aria-label="Copy debug JSON"
-              style={{ ...btnBase, padding: '6px', fontSize: 12 }}
-            >
-              📋
-            </button>
-          </div>
+          {/* top action buttons removed as requested */}
           <div style={{ fontSize: 12, marginBottom: 8 }}>
             <div><strong>Pages found:</strong> {vivlioDebug?.entries?.length ?? 0}</div>
-            <div><strong>Collected:</strong> {vivlioDebug?.collectedAt ? new Date(vivlioDebug.collectedAt).toLocaleTimeString() : '-'}</div>
           </div>
 
           <Section title="Raw Markdown" collapsed={collapsed.md} onToggle={() => setCollapsed((s) => ({ ...s, md: !s.md }))} copy={() => vivlioPayload && navigator.clipboard?.writeText(vivlioPayload.rawMarkdown || '')}>
