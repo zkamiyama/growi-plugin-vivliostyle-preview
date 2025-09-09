@@ -176,16 +176,6 @@ const PreviewShell: React.FC = () => {
   }
   return (
     <div data-vivlio-shell-root style={{ position: 'relative', height: '100%' }}>
-      {/* Minimal controls: manual fit button only (auto-fit always enabled via ResizeObserver) */}
-      <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 1002 }}>
-        <button
-          onClick={() => { fitToContainer(); }}
-          style={{ padding: '6px 8px', fontSize: 12 }}
-        >
-          Fit now
-        </button>
-      </div>
-
       <VivliostylePreview markdown={markdown} />
     </div>
   );

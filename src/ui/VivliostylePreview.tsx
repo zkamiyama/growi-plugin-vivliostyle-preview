@@ -13,6 +13,17 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [showMargins, setShowMargins] = useState(false);
   const rendererWrapRef = React.useRef<HTMLDivElement | null>(null);
 
+  // unified button base style
+  const btnBase: React.CSSProperties = {
+    padding: '6px 12px',
+    background: 'rgba(0,0,0,0.7)',
+    color: 'white',
+    border: 'none',
+    borderRadius: 6,
+    cursor: 'pointer',
+    fontSize: 12,
+  };
+
   // Collect debug information from the Vivliostyle-rendered iframe when available
   const collectVivlioDebug = async () => {
     try {
@@ -162,19 +173,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       {/* Information button */}
       <button
         onClick={() => setShowInfo(!showInfo)}
-        style={{
-          position: 'absolute',
-          top: 10,
-          right: 10,
-          zIndex: 1000,
-          padding: '6px 12px',
-          background: 'rgba(0,0,0,0.7)',
-          color: 'white',
-          border: 'none',
-          borderRadius: 4,
-          cursor: 'pointer',
-          fontSize: 12
-        }}
+        style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, ...btnBase }}
       >
         ℹ️ Info
       </button>
@@ -182,97 +181,27 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       {/* Margin visualization toggle button */}
       <button
         onClick={() => setShowMargins(!showMargins)}
-        style={{
-          position: 'absolute',
-          top: 10,
-          right: 80,
-          zIndex: 1000,
-          padding: '6px 12px',
-          background: showMargins ? 'rgba(255,165,0,0.8)' : 'rgba(0,0,0,0.7)',
-          color: 'white',
-          border: 'none',
-          borderRadius: 4,
-          cursor: 'pointer',
-          fontSize: 12
-        }}
+        style={{ position: 'absolute', top: 10, right: 80, zIndex: 1000, ...btnBase, background: showMargins ? 'rgba(255,165,0,0.9)' : btnBase.background }}
       >
         📐 Margins
       </button>
 
-      {/* Information panel */}
+      {/* Information panel (simplified) */}
       {showInfo && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 50,
-            right: 10,
-            width: 400,
-            maxHeight: 600,
-            background: 'rgba(0,0,0,0.9)',
-            color: 'white',
-            borderRadius: 8,
-            padding: 16,
-            zIndex: 1000,
-            overflow: 'auto',
-            fontSize: 12
-          }}
-        >
-          <h3 style={{ margin: '0 0 12px 0', fontSize: 14 }}>Vivliostyle Debug Info</h3>
-
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <button
-              onClick={collectVivlioDebug}
-              style={{
-                padding: '6px 8px',
-                background: '#444',
-                color: 'white',
-                border: 'none',
-                borderRadius: 4,
-                cursor: 'pointer',
-                fontSize: 11
-              }}
-            >
-              🔄 Refresh
-            </button>
-            <button
-              onClick={() => {
-                if (vivlioDebug) {
-                  navigator.clipboard?.writeText(JSON.stringify(vivlioDebug, null, 2));
-                }
-              }}
-              style={{
-                padding: '6px 8px',
-                background: '#444',
-                color: 'white',
-                border: 'none',
-                borderRadius: 4,
-                cursor: 'pointer',
-                fontSize: 11
-              }}
-            >
-              📋 Copy JSON
-            </button>
+        <div style={{ position: 'absolute', top: 50, right: 10, width: 320, maxHeight: 400, background: 'rgba(20,20,20,0.95)', color: 'white', borderRadius: 8, padding: 12, zIndex: 1000, overflow: 'auto', fontSize: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <strong style={{ fontSize: 13 }}>Vivliostyle Info</strong>
+            <span style={{ fontSize: 12, opacity: 0.9 }}>{showMargins ? 'Margins ON' : 'Margins OFF'}</span>
           </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <strong>Margin Visualization:</strong> {showMargins ? 'ON' : 'OFF'}
+          <div style={{ marginBottom: 8 }}>
+            <button onClick={collectVivlioDebug} style={{ marginRight: 8, ...btnBase, padding: '6px 8px', fontSize: 11 }}>🔄 Refresh</button>
+            <button onClick={() => { if (vivlioDebug) navigator.clipboard?.writeText(JSON.stringify(vivlioDebug, null, 2)); }} style={{ ...btnBase, padding: '6px 8px', fontSize: 11 }}>📋 Copy JSON</button>
           </div>
-
-          <pre
-            style={{
-              whiteSpace: 'pre-wrap',
-              maxHeight: 400,
-              overflow: 'auto',
-              background: 'rgba(0,0,0,0.3)',
-              padding: 8,
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 4,
-              fontSize: 11,
-              lineHeight: 1.4
-            }}
-          >
-            {vivlioDebug ? JSON.stringify(vivlioDebug, null, 2) : 'No debug information collected. Click Refresh to collect data.'}
-          </pre>
+          <div style={{ fontSize: 12, marginBottom: 8 }}>
+            <div><strong>Pages found:</strong> {vivlioDebug?.entries?.length ?? 0}</div>
+            <div><strong>Collected:</strong> {vivlioDebug?.collectedAt ? new Date(vivlioDebug.collectedAt).toLocaleTimeString() : '-'}</div>
+          </div>
+          <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', background: 'rgba(0,0,0,0.25)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioDebug ? JSON.stringify(vivlioDebug, null, 2) : 'No debug information collected. Click Refresh.'}</pre>
         </div>
       )}
 
