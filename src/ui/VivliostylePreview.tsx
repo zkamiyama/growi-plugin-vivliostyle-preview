@@ -289,7 +289,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           position: 'relative'
         }}
       >
-        <Renderer source={sourceUrl} />
+  <Renderer key={sourceUrl + (showMargins ? '_m' : '_n')} source={sourceUrl} />
       </div>
     </div>
   );
