@@ -454,6 +454,13 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
                   // params may include container and viewer depending on version
                   const viewer = params.viewer || (params as any).vivliostyleViewer || null;
                   viewerRef.current = viewer || viewerRef.current;
+
+                  // Defensive: detect ancestor transform/scale that may break mm->px conversion
+                  try {
+                    const container = params.container || (rendererWrapRef.current as any) || null;
+                    handleAncestorTransformsForDiagnosis(container);
+                  } catch (e) { /* ignore */ }
+
                   // allow external debug collector
                   try { collectVivlioDebug(); } catch (e) { /* ignore */ }
                   // refresh page list
@@ -469,3 +476,41 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     </div>
   );
 };
+
+/**
+ * If any ancestor (up to document.body) has a computed transform other than
+ * 'none', temporarily set inline style transform='none' for diagnosis and
+ * layout. The function registers window.__vivlio_restoreTransform() that
+ * restores original transforms.
+ */
+function handleAncestorTransformsForDiagnosis(container: Element | null) {
+  try {
+    if (!container) return;
+    const root = container instanceof HTMLIFrameElement ? (container.contentDocument?.body as Element | null) : container as Element;
+    if (!root) return;
+
+    const transforms: Array<{ el: Element; original: string | null }> = [];
+    let el: Element | null = root;
+    while (el && el !== document.documentElement && el !== document.body) {
+      const cs = window.getComputedStyle(el as Element);
+      if (cs && cs.transform && cs.transform !== 'none') {
+        transforms.push({ el, original: (el as HTMLElement).style.transform || null });
+        (el as HTMLElement).style.transform = 'none';
+      }
+      el = el.parentElement;
+    }
+
+    if (transforms.length > 0) {
+      // register restore helper globally so devtools message can call it
+      (window as any).__vivlio_restoreTransform = () => {
+        transforms.forEach(t => {
+          try { if (t.original === null) (t.el as HTMLElement).style.removeProperty('transform'); else (t.el as HTMLElement).style.transform = t.original; } catch (e) { /* ignore */ }
+        });
+        delete (window as any).__vivlio_restoreTransform;
+      };
+      // schedule an automatic restore after short delay to avoid leaving the
+      // host page mutated longer than necessary
+      window.setTimeout(() => { try { (window as any).__vivlio_restoreTransform?.(); } catch (e) { /* ignore */ } }, 2000);
+    }
+  } catch (e) { /* ignore */ }
+}
