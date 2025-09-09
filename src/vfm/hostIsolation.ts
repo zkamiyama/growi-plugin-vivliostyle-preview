@@ -79,33 +79,45 @@ export function ensureHostIsolationCss() {
   style.id = id;
   style.textContent = css;
   document.head.appendChild(style);
+  // Safer approach: do NOT force width/height on the page-container. Instead
+  // ensure viewer containers are centered and optionally perform a single
+  // measurement/log so we can detect mismatches without clobbering the
+  // viewer's internal coordinate system (which may use transforms/scale).
 
-  // MutationObserver: when vivliostyle host containers are created, force their
-  // outer container size to match the target page size (mm -> px conversion).
-  // This helps when the viewer creates a container using a different default
-  // (e.g. A4) before content-side @page rules are applied.
-  const mmToPx = (mm: number) => (96.0 / 25.4) * mm; // 96dpi ~ 3.779527559 px/mm
+  const mmToPx = (mm: number) => (96.0 / 25.4) * mm; // helper for logging only
 
-  const applyContainerSizing = (el: Element) => {
+  const safeAdjust = (pc: Element) => {
     try {
-      // Target page size set by our inline @page in the generated content
-      const pageWidthMm = 148; // A5 width in mm
-      const pageHeightMm = 210; // A5 height in mm
-      const bleedMm = 3; // matches inline @page bleed
+      const el = pc as HTMLElement;
+      // Ensure the outer container uses flex centering so the sheet is visually centered
+      el.style.display = 'flex';
+      el.style.justifyContent = 'center';
+      el.style.alignItems = 'flex-start';
 
-  const pageBoxW = Math.round((pageWidthMm + bleedMm * 2) * mmToPx(1));
-  const pageBoxH = Math.round((pageHeightMm + bleedMm * 2) * mmToPx(1));
-
-      // Prefer setting the outer page container to the bleed-box size so that
-      // inner page-box/page-area align to the expected trim and bleed.
-      const elAny = el as HTMLElement;
-      elAny.style.width = `${pageBoxW}px`;
-      elAny.style.height = `${pageBoxH}px`;
-      elAny.style.maxWidth = `${pageBoxW}px`;
-      elAny.style.maxHeight = `${pageBoxH}px`;
-      elAny.style.boxSizing = 'content-box';
+      // One-time measurement: if both bleed-box and page-box exist, log sizes and
+      // detect obvious double-bleed / mismatch without modifying sizes.
+      const bleed = el.querySelector('[data-vivliostyle-bleed-box]') as HTMLElement | null;
+      const pageBox = el.querySelector('[data-vivliostyle-page-box]') as HTMLElement | null;
+      if (bleed && pageBox) {
+        // Use bounding client rect to get rendered size (includes transforms)
+        const bRect = bleed.getBoundingClientRect();
+        const pRect = pageBox.getBoundingClientRect();
+        const expectedDiffPx = (3 * 2) * mmToPx(1); // bleed 3mm both sides
+        const actualDiff = Math.abs((bRect.width - pRect.width) - expectedDiffPx);
+        if (actualDiff > 8) { // threshold: 8px (tunable)
+          // Log a warning to help debugging; do not mutate sizes here
+          // eslint-disable-next-line no-console
+          console.warn('[VivlioDBG] page/bleed size mismatch detected', {
+            pageContainer: el,
+            bleedSize: { w: bRect.width, h: bRect.height },
+            pageBoxSize: { w: pRect.width, h: pRect.height },
+            expectedBleedPx: expectedDiffPx,
+            actualDiff
+          });
+        }
+      }
     } catch (e) {
-      // ignore
+      // ignore errors; this helper must be non-fatal
     }
   };
 
@@ -113,13 +125,11 @@ export function ensureHostIsolationCss() {
     for (const m of mutations) {
       for (const node of Array.from(m.addedNodes)) {
         if (!(node instanceof Element)) continue;
-        // if a page-container appears, apply sizing
-        if (node.matches && node.matches('[data-vivliostyle-page-container]')) {
-          applyContainerSizing(node);
+        if (node.matches && node.matches('[data-vivliostyle-page-container]')) safeAdjust(node);
+        if (node.querySelectorAll) {
+          const found = node.querySelectorAll('[data-vivliostyle-page-container]');
+          for (const f of Array.from(found)) safeAdjust(f);
         }
-        // also check descendants
-        const found = node.querySelectorAll ? node.querySelectorAll('[data-vivliostyle-page-container]') : [];
-        for (const f of Array.from(found)) applyContainerSizing(f);
       }
     }
   });
@@ -127,5 +137,5 @@ export function ensureHostIsolationCss() {
   observer.observe(document.body, { childList: true, subtree: true });
 
   // Run once immediately in case elements already exist
-  document.querySelectorAll('[data-vivliostyle-page-container]').forEach(applyContainerSizing);
+  document.querySelectorAll('[data-vivliostyle-page-container]').forEach(safeAdjust);
 }
