@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Renderer } from '@vivliostyle/react';
+// Renderer replaced by isolated iframe to avoid host CSS leakage
 import { buildVfmHtml } from '../vfm/buildVfmHtml';
 
 interface VivliostylePreviewProps {
@@ -18,7 +18,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     try {
       const wrap = rendererWrapRef.current;
       if (!wrap) return;
-      const iframe = wrap.querySelector('iframe') as HTMLIFrameElement | null;
+  const iframe = wrap.querySelector('iframe') as HTMLIFrameElement | null;
       if (!iframe) {
         setVivlioDebug(null);
         return;
@@ -143,14 +143,10 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           });
         `
       });
-      // Blob URLの代わりにdata URLを使用
-      const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
-      setSourceUrl(dataUrl);
-
-      // Blob URLの場合はrevokeが必要だが、data URLは不要
-      return () => {
-        // data URLの場合は何もしない
-      };
+  // Use data URL to load the generated full HTML into an isolated iframe
+  const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+  setSourceUrl(dataUrl);
+  return () => { /* no-op for data URL */ };
     } catch (error) {
       console.error('[VivlioDBG] Error building HTML:', error);
       setSourceUrl(null);
@@ -289,7 +285,20 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           position: 'relative'
         }}
       >
-  <Renderer key={sourceUrl + (showMargins ? '_m' : '_n')} source={sourceUrl} />
+        {sourceUrl && (
+          <iframe
+            key={sourceUrl + (showMargins ? '_m' : '_n')}
+            src={sourceUrl}
+            title="Vivliostyle Preview"
+            style={{ width: '100%', height: '100%', border: 0 }}
+            // allow scripts to run inside the data: URL context
+            // do NOT set sandbox here so viewer scripts can execute
+            onLoad={() => {
+              // collect debug info after iframe content loads
+              try { collectVivlioDebug(); } catch (e) { /* ignore */ }
+            }}
+          />
+        )}
       </div>
     </div>
   );
