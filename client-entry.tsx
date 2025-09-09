@@ -128,6 +128,10 @@ function mount() {
   }
   let host = document.getElementById(CONTAINER_ID);
   if (!host) {
+    // Create host wrapper. For stronger isolation we create an iframe and
+    // mount the React tree into the iframe's document if possible (srcdoc
+    // ensures same-origin). This is a minimal PoC; if iframe createRoot
+    // fails we fall back to mounting into the host div in parent document.
     host = document.createElement('div');
     host.id = CONTAINER_ID;
     // base overlay style - display controlled by PreviewShell
@@ -142,7 +146,7 @@ function mount() {
     // Prefer to mount to body with fixed positioning so the overlay does not
     // follow the inner preview container's scroll. This avoids scroll chaining
     // where editor scrolling would move our overlay.
-    document.body.appendChild(host);
+  document.body.appendChild(host);
     host.dataset.vivlioAttachedTo = 'bodyFixed';
     try {
       if (preferred) {
@@ -173,8 +177,8 @@ function mount() {
       // eslint-disable-next-line no-console
       console.debug('[VivlioDBG][mount] host appended to body (fixed fallback)');
     }
-    // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][mount] host container created');
+  // eslint-disable-next-line no-console
+  console.debug('[VivlioDBG][mount] host container created');
   }
 
   let root = (window as any).__vivlio_root;
@@ -182,8 +186,53 @@ function mount() {
     // eslint-disable-next-line no-console
     console.debug('[VivlioDBG][mount] root already exists - skipping re-create');
   } else {
-    root = createRoot(host);
-    (window as any).__vivlio_root = root; // 後でunmount用に保持
+    // Attempt iframe-based mounting for isolation. Create an iframe and
+    // try to mount React into its document. If that fails, fall back to
+    // mounting into the host div in the parent document.
+    let mountedInIframe = false;
+    try {
+      const iframe = document.createElement('iframe');
+      Object.assign(iframe.style, { width: '100%', height: '100%', border: '0', display: 'block' });
+      // minimal same-origin document so we can access contentDocument
+      iframe.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><title>Vivlio Preview</title></head><body><div id="vivlio-iframe-root"></div></body></html>';
+      // insert iframe into host and wait for load
+      host.appendChild(iframe);
+      // install minimal styles into iframe once available
+      iframe.addEventListener('load', () => {
+        try {
+          const doc = iframe.contentDocument;
+          if (!doc) return;
+          // copy our host isolation CSS into iframe head if present
+          try {
+            const hostStyle = document.getElementById('vivlio-host-isolation') as HTMLStyleElement | null;
+            if (hostStyle) {
+              const s = doc.createElement('style');
+              s.id = hostStyle.id + '-in-iframe';
+              s.textContent = hostStyle.textContent || '';
+              doc.head.appendChild(s);
+            }
+          } catch (e) { /* ignore */ }
+          const iframeRoot = doc.getElementById('vivlio-iframe-root');
+          if (iframeRoot) {
+            root = createRoot(iframeRoot as any);
+            (window as any).__vivlio_root = root;
+            mountedInIframe = true;
+            // eslint-disable-next-line no-console
+            console.debug('[VivlioDBG][mount] React mounted inside iframe for isolation');
+            // render will happen below once root is set
+          }
+        } catch (e) {
+          // ignore and fallback
+        }
+      }, { once: true });
+    } catch (e) {
+      // ignore and fallback
+    }
+
+    if (!mountedInIframe) {
+      root = createRoot(host);
+      (window as any).__vivlio_root = root; // 後でunmount用に保持
+    }
   }
   // eslint-disable-next-line no-console
   console.debug('[VivlioDBG][mount] rendering React tree', { hasHost: !!host, childrenBefore: host.childElementCount });

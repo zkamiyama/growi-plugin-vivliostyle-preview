@@ -285,6 +285,53 @@ export function ensureHostIsolationCss() {
                 return parts.join(' > ');
               } catch (e) { return null; }
             };
+            // Collect matching CSS rules for an element by scanning available
+            // stylesheets. Skip unreadable (CORS-protected) sheets and cap
+            // results to avoid huge logs. Returns matched rules and a list
+            // of unreadable stylesheet hrefs/identifiers.
+            const collectMatchingRules = (target: Element | null, maxRules = 20) => {
+              const matched: Array<{ selector: string; sheet: string | null; cssText: string }> = [];
+              const unreadable: string[] = [];
+              if (!target) return { matched, unreadable };
+              const processRules = (rules: CSSRuleList | null, sheetId: string | null): boolean => {
+                if (!rules) return false;
+                for (let i = 0; i < rules.length; ++i) {
+                  const r = rules[i] as CSSRule & { selectorText?: string; cssRules?: CSSRuleList };
+                  try {
+                    if (r && (r as any).selectorText) {
+                      const selector = (r as any).selectorText as string;
+                      try {
+                        if ((target as Element).matches(selector)) {
+                          matched.push({ selector, sheet: sheetId, cssText: ((r as any).cssText || '').slice(0, 300) });
+                          if (matched.length >= maxRules) return true;
+                        }
+                      } catch (e) {
+                        // invalid selector for this element; skip
+                      }
+                    } else if (r && (r as any).cssRules) {
+                      // media/supports grouping rules
+                      if (processRules((r as any).cssRules as CSSRuleList, sheetId)) return true;
+                    }
+                  } catch (e) {
+                    // ignore individual rule errors
+                  }
+                }
+                return false;
+              };
+
+              for (const ss of Array.from(document.styleSheets)) {
+                let sheetId: string | null = null;
+                try { sheetId = (ss as CSSStyleSheet).href || (ss as any).ownerNode?.nodeName || null; } catch (e) { sheetId = null; }
+                try {
+                  const rules = (ss as CSSStyleSheet).cssRules;
+                  if (processRules(rules, sheetId)) break;
+                } catch (e) {
+                  // likely a CORS-protected stylesheet; record and continue
+                  try { unreadable.push((ss as CSSStyleSheet).href || (ss as any).ownerNode?.nodeName || 'unknown'); } catch (_) { unreadable.push('unknown'); }
+                }
+              }
+              return { matched, unreadable };
+            };
             const truncate = (s: string | null | undefined, n = 200) => {
               if (!s) return s;
               return s.length > n ? s.slice(0, n) + '…' : s;
@@ -313,6 +360,10 @@ export function ensureHostIsolationCss() {
               // avoid dumping huge HTML, but provide a short snippet for context
               bleedOuterSnippet: truncate((bleed as HTMLElement).outerHTML, 300),
               pageBoxOuterSnippet: truncate((pageBox as HTMLElement).outerHTML, 300),
+              // CSS matching info — which stylesheet rules match these elements?
+              bleedMatchedRules: collectMatchingRules(bleed as Element, 30).matched,
+              pageMatchedRules: collectMatchingRules(pageBox as Element, 30).matched,
+              unreadableStyleSheets: Array.from(new Set([...collectMatchingRules(bleed as Element, 30).unreadable, ...collectMatchingRules(pageBox as Element, 30).unreadable])),
               // counts to show unexpected wrappers/content
               pageContainerChildCounts: { total: el.querySelectorAll('*').length, directChildren: (el as HTMLElement).children.length },
               devicePixelRatio: (typeof window !== 'undefined' && (window as any).devicePixelRatio) || 1
