@@ -51,8 +51,32 @@ function getMarkdown(): string {
 
 function locatePreviewContainer(): Element | null {
   for (const sel of PREVIEW_CONTAINER_CANDIDATES) {
-    const el = document.querySelector(sel);
-    if (el) return el;
+    const nodes = Array.from(document.querySelectorAll(sel));
+    if (nodes.length === 0) continue;
+    // Prefer a visible node that looks like the editor's preview pane.
+    const visible = nodes.filter((n) => {
+      try {
+        const rc = (n as HTMLElement).getBoundingClientRect();
+        // visible area and attached to layout
+        return rc.width > 0 && rc.height > 0;
+      } catch (e) {
+        return false;
+      }
+    });
+
+    // If any visible nodes, prefer the one that contains the usual preview body
+    if (visible.length > 0) {
+      for (const v of visible) {
+        if ((v as Element).querySelector('.page-editor-preview-body') || (v as Element).querySelector('.page-editor-preview')) {
+          return v;
+        }
+      }
+      // fallback to first visible
+      return visible[0];
+    }
+
+    // otherwise, take the first node (may be hidden due to responsive classes)
+    if (nodes.length > 0) return nodes[0];
   }
   return null;
 }
