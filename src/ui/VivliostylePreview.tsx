@@ -349,6 +349,49 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     }
   }, [markdown, showMargins]);
 
+  // Diagnostic override: when a sourceUrl is present, inject a high-specificity
+  // stylesheet that forces Vivliostyle's scale/transform variables and any
+  // transform on viewer layers to neutral values. This is intentionally
+  // aggressive and used as a root-cause mitigation when ancestor/runtime
+  // scaling breaks measurements.
+  React.useEffect(() => {
+    if (!sourceUrl) return;
+    const id = 'vivlio-force-neutral-scale';
+    if (document.getElementById(id)) return;
+    const css = `
+      /* Diagnostic: neutralize vivliostyle scaling and transforms */
+      #vivlio-preview-container, #vivlio-preview-container .vivlio-body-wrapper,
+      .vivlio-simple-viewer [data-vivliostyle-outer-zoom-box],
+      .vivlio-simple-viewer [data-vivliostyle-spread-container],
+      .vivlio-simple-viewer [data-vivliostyle-page-container] {
+        --viv-outputScale: 1 !important;
+        --viv-outputPixelRatio: 1 !important;
+        --viv-devicePixelRatio: 1 !important;
+        transform: none !important;
+        zoom: 1 !important;
+      }
+      /* Ensure the content container does not get oversized by explicit width/height */
+      .vivlio-simple-viewer [data-vivliostyle-outer-zoom-box] { width: auto !important; height: auto !important; }
+    `;
+    const s = document.createElement('style');
+    s.id = id;
+    s.textContent = css;
+    document.head.appendChild(s);
+
+    // Also set CSS variables on the host wrapper element with !important where possible
+    try {
+      const host = document.getElementById('vivlio-preview-container') || rendererWrapRef.current;
+      if (host && host instanceof HTMLElement) {
+        host.style.setProperty('--viv-outputScale', '1', 'important');
+        host.style.setProperty('--viv-outputPixelRatio', '1', 'important');
+        host.style.setProperty('--viv-devicePixelRatio', '1', 'important');
+      }
+    } catch (e) { /* ignore */ }
+
+    return () => {
+      try { const el = document.getElementById(id); if (el) el.remove(); } catch (e) { /* ignore */ }
+    };
+  }, [sourceUrl]);
   if (!sourceUrl) {
     return <div>Loading...</div>;
   }
