@@ -100,15 +100,62 @@ export function ensureHostIsolationCss() {
         const expectedDiffPx = mmToPx(6); // 3mm bleed each side => 6mm total
         const actualDiff = Math.abs((bRect.width - pRect.width) - expectedDiffPx);
         if (actualDiff > 8) { // threshold: 8px (tunable)
-          // Log a warning to help debugging; do not mutate sizes here
-          // eslint-disable-next-line no-console
-          console.warn('[VivlioDBG] page/bleed size mismatch detected', {
-            pageContainer: el,
-            bleedSize: { w: bRect.width, h: bRect.height },
-            pageBoxSize: { w: pRect.width, h: pRect.height },
-            expectedBleedPx: expectedDiffPx,
-            actualDiff
-          });
+          // Collect richer diagnostics to help root-cause analysis without
+          // mutating the viewer DOM. This includes computed styles, offset/
+          // client sizes and any transforms applied to the elements or their
+          // ancestors.
+          try {
+            const bleedCS = getComputedStyle(bleed);
+            const pageCS = getComputedStyle(pageBox);
+            const collectSizes = (n: HTMLElement) => ({
+              offset: { w: n.offsetWidth, h: n.offsetHeight },
+              client: { w: n.clientWidth, h: n.clientHeight },
+              scroll: { w: n.scrollWidth, h: n.scrollHeight }
+            });
+
+            const findAncestorTransform = (n: HTMLElement) => {
+              let cur: HTMLElement | null = n.parentElement;
+              while (cur) {
+                const cs = getComputedStyle(cur);
+                if (cs.transform && cs.transform !== 'none') return { el: cur, transform: cs.transform };
+                cur = cur.parentElement;
+              }
+              return null;
+            };
+
+            const bleedSizes = collectSizes(bleed);
+            const pageSizes = collectSizes(pageBox);
+            const bleedAncestor = findAncestorTransform(bleed as HTMLElement);
+            const pageAncestor = findAncestorTransform(pageBox as HTMLElement);
+
+            // eslint-disable-next-line no-console
+            console.warn('[VivlioDBG] page/bleed size mismatch detected', {
+              pageContainer: el,
+              bleedSize: { w: bRect.width, h: bRect.height },
+              pageBoxSize: { w: pRect.width, h: pRect.height },
+              expectedBleedPx: expectedDiffPx,
+              actualDiff,
+              bleedBounding: bRect,
+              pageBounding: pRect,
+              bleedComputed: { width: bleedCS.width, height: bleedCS.height, transform: bleedCS.transform, boxSizing: bleedCS.boxSizing },
+              pageComputed: { width: pageCS.width, height: pageCS.height, transform: pageCS.transform, boxSizing: pageCS.boxSizing },
+              bleedOffsets: bleedSizes,
+              pageOffsets: pageSizes,
+              bleedAncestorTransform: bleedAncestor,
+              pageAncestorTransform: pageAncestor,
+              devicePixelRatio: (typeof window !== 'undefined' && (window as any).devicePixelRatio) || 1
+            });
+          } catch (innerErr) {
+            // fallback to simple log if diagnostics collection fails
+            // eslint-disable-next-line no-console
+            console.warn('[VivlioDBG] page/bleed size mismatch detected (partial)', {
+              pageContainer: el,
+              bleedSize: { w: bRect.width, h: bRect.height },
+              pageBoxSize: { w: pRect.width, h: pRect.height },
+              expectedBleedPx: expectedDiffPx,
+              actualDiff
+            });
+          }
         }
       }
     } catch (e) {
