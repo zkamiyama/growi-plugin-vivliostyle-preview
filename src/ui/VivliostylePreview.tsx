@@ -45,14 +45,9 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
               style={{
                 position: 'absolute',
                 top: 8,
-                right: 8,
-                width: 28,
-                height: 28,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: 0,
-                fontSize: 13,
+                right: 44, /* move left to avoid overlapping scrollbar */
+                padding: '4px 8px',
+                fontSize: 12,
                 borderRadius: 6,
                 background: 'rgba(40,40,40,0.55)',
                 color: 'white',
@@ -60,7 +55,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
                 cursor: 'pointer'
               }}
             >
-              📋
+              Copy
             </button>
           )}
           <div style={{ overflow: 'auto', maxHeight: 380 }}>{children}</div>
