@@ -61,46 +61,22 @@ const PreviewShell: React.FC = () => {
       host.style.zIndex = '10';
     }
 
-    let hiddenCount = 0;
-    let restoredCount = 0;
-    const processed: string[] = [];
-
+    // Do NOT hide sibling elements. Instead, we overlay the host on top of the
+    // existing preview area so layout and accessibility are preserved. Log
+    // children for debugging.
+    let childrenInfo: string[] = [];
     if (previewContainer) {
-      const children = Array.from(previewContainer.children) as HTMLElement[];
-      children.forEach((el, idx) => {
-        if (el === host) return; // 自分は対象外
-        processed.push(`${idx}:${el.className || el.id || el.tagName}`);
-        if (isOpen) {
-          // 既に保存していなければ元displayを保存
-            if (!el.dataset.vivlioPrevDisplay) {
-              el.dataset.vivlioPrevDisplay = el.style.display || '';
-            }
-            el.style.setProperty('display', 'none', 'important');
-            el.setAttribute('aria-hidden', 'true');
-            hiddenCount += 1;
-        } else {
-          if (el.dataset.vivlioPrevDisplay !== undefined) {
-            el.style.display = el.dataset.vivlioPrevDisplay;
-            delete el.dataset.vivlioPrevDisplay; // 復帰後クリア
-          } else {
-            el.style.display = '';
-          }
-          el.removeAttribute('aria-hidden');
-          restoredCount += 1;
-        }
-      });
+      childrenInfo = Array.from(previewContainer.children).map((el, idx) => `${idx}:${el.className || el.id || el.tagName}`);
     }
 
     // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][PreviewShell] toggle siblings', {
+    console.debug('[VivlioDBG][PreviewShell] mount info (overlay mode)', {
       isOpen,
       hasHost: !!host,
       hasPreviewContainer: !!previewContainer,
       hostDisplay: host.style.display,
       markdownLen: markdown.length,
-      hiddenCount,
-      restoredCount,
-      processed,
+      children: childrenInfo,
       previewChildren: previewContainer ? previewContainer.children.length : -1,
     });
   }, [isOpen]);
