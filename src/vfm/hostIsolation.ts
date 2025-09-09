@@ -142,21 +142,65 @@ export function ensureHostIsolationCss() {
 
         const expectedDiffPx = measureMmPx(el as HTMLElement, 6); // 3mm bleed each side => 6mm total
 
-        // Account for pageBox padding: some themes/styles place padding on the
-        // page-box so the visual 'page' inner content width differs from the
-        // element's outer bounding rect. Subtract padding-left/right when
-        // computing the page width for comparison with bleed width.
+        // Account for pageBox padding. Vivliostyle sometimes sets padding via
+        // inline styles which might be overridden by our isolation CSS and
+        // therefore absent from getComputedStyle. Prefer inline styles when
+        // available; for multiple page-boxes sum their paddings.
         let pWidthForComparison = pRect.width;
         let pagePadding = { left: 0, right: 0, top: 0, bottom: 0 };
         try {
-          const pageCSforPad = getComputedStyle(pageBox);
-          const pl = parseFloat(pageCSforPad.paddingLeft || '0') || 0;
-          const pr = parseFloat(pageCSforPad.paddingRight || '0') || 0;
-          const pt = parseFloat(pageCSforPad.paddingTop || '0') || 0;
-          const pb = parseFloat(pageCSforPad.paddingBottom || '0') || 0;
-          pagePadding = { left: pl, right: pr, top: pt, bottom: pb };
-          // Only subtract if padding seems significant (avoid float noise)
-          if (pl + pr > 1) pWidthForComparison = Math.max(0, pRect.width - (pl + pr));
+          const parsePx = (s: string | null | undefined) => {
+            if (!s) return 0;
+            const m = s.match(/-?[0-9.]+/);
+            return m ? parseFloat(m[0]) : 0;
+          };
+
+          if (pageBoxes && pageBoxes.length > 1) {
+            // Sum paddings across all pageBoxes
+            let totalPadLR = 0;
+            let totalPadTop = 0;
+            let totalPadBottom = 0;
+            for (let i = 0; i < pageBoxes.length; ++i) {
+              const pbEl = pageBoxes[i] as HTMLElement;
+              // prefer inline style if present
+              const sl = pbEl.style;
+              const plInline = parsePx(sl.paddingLeft || null);
+              const prInline = parsePx(sl.paddingRight || null);
+              const ptInline = parsePx(sl.paddingTop || null);
+              const pbInline = parsePx(sl.paddingBottom || null);
+              if (plInline || prInline || ptInline || pbInline) {
+                totalPadLR += (plInline + prInline);
+                totalPadTop += ptInline;
+                totalPadBottom += pbInline;
+                continue;
+              }
+              const cs = getComputedStyle(pbEl);
+              totalPadLR += parsePx(cs.paddingLeft) + parsePx(cs.paddingRight);
+              totalPadTop += parsePx(cs.paddingTop);
+              totalPadBottom += parsePx(cs.paddingBottom);
+            }
+            pagePadding = { left: totalPadLR / 2, right: totalPadLR / 2, top: totalPadTop / pageBoxes.length, bottom: totalPadBottom / pageBoxes.length };
+            if (totalPadLR > 1) pWidthForComparison = Math.max(0, pRect.width - totalPadLR);
+          } else {
+            const pbEl = pageBox as HTMLElement;
+            const sl = pbEl.style;
+            const plInline = parsePx(sl.paddingLeft || null);
+            const prInline = parsePx(sl.paddingRight || null);
+            const ptInline = parsePx(sl.paddingTop || null);
+            const pbInline = parsePx(sl.paddingBottom || null);
+            if (plInline || prInline || ptInline || pbInline) {
+              pagePadding = { left: plInline, right: prInline, top: ptInline, bottom: pbInline };
+              if (plInline + prInline > 1) pWidthForComparison = Math.max(0, pRect.width - (plInline + prInline));
+            } else {
+              const pageCSforPad = getComputedStyle(pbEl);
+              const pl = parsePx(pageCSforPad.paddingLeft);
+              const pr = parsePx(pageCSforPad.paddingRight);
+              const pt = parsePx(pageCSforPad.paddingTop);
+              const pbv = parsePx(pageCSforPad.paddingBottom);
+              pagePadding = { left: pl, right: pr, top: pt, bottom: pbv };
+              if (pl + pr > 1) pWidthForComparison = Math.max(0, pRect.width - (pl + pr));
+            }
+          }
         } catch (e) {
           // ignore
         }
