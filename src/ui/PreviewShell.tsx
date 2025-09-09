@@ -15,6 +15,17 @@ const PreviewShell: React.FC = () => {
     startHeight: number;
     mode: 'none' | 'h' | 'corner';
   }>({ startX: 0, startY: 0, startWidth: 0, startHeight: 0, mode: 'none' });
+  const [autoFit, setAutoFit] = React.useState(false);
+  const roRef = React.useRef<ResizeObserver | null>(null);
+
+  const fitToContainer = React.useCallback(() => {
+    const host = document.getElementById('vivlio-preview-container');
+    const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
+    if (!host || !previewContainer) return;
+    // size to inner content area
+    host.style.width = `${previewContainer.clientWidth}px`;
+    host.style.height = `${previewContainer.clientHeight}px`;
+  }, []);
 
   // 初回マウントログ
   React.useEffect(() => {
@@ -91,6 +102,32 @@ const PreviewShell: React.FC = () => {
       previewChildren: previewContainer ? previewContainer.children.length : -1,
     });
   }, [isOpen]);
+
+  // Auto-fit behavior: when enabled, observe the editor preview container and
+  // size the host to match. Also provide a manual 'Fit now' action.
+  React.useEffect(() => {
+    const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
+    const host = document.getElementById('vivlio-preview-container');
+    if (!autoFit) {
+      if (roRef.current) {
+        roRef.current.disconnect();
+        roRef.current = null;
+      }
+      return;
+    }
+    if (!previewContainer || !host) return;
+    // initial fit
+    fitToContainer();
+    const ro = new (window as any).ResizeObserver(() => {
+      fitToContainer();
+    });
+    ro.observe(previewContainer);
+    roRef.current = ro;
+    return () => {
+      try { ro.disconnect(); } catch (e) {}
+      roRef.current = null;
+    };
+  }, [autoFit, fitToContainer]);
 
   // Resize handlers: adjust host width/height by dragging handles rendered inside the React tree
   React.useEffect(() => {
@@ -194,6 +231,21 @@ const PreviewShell: React.FC = () => {
   }
   return (
     <div data-vivlio-shell-root style={{ position: 'relative' }}>
+      {/* Fit controls */}
+      <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 1002, display: 'flex', gap: 8 }}>
+        <button
+          onClick={() => { fitToContainer(); }}
+          style={{ padding: '6px 8px', fontSize: 12 }}
+        >
+          Fit now
+        </button>
+        <button
+          onClick={() => { setAutoFit(v => !v); }}
+          style={{ padding: '6px 8px', fontSize: 12, background: autoFit ? '#0a84ff' : undefined, color: autoFit ? 'white' : undefined }}
+        >
+          Auto fit
+        </button>
+      </div>
       {/* Vertical drag handle on the left for horizontal resize */}
       <div
         role="separator"
