@@ -14,13 +14,16 @@ const PreviewShell: React.FC = () => {
     const host = document.getElementById('vivlio-preview-container');
     const previewContainer = document.querySelector('.page-editor-preview-container') as HTMLElement | null;
     if (!host || !previewContainer) return;
-  // use boundingClientRect to account for transforms / fractional pixels
-  const rect = previewContainer.getBoundingClientRect();
-  const width = Math.max(0, Math.round(rect.width));
-  const height = Math.max(0, Math.round(rect.height));
+  // Use absolute inset to exactly fill the preview container and avoid
+  // fractional-pixel rounding differences that create tiny scroll offsets.
   host.style.boxSizing = 'border-box';
-  host.style.width = `${width}px`;
-  host.style.height = `${height}px`;
+  host.style.position = 'absolute';
+  host.style.top = '0';
+  host.style.left = '0';
+  host.style.right = '0';
+  host.style.bottom = '0';
+  host.style.width = '100%';
+  host.style.height = '100%';
   }, []);
 
   // 初回マウントログ
@@ -46,13 +49,16 @@ const PreviewShell: React.FC = () => {
     host.dataset.vivlioMount = 'true';
     host.style.display = isOpen ? 'block' : 'none';
     if (isOpen) {
-      host.style.position = 'relative';
-  // if width not explicitly set, default to 60% width so resize makes sense
-  if (!host.style.width || host.style.width === '100%') host.style.width = '60%';
-  if (!host.style.height || host.style.height === '100%') host.style.height = '100%';
-      host.style.overflow = 'auto';
+      // ensure host exactly fills the preview container
+      host.style.position = 'absolute';
+      host.style.top = '0';
+      host.style.left = '0';
+      host.style.right = '0';
+      host.style.bottom = '0';
+      host.style.width = '100%';
+      host.style.height = '100%';
+      host.style.overflow = 'hidden';
       host.style.zIndex = '10';
-      if (!host.style.minHeight) host.style.minHeight = '400px';
     }
 
     let hiddenCount = 0;
