@@ -198,7 +198,7 @@ export function ensureHostIsolationCss() {
               return s.length > n ? s.slice(0, n) + '…' : s;
             };
 
-            console.warn('[VivlioDBG] page/bleed size mismatch detected', {
+            const diag = {
               pageContainer: el,
               pageContainerRect: el.getBoundingClientRect(),
               bleedSize: { w: bRect.width, h: bRect.height },
@@ -222,7 +222,10 @@ export function ensureHostIsolationCss() {
               // counts to show unexpected wrappers/content
               pageContainerChildCounts: { total: el.querySelectorAll('*').length, directChildren: (el as HTMLElement).children.length },
               devicePixelRatio: (typeof window !== 'undefined' && (window as any).devicePixelRatio) || 1
-            });
+            };
+            // log and also save last diagnostics to a global for interactive inspection
+            console.warn('[VivlioDBG] page/bleed size mismatch detected', diag);
+            try { (window as any).__vivlio_lastDiag = diag; } catch (e) { /* ignore */ }
             // As a fast diagnostic, try temporarily disabling any ancestor transform
             // that might be affecting the rendered scale. Restore after 3000ms.
             try {

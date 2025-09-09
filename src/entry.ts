@@ -234,3 +234,14 @@ function deactivate(){ console.info('[VIVLIO_DEV] deactivate'); if(iframe){ ifra
 if(!(window as any).pluginActivators) (window as any).pluginActivators={};
 (window as any).pluginActivators['growi-plugin-vivliostyle-preview-dev']={ activate, deactivate };
 console.info('[VIVLIO_DEV] registered activator');
+
+// Global runtime error capture to aid debugging in production/minified builds.
+try {
+  (window as any).__vivlio_lastError = null;
+  window.addEventListener('error', (e) => {
+    try { (window as any).__vivlio_lastError = { type: 'error', message: e.message, filename: (e.filename || null), lineno: (e.lineno || null), colno: (e.colno || null), error: (e.error && e.error.stack) ? e.error.stack : e.error } } catch (err) { /* ignore */ }
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    try { (window as any).__vivlio_lastError = { type: 'unhandledrejection', reason: e.reason, stack: e.reason && e.reason.stack ? e.reason.stack : null } } catch (err) { /* ignore */ }
+  });
+} catch (e) { /* ignore */ }
