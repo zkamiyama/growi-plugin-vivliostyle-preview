@@ -234,21 +234,17 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           // shell that only contains the mount node to avoid double-initialization
           // by scripts present in the full payload.
           const minimalShell = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1" /><title>Vivlio Preview</title><style>
-            /* Unified color tokens */
-            :root { --vivlio-bg: #e6e6e6; --vivlio-gutter: #e6e6e6; --bleed-shadow: rgba(0,0,0,0.12); }
+            /* unified bg token for gutters/outside area */
+            :root { --vivlio-bg: #e6e6e6; --bleed-shadow: rgba(0,0,0,0.12); }
             html, body { height: 100%; margin: 0; padding: 0; background: var(--vivlio-bg); }
-            /* Center the vivliostyle content and fill outside with gray */
-            #vivlio-root { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; background: transparent; }
-            /* Keep pages centered; surrounding area uses the unified gutter color */
-            .vivliostyle-page, .page, [data-vivliostyle-page-area] { margin: 0 auto; }
-            /* Page surface stays white; remove default page shadow if present */
+            /* center the viewer inside the gray gutter */
+            #vivlio-root { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; }
+            /* pages themselves (spread container contents) should remain white */
             .vivliostyle-page, .page { background: white; box-shadow: none; }
-            /* Emphasize bleed box with subtle shadow and ensure it's centered */
-            [data-vivliostyle-bleed-box] { display: block; box-shadow: 0 12px 30px var(--bleed-shadow); border-radius: 4px; }
-            /* Ensure any outer gutters are painted with the same gray. Target spread container and its ancestors */
-            [data-vivliostyle-spread-container], [data-vivliostyle-spread-container] > *, [data-vivliostyle-root], body { background: var(--vivlio-bg) !important; }
-            /* Force container wrappers to stretch full height so gutters fill with gray */
-            [data-vivliostyle-root], [data-vivliostyle-spread-container] { min-height: 100vh; box-sizing: border-box; }
+            /* keep spread container transparent so the gutter (body) shows through as gray */
+            [data-vivliostyle-spread-container], [data-vivliostyle-root] { background: transparent; }
+            /* subtle emphasis for the bleed box */
+            [data-vivliostyle-bleed-box] { box-shadow: 0 12px 30px var(--bleed-shadow); border-radius: 4px; }
           </style></head><body><div id="vivlio-root"></div></body></html>`;
           const iframeSrcDoc = showRawInline ? vivlioPayload.html : minimalShell;
           return (
