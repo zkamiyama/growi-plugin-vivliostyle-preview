@@ -239,9 +239,10 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           />
         )}
         {/* Render React-based Renderer into the iframe using a portal when possible. */}
-        {portalContainer && vivlioPayload && !showRawInline && createPortal(
+        {portalContainer && vivlioPayload && sourceUrl && !showRawInline && createPortal(
           <div style={{ width: '100%', height: '100%' }}>
-            <Renderer source={vivlioPayload.html} style={{ width: '100%', height: '100%' }} />
+            {/* Use data URL so the viewer treats source as a URL resource (data:...) instead of attempting to fetch raw HTML text as a URL */}
+            <Renderer source={sourceUrl} style={{ width: '100%', height: '100%' }} />
           </div>,
           portalContainer
         )}
