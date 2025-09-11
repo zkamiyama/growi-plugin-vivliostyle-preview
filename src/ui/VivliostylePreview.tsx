@@ -11,6 +11,10 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [showMargins, setShowMargins] = useState(false);
   // keep clipboard/copy helper state (item 7)
   const copyTimerRef = React.useRef<number | null>(null);
+  // info/raw view states
+  const [showInfo, setShowInfo] = useState(false);
+  const [showRawInline, setShowRawInline] = useState<boolean>(false);
+  const [vivlioPayload, setVivlioPayload] = useState<any>(null);
 
   
   // collapsible Section helper (kept minimal to support copy UI if needed)
@@ -74,8 +78,9 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         ` : undefined,
         inlineScript: `window.addEventListener('load', () => {});`
       });
-      const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(payload.html)}`;
-      setSourceUrl(dataUrl);
+  setVivlioPayload(payload);
+  const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(payload.html)}`;
+  setSourceUrl(dataUrl);
     } catch (error) {
       console.error('[VivlioDBG] Error building HTML:', error);
       setSourceUrl(null);
@@ -87,23 +92,67 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
 
   return (
     <div className="vivlio-simple-viewer" style={{ height: '100%', width: '100%', position: 'relative' }}>
+  {/* Info button */}
+  <button
+    onClick={() => setShowInfo((s) => !s)}
+    title="Toggle info"
+    aria-label="Toggle info"
+    style={{ position: 'absolute', top: 10, right: 24, zIndex: 1000, ...btnBase, padding: '6px' }}
+  >
+    ℹ️
+  </button>
+
+  {/* Raw HTML toggle button */}
+  <button
+    onClick={() => setShowRawInline((s) => !s)}
+    title="Open raw HTML"
+    aria-label="Open raw HTML"
+    style={{ position: 'absolute', top: 10, right: 104, zIndex: 1000, ...btnBase, padding: '6px' }}
+  >
+    🧾
+  </button>
+
   {/* Margin visualization toggle button (item 8) */}
   <button onClick={() => setShowMargins(!showMargins)} title={showMargins ? 'Disable margins' : 'Enable margins'} aria-label="Toggle margins" style={{ position: 'absolute', top: 10, right: 64, zIndex: 1000, ...btnBase, padding: '6px', background: showMargins ? 'rgba(255,165,0,0.9)' : btnBase.background }}>📐</button>
-
-  {/* Info panel removed to keep preview minimal; copy helper (doCopy) retained for future use */}
 
       {/* Renderer with margin visualization */}
   <div style={{ height: '100%', width: '100%', position: 'relative' }}>
         {sourceUrl && (
-          <Renderer
-            key={sourceUrl + (showMargins ? '_m' : '_n')}
-            source={sourceUrl}
-            onLoad={() => { /* minimal onLoad: no debug or page heuristics */ }}
-          >
-            {({ container }: any) => container}
-          </Renderer>
+          showRawInline ? (
+            <iframe
+              key={sourceUrl + (showMargins ? '_m' : '_n') + '_raw'}
+              src={sourceUrl}
+              title="Vivliostyle Raw HTML"
+              style={{ width: '100%', height: '100%', border: 0 }}
+            />
+          ) : (
+            <Renderer
+              key={sourceUrl + (showMargins ? '_m' : '_n')}
+              source={sourceUrl}
+              onLoad={() => { /* minimal onLoad: no debug or page heuristics */ }}
+            >
+              {({ container }: any) => container}
+            </Renderer>
+          )
         )}
       </div>
+
+      {/* Information panel (minimal) */}
+      {showInfo && (
+        <div style={{ position: 'absolute', top: 40, right: 20, width: 560, height: '60vh', background: 'rgba(28,28,30,0.95)', color: 'rgba(255,255,255,0.95)', borderRadius: 8, padding: 12, zIndex: 1000, overflow: 'auto', fontSize: 12, backdropFilter: 'blur(6px)' }}>
+          <style>{localScrollStyles}</style>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <strong style={{ fontSize: 13 }}>Vivliostyle Info</strong>
+            <span style={{ fontSize: 12, opacity: 0.9 }}>{showMargins ? 'Margins ON' : 'Margins OFF'}</span>
+          </div>
+          <Section title="Raw Markdown" copy={() => doCopy('md', vivlioPayload?.rawMarkdown || '')} active={lastCopiedLocal === 'md'}>
+            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', background: 'rgba(0,0,0,0.06)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.rawMarkdown || '(empty)') : '(not built yet)'}</pre>
+          </Section>
+          <Section title="Final HTML" copy={() => doCopy('html', vivlioPayload?.html || '')} active={lastCopiedLocal === 'html'}>
+            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 320, overflow: 'auto', background: 'rgba(0,0,0,0.04)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.html || '(none)') : '(not built yet)'}</pre>
+          </Section>
+        </div>
+      )}
     </div>
   );
 };
