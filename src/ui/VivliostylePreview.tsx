@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { Renderer } from '@vivliostyle/react';
 import { buildVfmPayload } from '../vfm/buildVfmHtml';
 
 interface VivliostylePreviewProps {
@@ -200,34 +199,23 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         </div>
       )}
 
-      {/* Renderer with margin visualization */}
-      <div
-        ref={null as any}
-        style={{
-          height: '100%',
-          width: '100%',
-          position: 'relative'
-        }}
-      >
+      {/* Viewer (iframe-isolated). Buttons/panel use zIndex 10000 to remain above iframe. */}
+      <div style={{ height: '100%', width: '100%', position: 'relative' }}>
         {sourceUrl && (
           showRawInline ? (
             <iframe
               key={sourceUrl + (showMargins ? '_m' : '_n') + '_raw'}
               src={sourceUrl}
               title="Vivliostyle Raw HTML"
-              style={{ width: '100%', height: '100%', border: 0 }}
-              onLoad={() => { /* no-op */ }}
+              style={{ width: '100%', height: '100%', border: 0, zIndex: 1 }}
             />
           ) : (
-            <Renderer
+            <iframe
               key={sourceUrl + (showMargins ? '_m' : '_n')}
-              source={sourceUrl}
-              onLoad={(params: any) => {
-                // minimal onLoad: nothing required for simple display
-              }}
-            >
-              {({ container }: any) => container}
-            </Renderer>
+              src={sourceUrl}
+              title="Vivliostyle Preview"
+              style={{ width: '100%', height: '100%', border: 0, zIndex: 1 }}
+            />
           )
         )}
       </div>
