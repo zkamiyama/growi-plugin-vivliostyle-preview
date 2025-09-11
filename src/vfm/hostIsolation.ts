@@ -70,7 +70,8 @@ export function ensureHostIsolationCss() {
 .vivlio-simple-viewer [data-vivliostyle-page-box],
 .vivlio-simple-viewer [data-vivliostyle-page-area] {
   /* Preserve author margin/padding; only enforce box-sizing to avoid host leakage */
-  box-sizing: border-box !important;
+  /* Use content-box for page boxes so author padding/width semantics match official viewer */
+  box-sizing: content-box !important;
 }
 `;
 
