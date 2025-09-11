@@ -142,27 +142,28 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     }
   }, [markdown, showMargins]);
 
-  // When sourceUrl / payload changes, ensure iframe document has a mount node
-  useEffect(() => {
-    if (!iframeRef.current) return;
+  // Setup portal container when iframe loads. Use srcDoc instead of document.write
+  // to avoid cross-document races. onLoad handler below populates portalContainer.
+  const handleIframeLoad = () => {
     const iframe = iframeRef.current;
+    if (!iframe) return;
     try {
       const doc = iframe.contentDocument || iframe.contentWindow?.document;
       if (!doc) return;
-      // initialize minimal document shell so React can mount inside
-      doc.open();
-      doc.write('<!doctype html><html><head><meta charset="utf-8"></head><body><div id="vivlio-root"></div></body></html>');
-      doc.close();
       const mount = doc.getElementById('vivlio-root');
-      setPortalContainer(mount);
+      if (mount) setPortalContainer(mount as HTMLElement);
+      else {
+        // fallback: create mount node
+        const el = doc.createElement('div');
+        el.id = 'vivlio-root';
+        doc.body.appendChild(el);
+        setPortalContainer(el);
+      }
     } catch (e) {
-      // ignore cross-origin or other errors
-      console.warn('[VivlioDBG] iframe mount failed', e);
+      console.warn('[VivlioDBG] iframe onLoad mount failed', e);
       setPortalContainer(null);
     }
-    // cleanup: when unmounting, clear portal
-    return () => { setPortalContainer(null); };
-  }, [sourceUrl]);
+  };
 
   // Diagnostic CSS injection removed to keep preview minimal and side-effect free
   if (!sourceUrl) {
@@ -227,18 +228,21 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
 
       {/* Viewer (iframe-isolated). Buttons/panel use zIndex 10000 to remain above iframe. */}
       <div style={{ height: '100%', width: '100%', position: 'relative' }}>
-        {sourceUrl && (
+        {vivlioPayload && (
           <iframe
             ref={iframeRef}
-            key={sourceUrl + (showMargins ? '_m' : '_n') + (showRawInline ? '_raw' : '')}
-            src={sourceUrl}
+            key={(vivlioPayload?.html || '') + (showMargins ? '_m' : '_n') + (showRawInline ? '_raw' : '')}
+            srcDoc={vivlioPayload.html}
             title={showRawInline ? 'Vivliostyle Raw HTML' : 'Vivliostyle Preview'}
             style={{ width: '100%', height: '100%', border: 0, zIndex: 1 }}
+            onLoad={handleIframeLoad}
           />
         )}
         {/* Render React-based Renderer into the iframe using a portal when possible. */}
         {portalContainer && vivlioPayload && !showRawInline && createPortal(
-          <Renderer source={vivlioPayload.html} style={{ width: '100%', height: '100%' }} />,
+          <div style={{ width: '100%', height: '100%' }}>
+            <Renderer source={vivlioPayload.html} style={{ width: '100%', height: '100%' }} />
+          </div>,
           portalContainer
         )}
         {/* If showRawInline is true, we simply let src display the raw HTML in the iframe */}
