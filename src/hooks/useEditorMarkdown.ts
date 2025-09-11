@@ -23,6 +23,10 @@ const CM6_SELECTORS = [
   '.page-editor',
 ];
 
+const CM5_ROOTS = [
+  '.CodeMirror-code',
+];
+
 export function useEditorMarkdown(opts: Options = {}) {
   const { debounceMs = 300 } = opts;
   const [markdown, setMarkdown] = React.useState<string>('');
@@ -34,6 +38,8 @@ export function useEditorMarkdown(opts: Options = {}) {
   const domHandlersRef = React.useRef<Array<{ target: EventTarget | null; event: string; fn: EventListener }>>([]);
   const msgHandlerRef = React.useRef<((ev: MessageEvent) => void) | null>(null);
   const retryRef = React.useRef(0);
+  const pollTimerRef = React.useRef<number | null>(null);
+  const pollFastCountRef = React.useRef(0);
   const inputListenerRef = React.useRef<((e: Event) => void) | null>(null);
 
   const emit = React.useCallback((raw: string) => {
@@ -57,8 +63,12 @@ export function useEditorMarkdown(opts: Options = {}) {
 
   React.useEffect(() => {
     let disposed = false;
+    let pollTimer: number | null = null;
 
-    function attachTextarea(): boolean {
+    function tryAttach() {
+      if (disposed) return;
+
+      // 1) Textarea (still safest fallback)
       for (const sel of TEXTAREA_SELECTORS) {
         const ta = document.querySelector<HTMLTextAreaElement>(sel);
         if (ta) {
@@ -69,123 +79,313 @@ export function useEditorMarkdown(opts: Options = {}) {
           handler();
           ta.addEventListener('input', handler);
           cleanupRef.current = () => ta.removeEventListener('input', handler);
-          return true;
+          return;
         }
       }
-      return false;
-    }
 
-    function attachCM6(): boolean {
+  // NOTE: Removed contenteditable DOM fallback intentionally.
+  // Reading visible text from `.cm-content` (innerText/textContent) can
+  // drop folded/virtualized content and lead to truncated Markdown being
+  // sent to the preview. We avoid that by relying on authoritative APIs
+  // (CodeMirror 6 EditorView or CodeMirror 5 instance) and only using
+  // textarea/instance routes that are expected to contain the full source.
+
+      // 2) Try CodeMirror 6 via API (robust against fold/virtualization)
       try {
         const EditorView = (window as any).EditorView || (window as any).CodeMirror?.EditorView;
+
+        // Try to locate a CM6 EditorView; prefer EditorView.findFromDOM but
+        // fall back to checking element properties like `cmView` which some hosts
+        // attach directly to the DOM node.
         let foundView: any = null;
         for (const sel of CM6_SELECTORS) {
           const nodes = Array.from(document.querySelectorAll<HTMLElement>(sel));
+          // helper: try to resolve a candidate object to an object that has a CM6-like state/doc
+          const resolveViewCandidate = (obj: any): any | null => {
+            if (!obj) return null;
+            try {
+              if (obj.state && (obj.state.doc || typeof obj.state.sliceDoc === 'function')) return obj;
+            } catch (e) { /* ignore */ }
+            // inspect own properties (shallow) for an inner object with state.doc
+            try {
+              const names = Object.getOwnPropertyNames(obj || {}).slice(0, 200);
+              for (const n of names) {
+                try {
+                  const v = obj[n];
+                  if (v && typeof v === 'object') {
+                    if (v.state && (v.state.doc || typeof v.state.sliceDoc === 'function')) return v;
+                  }
+                } catch (e) { /* ignore property access errors */ }
+              }
+              // also try symbol properties
+              const syms = Object.getOwnPropertySymbols(obj || {});
+              for (const s of syms) {
+                try {
+                  const v = (obj as any)[s];
+                  if (v && typeof v === 'object' && v.state && (v.state.doc || typeof v.state.sliceDoc === 'function')) return v;
+                } catch (e) { /* ignore */ }
+              }
+            } catch (e) { /* ignore final */ }
+            return null;
+          };
+
           for (const node of nodes) {
             try {
+              // 1) Preferred path: EditorView.findFromDOM if available
               if (EditorView && typeof EditorView.findFromDOM === 'function') {
-                const v = EditorView.findFromDOM(node);
-                if (v) { foundView = v; break; }
+                try {
+                  const v = EditorView.findFromDOM(node);
+                  if (v) { foundView = v; break; }
+                } catch (e) { /* ignore find errors */ }
               }
-              const maybe = (node as any).cmView || (node as any).view || (node as any).__cmView || (node as any).CodeMirrorView;
-              if (maybe && maybe.state && (maybe.state.doc || typeof maybe.state.sliceDoc === 'function')) { foundView = maybe; break; }
+              // 2) Fallback: some hosts attach the CM6 view instance to the node
+              // under `cmView` (observed) or similar property names. Try common names.
+              if (!foundView) {
+                const maybe = (node as any).cmView || (node as any).view || (node as any).__cmView || (node as any).CodeMirrorView;
+                if (maybe) {
+                  // direct state
+                  if (maybe.state && (maybe.state.doc || typeof maybe.state.sliceDoc === 'function')) { foundView = maybe; break; }
+                  // try to resolve wrapped candidate objects (some hosts attach wrappers)
+                  const resolved = resolveViewCandidate(maybe);
+                  if (resolved) { foundView = resolved; /* eslint-disable-line no-unused-vars */ break; }
+                }
+              }
             } catch (e) { /* ignore per-node errors */ }
           }
           if (foundView) break;
         }
 
         const view = foundView;
-        if (!view) return false;
-
-        attachPhaseRef.current = 'cm6';
-        const read = () => {
-          try {
-            const txt = view.state && view.state.doc && typeof view.state.doc.toString === 'function'
-              ? view.state.doc.toString()
-              : (view.state && typeof view.state.sliceDoc === 'function' ? view.state.sliceDoc() : '');
-            emit(txt);
-          } catch (e) { /* ignore */ }
-        };
-        read();
-
-        // Prefer EditorView updateListener if available
-        const EditorViewCtor = (window as any).EditorView || (view && (view.constructor as any));
-        try {
-          if (EditorViewCtor && EditorViewCtor.updateListener && typeof EditorViewCtor.updateListener.of === 'function') {
-            const listener = EditorViewCtor.updateListener.of((u: any) => { if (u.docChanged) read(); });
-            // try appendConfig; if unavailable, fallthrough to event/observer approach
+        if (view) {
+          attachPhaseRef.current = 'cm6';
+          // eslint-disable-next-line no-console
+          console.debug('[VivlioDBG] useEditorMarkdown: CM6 view found', { sel: 'multiple-candidates', len: (view.state?.doc ? (typeof view.state.doc.toString === 'function' ? view.state.doc.toString().length : (typeof view.state.sliceDoc === 'function' ? view.state.sliceDoc().length : 0)) : 0) });
+          // try to resolve the EditorView constructor: prefer global EditorView, else use the instance's constructor
+          const EditorViewCtor = (window as any).EditorView || (view && (view.constructor as any));
+          // eslint-disable-next-line no-console
+          console.debug('[VivlioDBG] useEditorMarkdown: EditorViewCtor resolution', { hasGlobal: !!(window as any).EditorView, ctorType: typeof EditorViewCtor, ctorName: EditorViewCtor?.name });
+          const read = () => {
             try {
-              let StateEffect: any = (window as any).StateEffect;
-              if (!StateEffect && (EditorViewCtor as any)?.StateEffect) StateEffect = (EditorViewCtor as any).StateEffect;
-              if (!StateEffect && (view as any).constructor?.StateEffect) StateEffect = (view as any).constructor.StateEffect;
-              if (StateEffect && StateEffect.appendConfig && typeof StateEffect.appendConfig.of === 'function' && typeof view.dispatch === 'function') {
-                view.dispatch({ effects: StateEffect.appendConfig.of(listener) });
-                cleanupRef.current = () => { /* best-effort: not always removable */ };
-                return true;
-              }
-            } catch (e) { /* ignore append errors */ }
-          }
-        } catch (e) { /* ignore */ }
+              const txt = view.state && view.state.doc && typeof view.state.doc.toString === 'function'
+                ? view.state.doc.toString()
+                : (view.state && typeof view.state.sliceDoc === 'function' ? view.state.sliceDoc() : '');
+              emit(txt);
+            } catch (e) { /* ignore read errors */ }
+          };
+          read();
+          try {
+            // Defensive: EditorView may be undefined in some hosts/bundles.
+            // Log presence to help diagnose whether updateListener can be used.
+            // eslint-disable-next-line no-console
+            console.debug('[VivlioDBG] useEditorMarkdown: EditorView presence', { hasEditorView: !!EditorView, editorViewType: typeof EditorView });
 
-        // If updateListener can't be appended, attach DOM event handlers and observers
-        try {
-          let host: HTMLElement | null = null;
-          if (view && (view.dom instanceof HTMLElement)) host = view.dom as HTMLElement;
-          else if ((view as any).root && (view as any).root.dom) host = (view as any).root.dom as HTMLElement;
+            if (EditorViewCtor && EditorViewCtor.updateListener && typeof EditorViewCtor.updateListener.of === 'function') {
+              // create listener that logs when fired and delegates to `read` on doc changes
+              const listener = EditorViewCtor.updateListener.of((u: any) => {
+                try {
+                  // eslint-disable-next-line no-console
+                  console.debug('[VivlioDBG] useEditorMarkdown: CM6 updateListener fired', { docChanged: !!u.docChanged });
+                } catch (e) { /* ignore logging errors */ }
+                if (u.docChanged) read();
+              });
 
-          if (host) {
-            const ta = host.querySelector('textarea');
-            if (ta) {
-              const handler = () => { try { read(); } catch (e) { /* ignore */ } };
-              ta.addEventListener('input', handler);
-              domHandlersRef.current.push({ target: ta, event: 'input', fn: handler });
-              cleanupRef.current = () => { ta.removeEventListener('input', handler); };
-            } else {
-              const target = host.querySelector('.cm-content') ?? host;
-              if (target) {
-                const events = ['beforeinput', 'input', 'keydown', 'paste', 'cut', 'compositionend'];
-                for (const ev of events) {
-                  const fn = (e: Event) => { try { read(); } catch (e) { /* ignore */ } };
-                  target.addEventListener(ev, fn);
-                  domHandlersRef.current.push({ target, event: ev, fn });
+              // try appendConfig; may throw or be unavailable in some environments
+              let appended = false;
+              try {
+                // Resolve StateEffect from multiple possible locations
+                let StateEffect: any = (window as any).StateEffect;
+                let stateEffectSource = StateEffect ? 'window' : null;
+                if (!StateEffect) {
+                  try {
+                    if ((EditorViewCtor as any)?.StateEffect) { StateEffect = (EditorViewCtor as any).StateEffect; stateEffectSource = 'EditorViewCtor'; }
+                  } catch (e) { /* ignore */ }
                 }
-                cleanupRef.current = () => { for (const { target: t, event: k, fn: h } of domHandlersRef.current) { t?.removeEventListener(k, h); } domHandlersRef.current = []; };
+                if (!StateEffect) {
+                  try {
+                    if ((view as any).constructor && (view as any).constructor.StateEffect) { StateEffect = (view as any).constructor.StateEffect; stateEffectSource = 'view.constructor'; }
+                  } catch (e) { /* ignore */ }
+                }
+                // eslint-disable-next-line no-console
+                console.debug('[VivlioDBG] useEditorMarkdown: StateEffect resolution', { source: stateEffectSource });
+
+                if (StateEffect && StateEffect.appendConfig && typeof StateEffect.appendConfig.of === 'function' && typeof view.dispatch === 'function') {
+                  view.dispatch({ effects: StateEffect.appendConfig.of(listener) });
+                  appended = true;
+                  // eslint-disable-next-line no-console
+                  console.debug('[VivlioDBG] useEditorMarkdown: CM6 updateListener appended via StateEffect.appendConfig', { source: stateEffectSource });
+                } else {
+                  throw new Error('appendConfig or dispatch unavailable');
+                }
+              } catch (e) {
+                // eslint-disable-next-line no-console
+                console.debug('[VivlioDBG] useEditorMarkdown: CM6 updateListener append failed, falling back to polling', { error: String(e) });
               }
+
+              if (!appended) {
+                // fallback: hybrid polling strategy + try to attach to any hidden textarea for immediate input detection
+                // eslint-disable-next-line no-console
+                console.debug('[VivlioDBG] useEditorMarkdown: CM6 polling started (fallback, hybrid)');
+
+                // helper to stop polling and cleanup input listener
+                const stopPolling = () => {
+                  if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+                  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                  try {
+                    const ta = (inputListenerRef.current && (view.dom?.querySelector('textarea') || view.dom)) as any;
+                    if (ta && inputListenerRef.current) ta.removeEventListener?.('input', inputListenerRef.current);
+                  } catch (e) { /* ignore */ }
+                };
+
+                // input listener will read once and stop polling immediately
+                const inputHandler = (e: Event) => {
+                  try { read(); } catch (e) { /* ignore */ }
+                  stopPolling();
+                };
+                inputListenerRef.current = inputHandler;
+
+                // try to find a hidden textarea inside view.dom or its parents
+                let textareaFound = false;
+                try {
+                  let host: HTMLElement | null = null;
+                  if (view && (view.dom instanceof HTMLElement)) {
+                    host = view.dom as HTMLElement;
+                  } else if ((view as any).root && (view as any).root.dom) {
+                    host = (view as any).root.dom as HTMLElement;
+                  }
+                  const textarea = host?.querySelector('textarea');
+                    if (textarea) {
+                      textarea.addEventListener('input', inputHandler);
+                      domHandlersRef.current.push({ target: textarea, event: 'input', fn: inputHandler });
+                      textareaFound = true;
+                      // eslint-disable-next-line no-console
+                      console.debug('[VivlioDBG] useEditorMarkdown: attached input listener to hidden textarea', { textareaFound: true });
+                    }
+                } catch (e) { /* ignore */ }
+
+                // If no textarea found, attach to a set of likely DOM events on view.dom/cm-content
+                if (!textareaFound) {
+                  try {
+                    const handlers: Array<[string, EventListener]> = [];
+                    const hostNode = (view && view.dom instanceof HTMLElement) ? view.dom as HTMLElement : ((view as any).root?.dom as HTMLElement | null);
+                    const target = hostNode?.querySelector?.('.cm-content') ?? hostNode ?? null;
+                    if (target) {
+                      const events = ['beforeinput', 'input', 'keydown', 'paste', 'cut', 'compositionend'];
+                      for (const ev of events) {
+                        const fn = (e: Event) => {
+                          try { read(); } catch (e) { /* ignore */ }
+                          // stop polling
+                          try {
+                            if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+                            if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                          } catch (err) { /* ignore */ }
+                        };
+                        handlers.push([ev, fn]);
+                        target.addEventListener(ev, fn);
+                        domHandlersRef.current.push({ target, event: ev, fn });
+                      }
+                      // eslint-disable-next-line no-console
+                      console.debug('[VivlioDBG] useEditorMarkdown: attached DOM event handlers to view.dom/cm-content', { eventsAttached: events.length });
+                      // ensure cleanup removes handlers
+                      const prevCleanup = cleanupRef.current;
+                      cleanupRef.current = () => {
+                        try { for (const { target: t, event: k, fn: h } of domHandlersRef.current) { t?.removeEventListener(k, h); } } catch (e) { /* ignore */ }
+                        domHandlersRef.current = [];
+                        try { prevCleanup?.(); } catch (e) { /* ignore */ }
+                      };
+                    }
+                  } catch (e) { /* ignore */ }
+                }
+
+                // start fast polling initially; we'll increase delay after a few cycles
+                const startHybridPolling = (initialDelay = 180) => {
+                  pollFastCountRef.current = 0;
+                  const tick = () => {
+                    try { read(); } catch (e) { /* ignore */ }
+                    pollFastCountRef.current += 1;
+                    if (pollFastCountRef.current >= 8) {
+                      // switch to normal polling
+                      if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+                      pollTimerRef.current = window.setInterval(read, 500);
+                    }
+                  };
+                  if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+                  pollTimerRef.current = window.setInterval(tick, initialDelay);
+                  pollTimer = pollTimerRef.current;
+                };
+
+                startHybridPolling(180);
+
+                // setup MutationObserver to detect viewer updates and postMessage listener from iframe/viewer
+                let msgHandler: ((ev: MessageEvent) => void) | null = null;
+                try {
+                  const viewerSelectors = ['.vivlio-viewer', '#vivlio-viewer', '.vivlio-iframe', '.vivlio-preview', '.viewer', '.preview', '.vivlio', 'iframe'];
+                  const mutationCb = (muts: MutationRecord[]) => {
+                    let seen = false;
+                    for (const m of muts) {
+                      if (m.addedNodes && m.addedNodes.length > 0) { seen = true; break; }
+                      if (m.type === 'characterData' || m.type === 'attributes') { seen = true; break; }
+                      const tgt = m.target as HTMLElement | null;
+                      if (tgt && viewerSelectors.some(s => tgt.matches?.(s) || tgt.closest?.(s))) { seen = true; break; }
+                    }
+                    if (seen) {
+                      try { read(); } catch (e) { /* ignore */ }
+                    }
+                  };
+                  // Observe only the editor root instead of document.body
+                  const editorRoot = view.dom?.closest('.cm-editor') || view.dom?.parentElement || document.body;
+                  observerRef.current = new MutationObserver(mutationCb);
+                  observerRef.current.observe(editorRoot, { childList: true, subtree: true, characterData: true, attributes: true });
+
+                  msgHandler = (ev: MessageEvent) => { try { read(); } catch (e) { /* ignore */ } };
+                  window.addEventListener('message', msgHandler);
+                  msgHandlerRef.current = msgHandler;
+                  // eslint-disable-next-line no-console
+                  console.debug('[VivlioDBG] useEditorMarkdown: viewer mutation observer and message listener attached');
+                } catch (e) { /* ignore observer setup errors */ }
+
+                const prevCleanup = cleanupRef.current;
+                cleanupRef.current = () => {
+                  try { for (const { target: t, event: k, fn: h } of domHandlersRef.current) { t?.removeEventListener(k, h); } } catch (e) { /* ignore */ }
+                  domHandlersRef.current = [];
+                  if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+                  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                  if (inputListenerRef.current) {
+                    try {
+                      const hostNode = view.dom as HTMLElement | null;
+                      const ta = hostNode?.querySelector('textarea');
+                      if (ta) ta.removeEventListener('input', inputListenerRef.current);
+                    } catch (e) { /* ignore */ }
+                    inputListenerRef.current = null;
+                  }
+                  try { observerRef.current?.disconnect(); observerRef.current = null; } catch (e) { /* ignore */ }
+                  if (msgHandlerRef.current) { try { window.removeEventListener('message', msgHandlerRef.current); msgHandlerRef.current = null; } catch (e) { /* ignore */ } }
+                  try { prevCleanup?.(); } catch (e) { /* ignore */ }
+                };
+              } else {
+                // best-effort cleanup (cannot reliably remove appended extension in all hosts)
+                cleanupRef.current = () => { /* no-op */ };
+              }
+            } else {
+              // updateListener not available; use polling
+              // eslint-disable-next-line no-console
+              console.debug('[VivlioDBG] useEditorMarkdown: CM6 updateListener not available, using polling');
+              pollTimer = window.setInterval(read, 500);
+              cleanupRef.current = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
             }
+          } catch (e) {
+            // any unexpected error: fallback to polling
+            // eslint-disable-next-line no-console
+            console.debug('[VivlioDBG] useEditorMarkdown: CM6 updateListener unexpected error, using polling', { error: String(e) });
+            pollTimer = window.setInterval(read, 500);
+            cleanupRef.current = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
           }
-        } catch (e) { /* ignore */ }
-
-        // attach viewer mutation observer + message listener
-        try {
-          const viewerSelectors = ['.vivlio-viewer', '#vivlio-viewer', '.vivlio-iframe', '.vivlio-preview', '.viewer', '.preview', '.vivlio', 'iframe'];
-          const mutationCb = (muts: MutationRecord[]) => {
-            for (const m of muts) {
-              if ((m.addedNodes && m.addedNodes.length > 0) || m.type === 'characterData' || m.type === 'attributes') { try { read(); } catch {} break; }
-            }
-          };
-          const editorRoot = view.dom?.closest('.cm-editor') || view.dom?.parentElement || document.body;
-          observerRef.current = new MutationObserver(mutationCb);
-          observerRef.current.observe(editorRoot, { childList: true, subtree: true, characterData: true, attributes: true });
-          const msgHandler = (ev: MessageEvent) => { try { read(); } catch {} };
-          window.addEventListener('message', msgHandler);
-          msgHandlerRef.current = msgHandler;
-          const prevCleanup = cleanupRef.current;
-          cleanupRef.current = () => {
-            try { for (const { target: t, event: k, fn: h } of domHandlersRef.current) { t?.removeEventListener(k, h); } } catch (e) { /* ignore */ }
-            domHandlersRef.current = [];
-            try { observerRef.current?.disconnect(); observerRef.current = null; } catch (e) { /* ignore */ }
-            if (msgHandlerRef.current) { try { window.removeEventListener('message', msgHandlerRef.current); msgHandlerRef.current = null; } catch (e) { /* ignore */ } }
-            try { prevCleanup?.(); } catch (e) { /* ignore */ }
-          };
-        } catch (e) { /* ignore */ }
-
-        return true;
+          return;
+        }
       } catch (e) {
-        return false;
+        // ignore and fallback
       }
-    }
 
-    function attachCM5(): boolean {
+      // 3) CodeMirror 5: use instance API if available
       try {
         const cmHost = document.querySelector('.CodeMirror') as any;
         if (cmHost && cmHost.CodeMirror) {
@@ -199,52 +399,42 @@ export function useEditorMarkdown(opts: Options = {}) {
             cm.on('change', read);
             cleanupRef.current = () => { try { cm.off('change', read); } catch (e) { /* ignore */ } };
           } catch (e) {
-            // fallback: observer/message
-            try {
-              observerRef.current = new MutationObserver(() => { try { read(); } catch {} });
-              observerRef.current.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true });
-              const msgHandler = (ev: MessageEvent) => { try { read(); } catch {} };
-              window.addEventListener('message', msgHandler);
-              msgHandlerRef.current = msgHandler;
-              cleanupRef.current = () => { try { observerRef.current?.disconnect(); observerRef.current = null; } catch(e){} if (msgHandlerRef.current) { try { window.removeEventListener('message', msgHandlerRef.current); msgHandlerRef.current = null; } catch(e){} } };
-            } catch (e2) { /* ignore */ }
+            const p = window.setInterval(read, 500);
+            cleanupRef.current = () => clearInterval(p);
           }
-          return true;
+          return;
         }
-      } catch (e) { /* ignore */ }
-      return false;
-    }
+      } catch (e) {
+        // ignore
+      }
 
-    try {
-      if (attachTextarea()) return;
-      if (attachCM6()) return;
-      if (attachCM5()) return;
-    } catch (e) { /* ignore */ }
-
-    // retry with exponential backoff-ish delays a limited number of times
-    retryRef.current += 1;
-    // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG] useEditorMarkdown: retry', { retry: retryRef.current, phase: attachPhaseRef.current });
-    if (retryRef.current < 45) {
-      const delay = retryRef.current < 8 ? 200 : 600;
-      const t = window.setTimeout(() => { try { /* re-run detection */ if (!disposed) { if (attachTextarea()) return; if (attachCM6()) return; if (attachCM5()) return; } } catch {} }, delay);
-      // ensure this timeout doesn't keep process alive when unmounted
-      cleanupRef.current = () => { try { clearTimeout(t); } catch {} };
-    } else {
+      retryRef.current += 1;
       // eslint-disable-next-line no-console
-      console.warn('[VivlioDBG] useEditorMarkdown: editor detection failed after extended retries');
+      console.debug('[VivlioDBG] useEditorMarkdown: retry', { retry: retryRef.current, phase: attachPhaseRef.current });
+      // increase retry attempts and use faster early polling to catch delayed EditorView registration
+      if (retryRef.current < 45) {
+        const delay = retryRef.current < 8 ? 200 : 600; // faster initial retries
+        setTimeout(tryAttach, delay);
+      } else {
+        // eslint-disable-next-line no-console
+        console.warn('[VivlioDBG] useEditorMarkdown: editor detection failed after extended retries');
+      }
     }
 
+    tryAttach();
     return () => {
       disposed = true;
-      // remove dom handlers
-      try { for (const { target: t, event: k, fn: h } of domHandlersRef.current) { t?.removeEventListener(k, h); } } catch (e) { /* ignore */ }
-      domHandlersRef.current = [];
-      // additional cleanup
-      cleanupRef.current?.();
-      try { observerRef.current?.disconnect(); observerRef.current = null; } catch (e) { /* ignore */ }
-      if (msgHandlerRef.current) { try { window.removeEventListener('message', msgHandlerRef.current); msgHandlerRef.current = null; } catch (e) { /* ignore */ } }
-      if (debTimerRef.current) window.clearTimeout(debTimerRef.current);
+  // remove dom handlers
+  try { for (const { target: t, event: k, fn: h } of domHandlersRef.current) { t?.removeEventListener(k, h); } } catch (e) { /* ignore */ }
+  domHandlersRef.current = [];
+  // call any additional cleanup
+  cleanupRef.current?.();
+  // observer cleanup
+  try { observerRef.current?.disconnect(); observerRef.current = null; } catch (e) { /* ignore */ }
+  // message handler
+  if (msgHandlerRef.current) { try { window.removeEventListener('message', msgHandlerRef.current); msgHandlerRef.current = null; } catch (e) { /* ignore */ } }
+  if (debTimerRef.current) window.clearTimeout(debTimerRef.current);
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
       // eslint-disable-next-line no-console
       console.debug('[VivlioDBG] useEditorMarkdown: cleanup', { phase: attachPhaseRef.current });
     };
