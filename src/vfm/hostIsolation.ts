@@ -7,78 +7,11 @@ export function ensureHostIsolationCss() {
   // 1) Create exclusion rules so typical global resets (e.g. `*, *::before, *::after { box-sizing: border-box }`)
   //    won't apply to vivliostyle host containers. This is the preferred, non-invasive approach.
   // 2) Provide a minimal, targeted override to ensure layout calculations assume content-box and correct positioning.
-  const css = `
-/* Exclude vivliostyle host containers from broad global resets (non-invasive) */
-*:where(:not([data-vivliostyle-outer-zoom-box],
-             [data-vivliostyle-spread-container],
-             [data-vivliostyle-page-container],
-             [data-vivliostyle-bleed-box],
-             [data-vivliostyle-page-box],
-             [data-vivliostyle-page-area]))::before,
-*:where(:not([data-vivliostyle-outer-zoom-box],
-             [data-vivliostyle-spread-container],
-             [data-vivliostyle-page-container],
-             [data-vivliostyle-bleed-box],
-             [data-vivliostyle-page-box],
-             [data-vivliostyle-page-area]))::after,
-*:where(:not([data-vivliostyle-outer-zoom-box],
-             [data-vivliostyle-spread-container],
-             [data-vivliostyle-page-container],
-             [data-vivliostyle-bleed-box],
-             [data-vivliostyle-page-box],
-             [data-vivliostyle-page-area])) {
-  /* leave global resets as-is for other elements */
-}
-
-/* Fallback: minimal, targeted override to ensure layout calculations assume content-box
-   Only normalize the outer container and spread; do NOT forcibly remove padding/margin
-   from author-controlled page boxes or page areas (that breaks layout/margins). */
-.vivlio-simple-viewer [data-vivliostyle-outer-zoom-box],
-.vivlio-simple-viewer [data-vivliostyle-spread-container],
-.vivlio-simple-viewer [data-vivliostyle-page-container] {
-  box-sizing: content-box !important;
-  /* Do not force padding/margin here — preserve author intent on page-box/page-area */
-  border: 0 !important;
-}
-
-/* Force correct positioning for Vivliostyle layout layers */
-.vivlio-simple-viewer [data-vivliostyle-viewer-viewport] {
-  display: flex !important;
-  justify-content: center !important;
-  align-items: flex-start !important;
-  position: relative !important;
-  overflow: auto;
-}
-.vivlio-simple-viewer [data-vivliostyle-spread-container] {
-  display: flex !important;
-  justify-content: center !important;
-  flex: none;
-  transform-origin: left top;
-}
-.vivlio-simple-viewer [data-vivliostyle-page-container] {
-  position: relative !important;
-  margin: 0 auto;
-  overflow: hidden;
-  box-sizing: content-box !important;
-}
-.vivlio-simple-viewer [data-vivliostyle-bleed-box] {
-  /* Minimal normalization for the bleed container only; leave page-box/area
-     margins and paddings alone so authored layout remains intact. */
-  margin: 0 !important;
-  box-sizing: border-box !important;
-}
-.vivlio-simple-viewer [data-vivliostyle-page-box],
-.vivlio-simple-viewer [data-vivliostyle-page-area] {
-  /* Preserve author margin/padding; only enforce box-sizing to avoid host leakage */
-  /* Use content-box for page boxes so author padding/width semantics match official viewer */
-  box-sizing: content-box !important;
-}
-`;
-
-  const style = document.createElement('style');
-  style.id = id;
-  style.textContent = css;
-  document.head.appendChild(style);
+  // Host CSS injection disabled: do not create or append any <style> to document.head
+  // The original code injected normalization/override CSS to reduce host leakage.
+  // To avoid any CSS being mixed into the host page, we deliberately skip creating
+  // the style element here. Other non-invasive diagnostics and temporary inline
+  // transform overrides are preserved below.
   // Safer approach: do NOT force width/height on the page-container. Instead
   // ensure viewer containers are centered and optionally perform a single
   // measurement/log so we can detect mismatches without clobbering the
