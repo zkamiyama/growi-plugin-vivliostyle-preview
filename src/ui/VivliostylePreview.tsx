@@ -245,8 +245,10 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             .vivliostyle-page, .page { background: white; box-shadow: none; }
             /* Emphasize bleed box with subtle shadow and ensure it's centered */
             [data-vivliostyle-bleed-box] { display: block; box-shadow: 0 12px 30px var(--bleed-shadow); border-radius: 4px; }
-            /* Ensure any outer gutters are painted with the same gray */
-            body > div { background: transparent; }
+            /* Ensure any outer gutters are painted with the same gray. Target spread container and its ancestors */
+            [data-vivliostyle-spread-container], [data-vivliostyle-spread-container] > *, [data-vivliostyle-root], body { background: var(--vivlio-bg) !important; }
+            /* Force container wrappers to stretch full height so gutters fill with gray */
+            [data-vivliostyle-root], [data-vivliostyle-spread-container] { min-height: 100vh; box-sizing: border-box; }
           </style></head><body><div id="vivlio-root"></div></body></html>`;
           const iframeSrcDoc = showRawInline ? vivlioPayload.html : minimalShell;
           return (
