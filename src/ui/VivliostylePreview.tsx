@@ -15,6 +15,8 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [showRawInline, setShowRawInline] = useState<boolean>(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+  // Unified gutter/background color for iframe and outer wrapper
+  const GUTTER_COLOR = '#e6e6e6';
 
   
   // collapsible Section helper — compact header with emphasized border and small right-aligned Copy
@@ -171,7 +173,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   }
 
   return (
-    <div className="vivlio-simple-viewer" style={{ height: '100%', width: '100%', position: 'relative' }}>
+    <div className="vivlio-simple-viewer" style={{ height: '100%', width: '100%', position: 'relative', background: GUTTER_COLOR }}>
       {/* Information button */}
       <button
         onClick={() => setShowInfo(!showInfo)}
@@ -235,7 +237,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           // by scripts present in the full payload.
           const minimalShell = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1" /><title>Vivlio Preview</title><style>
             /* unified bg token for gutters/outside area */
-            :root { --vivlio-bg: #e6e6e6; --bleed-shadow: rgba(0,0,0,0.12); }
+            :root { --vivlio-bg: ${GUTTER_COLOR}; --bleed-shadow: rgba(0,0,0,0.12); }
             html, body { height: 100%; margin: 0; padding: 0; background: var(--vivlio-bg); }
             /* center the viewer inside the gray gutter */
             #vivlio-root { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; }
