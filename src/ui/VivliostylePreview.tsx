@@ -233,7 +233,17 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           // When using the React Renderer mounted into the iframe, use a minimal
           // shell that only contains the mount node to avoid double-initialization
           // by scripts present in the full payload.
-          const minimalShell = `<!doctype html><html><head><meta charset="utf-8"><title>Vivlio Preview</title></head><body><div id="vivlio-root"></div></body></html>`;
+          const minimalShell = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1" /><title>Vivlio Preview</title><style>
+            :root, html, body { height: 100%; margin: 0; padding: 0; background: #e6e6e6; }
+            /* Center the vivliostyle content and fill outside with gray */
+            #vivlio-root { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; }
+            /* Ensure the rendered pages stay centered and don't produce white border at the root */
+            .vivliostyle-page, .page, [data-vivliostyle-bleed-box], [data-vivliostyle-page-area] { margin: 0 auto; }
+            /* If vivliostyle renders page boxes, let them keep their white background while surrounding area stays gray */
+            .vivliostyle-page, .page { background: white; box-shadow: none; }
+            /* Make bleed box centered */
+            [data-vivliostyle-bleed-box] { display: block; }
+          </style></head><body><div id="vivlio-root"></div></body></html>`;
           const iframeSrcDoc = showRawInline ? vivlioPayload.html : minimalShell;
           return (
             <iframe
