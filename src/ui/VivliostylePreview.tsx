@@ -228,16 +228,24 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
 
       {/* Viewer (iframe-isolated). Buttons/panel use zIndex 10000 to remain above iframe. */}
       <div style={{ height: '100%', width: '100%', position: 'relative' }}>
-        {vivlioPayload && (
-          <iframe
-            ref={iframeRef}
-            key={(vivlioPayload?.html || '') + (showMargins ? '_m' : '_n') + (showRawInline ? '_raw' : '')}
-            srcDoc={vivlioPayload.html}
-            title={showRawInline ? 'Vivliostyle Raw HTML' : 'Vivliostyle Preview'}
-            style={{ width: '100%', height: '100%', border: 0, zIndex: 1 }}
-            onLoad={handleIframeLoad}
-          />
-        )}
+        {vivlioPayload && (() => {
+          // When showing raw HTML, use the full generated payload in srcDoc.
+          // When using the React Renderer mounted into the iframe, use a minimal
+          // shell that only contains the mount node to avoid double-initialization
+          // by scripts present in the full payload.
+          const minimalShell = `<!doctype html><html><head><meta charset="utf-8"><title>Vivlio Preview</title></head><body><div id="vivlio-root"></div></body></html>`;
+          const iframeSrcDoc = showRawInline ? vivlioPayload.html : minimalShell;
+          return (
+            <iframe
+              ref={iframeRef}
+              key={(vivlioPayload?.html || '') + (showMargins ? '_m' : '_n') + (showRawInline ? '_raw' : '')}
+              srcDoc={iframeSrcDoc}
+              title={showRawInline ? 'Vivliostyle Raw HTML' : 'Vivliostyle Preview'}
+              style={{ width: '100%', height: '100%', border: 0, zIndex: 1 }}
+              onLoad={handleIframeLoad}
+            />
+          );
+        })()}
         {/* Render React-based Renderer into the iframe using a portal when possible. */}
         {portalContainer && vivlioPayload && sourceUrl && !showRawInline && createPortal(
           <div style={{ width: '100%', height: '100%' }}>
