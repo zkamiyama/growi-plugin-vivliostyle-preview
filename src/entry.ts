@@ -17,7 +17,7 @@ let currentMode: 'markdown' | 'vivlio' = 'markdown';
 let markdownPanel: HTMLElement | null = null;
 let vivlioPanel: HTMLElement | null = null;
 let detectedMarkdownPreview: HTMLElement | null = null;
-let attachPollId: number | null = null;
+// polling removed: attachPollId no longer used
 const detachFns: Array<() => void> = [];
 let vivlioReady = false;
 
@@ -214,13 +214,7 @@ function activate(){
   // Initial attempt
   initTabsIfPossible();
   attachEditorListeners();
-  // Poll fallback (some DOM arrives later)
-  attachPollId=window.setInterval(()=>{
-    if (stopAutoInit) { if (attachPollId) { clearInterval(attachPollId); attachPollId = null; } return; }
-    if(!tabsInitialized) initTabsIfPossible();
-    if(!detachFns.length && attachEditorListeners()){ /* attached */ }
-    if(tabsInitialized && detachFns.length){ if(attachPollId) clearInterval(attachPollId); attachPollId = null; }
-  },1000);
+  // Polling removed: rely on MutationObserver and initial attach attempts
   // MutationObserver for dynamic re-render / preview container replacement
   try {
     domObserver = new MutationObserver(()=>{ if(!tabsInitialized) initTabsIfPossible(); });
@@ -229,7 +223,7 @@ function activate(){
   }catch{}
 }
 
-function deactivate(){ console.info('[VIVLIO_DEV] deactivate'); if(iframe){ iframe.remove(); iframe=null;} if(attachPollId) clearInterval(attachPollId); detachFns.forEach(f=>f()); detachFns.length=0; try{ domObserver && domObserver.disconnect(); }catch{} domObserver=null; delete (window as any).__VIVLIO_PREVIEW__; delete (window as any).__VIVLIO_PREVIEW_ACTIVE__; }
+function deactivate(){ console.info('[VIVLIO_DEV] deactivate'); if(iframe){ iframe.remove(); iframe=null;} detachFns.forEach(f=>f()); detachFns.length=0; try{ domObserver && domObserver.disconnect(); }catch{} domObserver=null; delete (window as any).__VIVLIO_PREVIEW__; delete (window as any).__VIVLIO_PREVIEW_ACTIVE__; }
 
 if(!(window as any).pluginActivators) (window as any).pluginActivators={};
 (window as any).pluginActivators['growi-plugin-vivliostyle-preview-dev']={ activate, deactivate };
