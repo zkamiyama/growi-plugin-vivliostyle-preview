@@ -8,10 +8,10 @@ import ExternalToggle from './src/ui/ExternalToggle';
 import { AppProvider } from './src/context/AppContext';
 import config from './package.json';
 import { ensureHostIsolationCss } from './src/vfm/hostIsolation';
+import { dbg } from './src/utils/debug';
 
 // 早期ロード確認ログ (script が読み込まれているか最初に出る)
-// eslint-disable-next-line no-console
-console.debug('[VivlioDBG][entry] script file evaluated', { time: Date.now(), plugin: config.name });
+dbg('[VivlioDBG][entry] script file evaluated', { time: Date.now(), plugin: config.name });
 
 // GROWIのスクリプトプラグイン規約：activate/deactivateのみ担当
 const PLUGIN_ID = config.name;
@@ -57,8 +57,7 @@ function locatePreviewContainer(): Element | null {
     try {
       const rc = (preferred as HTMLElement).getBoundingClientRect();
       if (rc.width > 0 && rc.height > 0) {
-        // eslint-disable-next-line no-console
-        console.debug('[VivlioDBG][locatePreviewContainer] chosen preferred exact selector', { selector: '.page-editor-preview-container.flex-expand-vert.overflow-y-auto', rect: rc });
+    dbg('[VivlioDBG][locatePreviewContainer] chosen preferred exact selector', { selector: '.page-editor-preview-container.flex-expand-vert.overflow-y-auto', rect: rc });
         return preferred;
       }
     } catch (e) { /* ignore */ }
@@ -82,21 +81,18 @@ function locatePreviewContainer(): Element | null {
     if (visible.length > 0) {
       for (const v of visible) {
         if ((v as Element).querySelector('.page-editor-preview-body') || (v as Element).querySelector('.page-editor-preview')) {
-          // eslint-disable-next-line no-console
-          console.debug('[VivlioDBG][locatePreviewContainer] chosen visible node with preview body', { sel, candidate: v });
+          dbg('[VivlioDBG][locatePreviewContainer] chosen visible node with preview body', { sel, candidate: v });
           return v;
         }
       }
-      // fallback to first visible
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][locatePreviewContainer] chosen first visible node for selector', { sel, candidate: visible[0] });
+  // fallback to first visible
+  dbg('[VivlioDBG][locatePreviewContainer] chosen first visible node for selector', { sel, candidate: visible[0] });
       return visible[0];
     }
 
     // otherwise, take the first node (may be hidden due to responsive classes)
     if (nodes.length > 0) {
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][locatePreviewContainer] chosen first node (non-visible) for selector', { sel, candidate: nodes[0] });
+  dbg('[VivlioDBG][locatePreviewContainer] chosen first node (non-visible) for selector', { sel, candidate: nodes[0] });
       return nodes[0];
     }
   }

@@ -1,6 +1,7 @@
 // src/context/AppContext.tsx
 import * as React from 'react';
 import { useEditorMarkdown } from '../hooks/useEditorMarkdown';
+import { dbg } from '../utils/debug';
 
 // Backward compatible context type: keep old isOpen/toggle naming plus new explicit setter
 export type AppContextType = {
@@ -39,14 +40,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const toggle = React.useCallback(() => {
-    // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][AppContext] toggle() invoked', { time: Date.now(), contextId: contextIdRef.current });
+    dbg('[VivlioDBG][AppContext] toggle() invoked', { time: Date.now(), contextId: contextIdRef.current });
     setIsVivliostyleActive(prev => {
       const next = !prev;
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][AppContext] state transition', { from: prev, to: next, contextId: contextIdRef.current, stack: new Error().stack?.split('\n').slice(0,4) });
-      (window as any).__vivlio_debug = (window as any).__vivlio_debug || { toggles: [] };
-      (window as any).__vivlio_debug.toggles.push({ at: Date.now(), from: prev, to: next, contextId: contextIdRef.current });
+      dbg('[VivlioDBG][AppContext] state transition', { from: prev, to: next, contextId: contextIdRef.current, stack: new Error().stack?.split('\n').slice(0,4) });
       return next;
     });
   }, []);
@@ -58,8 +55,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     toggle,
     markdown: forced ?? markdown,
     forceUpdateMarkdown: (md: string) => {
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG] forceUpdateMarkdown', { length: md.length, contextId: contextIdRef.current });
+  dbg('[VivlioDBG] forceUpdateMarkdown', { length: md.length, contextId: contextIdRef.current });
       setForced(md);
     },
     __contextId: contextIdRef.current, // デバッグ用
@@ -74,8 +70,7 @@ export const useAppContext = () => {
 
   // contextId をログ出力に含める
   React.useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.debug('[VivlioDBG][useAppContext] hook used', {
+    dbg('[VivlioDBG][useAppContext] hook used', {
       contextId: (context as any).__contextId,
       isOpen: context.isOpen
     });
