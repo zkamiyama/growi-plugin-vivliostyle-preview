@@ -1,4 +1,6 @@
-// ui/VivliostyleFrame.tsx
+// Archived: src/ui/VivliostyleFrame.tsx
+// Copied for preservation before cleaning src/
+
 import React from 'react';
 
 const VIEWER_URL = '/plugins/growi-plugin-vivliostyle-preview/viewer/index.html';
@@ -15,7 +17,4 @@ const VivliostyleFrame: React.FC = () => {
   );
 };
 
-// This file has been archived to `archive/unused` because static analysis found no references.
-// If you need to restore it, copy from `archive/unused/VivliostyleFrame.tsx`.
-
-export default null;
+export default VivliostyleFrame;
