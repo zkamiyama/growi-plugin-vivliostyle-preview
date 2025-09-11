@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-// Using an isolated iframe to display the generated VFM HTML (keep it minimal)
+import { Renderer } from '@vivliostyle/react';
+// Use Renderer to render generated VFM HTML inside an isolated container; keep usage minimal
 import { buildVfmHtml, buildVfmPayload } from '../vfm/buildVfmHtml';
 
 interface VivliostylePreviewProps {
@@ -488,13 +489,20 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
               onLoad={() => { try { collectVivlioDebug(); refreshPages(); } catch (e) { /* ignore */ } }}
             />
           ) : (
-            <iframe
+            <Renderer
               key={sourceUrl + (showMargins ? '_m' : '_n')}
-              src={sourceUrl}
-              title="Vivliostyle Preview"
-              style={{ width: '100%', height: '100%', border: 0 }}
-              onLoad={() => { try { collectVivlioDebug(); refreshPages(); } catch (e) { /* ignore */ } }}
-            />
+              source={sourceUrl}
+              onLoad={(params: any) => {
+                try {
+                  const viewer = params.viewer || (params as any).vivliostyleViewer || null;
+                  viewerRef.current = viewer || viewerRef.current;
+                } catch (e) { /* ignore */ }
+                try { collectVivlioDebug(); } catch (e) { /* ignore */ }
+                setTimeout(refreshPages, 120);
+              }}
+            >
+              {({ container }: any) => container}
+            </Renderer>
           )
         )}
       </div>
