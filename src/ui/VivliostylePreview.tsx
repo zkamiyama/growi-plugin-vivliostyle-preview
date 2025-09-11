@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Renderer } from '@vivliostyle/react';
-// Renderer replaced by isolated iframe to avoid host CSS leakage
+// Using an isolated iframe to display the generated VFM HTML (keep it minimal)
 import { buildVfmHtml, buildVfmPayload } from '../vfm/buildVfmHtml';
 
 interface VivliostylePreviewProps {
@@ -489,30 +488,13 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
               onLoad={() => { try { collectVivlioDebug(); refreshPages(); } catch (e) { /* ignore */ } }}
             />
           ) : (
-            <Renderer
+            <iframe
               key={sourceUrl + (showMargins ? '_m' : '_n')}
-              source={sourceUrl}
-              onLoad={(params: any) => {
-                try {
-                  // params may include container and viewer depending on version
-                  const viewer = params.viewer || (params as any).vivliostyleViewer || null;
-                  viewerRef.current = viewer || viewerRef.current;
-
-                  // Defensive: detect ancestor transform/scale that may break mm->px conversion
-                  try {
-                    const container = params.container || (rendererWrapRef.current as any) || null;
-                    handleAncestorTransformsForDiagnosis(container);
-                  } catch (e) { /* ignore */ }
-
-                  // allow external debug collector
-                  try { collectVivlioDebug(); } catch (e) { /* ignore */ }
-                  // refresh page list
-                  setTimeout(refreshPages, 120);
-                } catch (e) { /* ignore */ }
-              }}
-            >
-              {({ container }: any) => container}
-            </Renderer>
+              src={sourceUrl}
+              title="Vivliostyle Preview"
+              style={{ width: '100%', height: '100%', border: 0 }}
+              onLoad={() => { try { collectVivlioDebug(); refreshPages(); } catch (e) { /* ignore */ } }}
+            />
           )
         )}
       </div>
