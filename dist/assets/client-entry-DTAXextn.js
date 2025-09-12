@@ -1750,16 +1750,37 @@ span[data-viv-leader] {
             [data-vivliostyle-spread-container], [data-vivliostyle-root] { background: transparent; }
             /* ensure the viewer viewport uses the same gutter color (override runtime CSS if necessary) */
             [data-vivliostyle-viewer-viewport], html[data-vivliostyle-paginated] [data-vivliostyle-viewer-viewport] { background: var(--vivlio-bg) !important; }
-            /* overlays injected by the host script */
-            #vivlio-bleed-shadow, #vivlio-margin-guide { position: absolute; pointer-events: none; z-index: 9999; box-sizing: border-box; }
-            #vivlio-bleed-shadow { box-shadow: 0 32px 64px rgba(0,0,0,0.5); transition: opacity 220ms linear; opacity: 0.98; }
-            #vivlio-margin-guide { border: 2px dashed rgba(255,165,0,0.95); border-radius: 0; display: none; }
+        /* overlays injected by the host script */
+        #vivlio-bleed-shadow, #vivlio-margin-guide { position: absolute; pointer-events: none; z-index: 9999; box-sizing: border-box; }
+        #vivlio-bleed-shadow { box-shadow: 0 32px 64px rgba(0,0,0,0.5); transition: opacity 220ms linear; opacity: 0.98; }
+        #vivlio-margin-guide { border: 2px dashed rgba(255,165,0,0.95); border-radius: 0; display: none; }
+        /* Preferred: if Vivliostyle exposes a bleed-box, style it directly and make ancestors visually transparent
+          so the shadow from bleed-box is visible without extra overlay elements. This avoids duplicating layout.
+          We add fallbacks in the host script to toggle these classes when a bleed box is found. */
+        [data-vivliostyle-bleed-box] { box-shadow: 0 32px 64px rgba(0,0,0,0.5); position: relative; z-index: 9998; }
+        .vivlio--ancestor-transparent { background: transparent !important; }
           </style></head><body><div id="vivlio-root"></div>
           <script>
             (function(){
               try {
                 var SHOW_MARGINS = false;
                 function ensureOverlays() {
+                  // create helper overlay elements only if a native bleed-box isn't present
+                  var nativeBleed = document.querySelector('[data-vivliostyle-bleed-box]');
+                  if (nativeBleed) {
+                    // mark ancestor chain to be transparent so bleed-box's shadow is visible
+                    var p = nativeBleed.parentElement;
+                    while (p && p !== document.documentElement) {
+                      p.classList.add('vivlio--ancestor-transparent');
+                      p = p.parentElement;
+                    }
+                    // ensure bleed element has proper stacking
+                    nativeBleed.style.zIndex = '9998';
+                    nativeBleed.style.position = nativeBleed.style.position || 'relative';
+                    // don't create overlays when native bleed exists
+                    return;
+                  }
+
                   if (!document.getElementById('vivlio-bleed-shadow')) {
                     var s = document.createElement('div');
                     s.id = 'vivlio-bleed-shadow';
@@ -1794,6 +1815,21 @@ span[data-viv-leader] {
                 }
 
                 function updateOverlays() {
+                  // Prefer native bleed-box if available
+                  var nativeBleed = document.querySelector('[data-vivliostyle-bleed-box]');
+                  if (nativeBleed) {
+                    // ensure ancestor transparency class applied (defensive)
+                    var p = nativeBleed.parentElement;
+                    while (p && p !== document.documentElement) {
+                      p.classList.add('vivlio--ancestor-transparent');
+                      p = p.parentElement;
+                    }
+                    // apply shadow directly in case CSS didn't catch it
+                    nativeBleed.style.boxShadow = nativeBleed.style.boxShadow || '0 32px 64px rgba(0,0,0,0.5)';
+                    nativeBleed.style.position = nativeBleed.style.position || 'relative';
+                    return;
+                  }
+
                   var spread = document.querySelector('[data-vivliostyle-spread-container]') || document.querySelector('[data-vivliostyle-page-container]') || document.querySelector('.page');
                   var s = document.getElementById('vivlio-bleed-shadow');
                   var g = document.getElementById('vivlio-margin-guide');
