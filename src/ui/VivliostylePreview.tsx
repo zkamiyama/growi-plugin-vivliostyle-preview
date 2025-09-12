@@ -149,7 +149,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   }
 
   return (
-    <div className="vivlio-simple-viewer" style={{ background: GUTTER_COLOR }}>
+    <div className="vivlio-simple-viewer" style={{ ['--vivlio-gutter' as any]: GUTTER_COLOR }}>
       {/* Information button */}
       <button
         onClick={() => setShowInfo(!showInfo)}
@@ -196,7 +196,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       )}
 
       {/* Viewer (iframe-isolated). Buttons/panel use zIndex 10000 to remain above iframe. */}
-      <div style={{ height: '100%', width: '100%', position: 'relative' }}>
+  <div className="vivlio-viewer-wrapper">
         {vivlioPayload && (() => {
           // When showing raw HTML, use the full generated payload in srcDoc.
           // When using the React Renderer mounted into the iframe, use a minimal
@@ -207,7 +207,11 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             html,body{height:100%;margin:0;padding:0;background:var(--vivlio-bg)}
             #vivlio-root{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box}
             .page,[data-vivliostyle-page-container]{background:#fff}
+            /* Prefer overflow visible on known viewer containers so shadows can escape */
             [data-vivliostyle-viewer-viewport],[data-vivliostyle-root],[data-vivliostyle-spread-container]{overflow:visible!important}
+            /* Ancestor-transparency helper: applied temporarily to ancestors to allow shadow to show through */
+            .vivlio--ancestor-transparent{ background: transparent !important; }
+            /* Bleed shadow overlay */
             #vivlio-bleed-shadow{position:absolute;pointer-events:none;z-index:9999;box-shadow:0 32px 64px rgba(0,0,0,0.5);transition:opacity .22s;opacity:.98}
           </style></head><body><div id="vivlio-root"></div><script>
             (function(){
@@ -217,20 +221,56 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
                     var s=document.createElement('div');s.id='vivlio-bleed-shadow';document.body.appendChild(s);
                   }
                 }
+
+                function findSpread(){
+                  return document.querySelector('[data-vivliostyle-spread-container]')||document.querySelector('[data-vivliostyle-page-container]')||document.querySelector('.page');
+                }
+
+                function getAncestors(el){
+                  var list=[];while(el && el !== document.documentElement){ list.push(el); el = el.parentElement; } return list;
+                }
+
+                var transparentAncestors = [];
+                function makeAncestorsTransparent(spread){
+                  try{
+                    if(!spread) return;
+                    var ancestors = getAncestors(spread.parentElement || spread);
+                    ancestors.forEach(function(a){
+                      try{
+                        // only modify if it has a non-transparent background or overflow hidden
+                        var cs = window.getComputedStyle(a);
+                        if((cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent') || cs.overflow === 'hidden' || cs.transform && cs.transform !== 'none'){
+                          a.classList.add('vivlio--ancestor-transparent');
+                          transparentAncestors.push(a);
+                        }
+                      }catch(e){}
+                    });
+                    // expose restore helper
+                    window.__vivlio_restoreAncestorTransparency = function(){ try{ transparentAncestors.forEach(function(a){ a.classList.remove('vivlio--ancestor-transparent'); }); transparentAncestors = []; delete window.__vivlio_restoreAncestorTransparency; }catch(e){} };
+                  }catch(e){}
+                }
+
+                function restoreAncestors(){ try{ if(window.__vivlio_restoreAncestorTransparency) window.__vivlio_restoreAncestorTransparency(); }catch(e){} }
+
                 function update(){
-                  var spread=document.querySelector('[data-vivliostyle-spread-container]')||document.querySelector('[data-vivliostyle-page-container]')||document.querySelector('.page');
+                  var spread=findSpread();
                   var s=document.getElementById('vivlio-bleed-shadow');
                   if(!spread||!s) return;
-                  var r=spread.getBoundingClientRect();s.style.left=(r.left+window.scrollX)+'px';s.style.top=(r.top+window.scrollY)+'px';s.style.width=Math.max(0,r.width)+'px';s.style.height=Math.max(0,r.height)+'px';
+                  // ensure ancestors are temporarily transparent so shadow isn't clipped
+                  // clear any previous modifications first
+                  restoreAncestors(); makeAncestorsTransparent(spread);
+                  var r=spread.getBoundingClientRect();
+                  s.style.left=(r.left+window.scrollX)+'px';s.style.top=(r.top+window.scrollY)+'px';s.style.width=Math.max(0,r.width)+'px';s.style.height=Math.max(0,r.height)+'px';
                 }
+
                 createOverlay();update();
                 var ro=new ResizeObserver(update);var mo=new MutationObserver(update);
-                var found=document.querySelector('[data-vivliostyle-spread-container]')||document.querySelector('[data-vivliostyle-page-container]')||document.querySelector('.page');
+                var found=findSpread();
                 if(found){ try{ ro.observe(found); mo.observe(found,{childList:true,subtree:true,attributes:true}); }catch(e){} }
-                var bodyObserver=new MutationObserver(function(){ var f=document.querySelector('[data-vivliostyle-spread-container]')||document.querySelector('[data-vivliostyle-page-container]')||document.querySelector('.page'); if(f){ try{ update(); ro.observe(f); mo.observe(f,{childList:true,subtree:true,attributes:true}); }catch(e){} bodyObserver.disconnect(); } });
+                var bodyObserver=new MutationObserver(function(){ var f=findSpread(); if(f){ try{ update(); ro.observe(f); mo.observe(f,{childList:true,subtree:true,attributes:true}); }catch(e){} bodyObserver.disconnect(); } });
                 try{ bodyObserver.observe(document.body,{childList:true,subtree:true}); }catch(e){}
                 window.addEventListener('resize',update);window.addEventListener('scroll',update,true);var poll=setInterval(update,500);
-                window.addEventListener('unload',function(){ try{ clearInterval(poll); ro.disconnect(); mo.disconnect(); bodyObserver.disconnect(); }catch(e){} });
+                window.addEventListener('unload',function(){ try{ clearInterval(poll); ro.disconnect(); mo.disconnect(); bodyObserver.disconnect(); restoreAncestors(); }catch(e){} });
               }catch(e){}
             })();
           </script></body></html>`;
@@ -240,17 +280,17 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           return (
             <iframe
               ref={iframeRef}
+              className="vivlio-iframe"
               key={(vivlioPayload?.html || '') + (showRawInline ? '_raw' : '_n')}
               srcDoc={iframeSrcDoc}
               title={showRawInline ? 'Vivliostyle Raw HTML' : 'Vivliostyle Preview'}
-              style={{ width: '100%', height: '100%', border: 0, zIndex: 1 }}
               onLoad={handleIframeLoad}
             />
           );
         })()}
         {/* Render React-based Renderer into the iframe using a portal when possible. */}
         {portalContainer && vivlioPayload && sourceUrl && !showRawInline && createPortal(
-          <div style={{ width: '100%', height: '100%' }}>
+          <div className="vivlio-portal">
             {/* Use data URL so the viewer treats source as a URL resource (data:...) instead of attempting to fetch raw HTML text as a URL */}
             <Renderer source={sourceUrl} style={{ width: '100%', height: '100%' }} />
           </div>,
