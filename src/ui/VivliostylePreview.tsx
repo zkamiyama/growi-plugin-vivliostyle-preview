@@ -11,7 +11,6 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [vivlioPayload, setVivlioPayload] = useState<any>(null);
-  const [showMargins, setShowMargins] = useState(false);
   const [showRawInline, setShowRawInline] = useState<boolean>(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
@@ -111,6 +110,13 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   boxShadow: '0 4px 10px rgba(0,0,0,0.18)'
   };
 
+  const activeBtn = (active: boolean): React.CSSProperties => ({
+    ...btnBase,
+    background: active ? 'rgba(40,120,180,0.95)' : btnBase.background,
+    boxShadow: active ? '0 6px 18px rgba(0,0,0,0.32)' : btnBase.boxShadow,
+    color: active ? 'white' : btnBase.color
+  });
+
   // Minimal viewer: we only build payload and display it. Advanced debug/page logic removed.
 
   const openRawHtml = () => { if (!sourceUrl) return; setShowRawInline((s) => !s); };
@@ -125,9 +131,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   useEffect(() => {
     if (!markdown) { setSourceUrl(null); setVivlioPayload(null); return; }
     try {
-      // Do NOT inject @page via inlineCss when toggling margins.
-      // Instead render visual margin guides in the iframe so the
-      // layout (page size) remains unchanged.
+      // Build payload without injecting @page rules; margin visuals are not used.
       const payload = buildVfmPayload(markdown, {});
       setVivlioPayload(payload);
       const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(payload.html)}`;
@@ -137,7 +141,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
       setSourceUrl(null);
       setVivlioPayload(null);
     }
-  }, [markdown, showMargins]);
+  }, [markdown]);
 
   // Setup portal container when iframe loads. Use srcDoc instead of document.write
   // to avoid cross-document races. onLoad handler below populates portalContainer.
@@ -174,7 +178,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         onClick={() => setShowInfo(!showInfo)}
         title="Toggle info"
         aria-label="Toggle info"
-        style={{ position: 'absolute', top: 10, right: 24, zIndex: 1000, ...btnBase, padding: '6px' }}
+        style={{ position: 'absolute', top: 10, right: 24, zIndex: 1000, padding: '6px', ...activeBtn(showInfo) }}
       >
         ℹ️
       </button>
@@ -184,21 +188,13 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         onClick={openRawHtml}
         title="Open raw HTML"
         aria-label="Open raw HTML"
-        style={{ position: 'absolute', top: 10, right: 104, zIndex: 1000, ...btnBase, padding: '6px' }}
+        style={{ position: 'absolute', top: 10, right: 104, zIndex: 1000, padding: '6px', ...activeBtn(showRawInline) }}
       >
         🧾
       </button>
 
   {/* Viewer controls removed (page navigation and viewer API not needed for minimal display) */}
-      {/* Margin visualization toggle button */}
-      <button
-        onClick={() => setShowMargins(!showMargins)}
-        title={showMargins ? 'Disable margins' : 'Enable margins'}
-        aria-label="Toggle margins"
-        style={{ position: 'absolute', top: 10, right: 64, zIndex: 1000, ...btnBase, padding: '6px', background: showMargins ? 'rgba(255,165,0,0.9)' : btnBase.background }}
-      >
-        📐
-      </button>
+  {/* Margin visualization removed */}
 
       {/* Information panel (simplified) */}
   {showInfo && (
@@ -206,7 +202,6 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         <style>{localScrollStyles}</style>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <strong style={{ fontSize: 13 }}>Vivliostyle Info</strong>
-            <span style={{ fontSize: 12, opacity: 0.9 }}>{showMargins ? 'Margins ON' : 'Margins OFF'}</span>
           </div>
           {/* top action buttons removed as requested */}
           <div style={{ fontSize: 12, marginBottom: 8 }}>
@@ -253,7 +248,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           <script>
             (function(){
               try {
-                var SHOW_MARGINS = ${showMargins ? 'true' : 'false'};
+                var SHOW_MARGINS = false;
                 function ensureOverlays() {
                   if (!document.getElementById('vivlio-bleed-shadow')) {
                     var s = document.createElement('div');
@@ -334,7 +329,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           return (
             <iframe
               ref={iframeRef}
-              key={(vivlioPayload?.html || '') + (showMargins ? '_m' : '_n') + (showRawInline ? '_raw' : '')}
+              key={(vivlioPayload?.html || '') + (showRawInline ? '_raw' : '_n')}
               srcDoc={iframeSrcDoc}
               title={showRawInline ? 'Vivliostyle Raw HTML' : 'Vivliostyle Preview'}
               style={{ width: '100%', height: '100%', border: 0, zIndex: 1 }}
