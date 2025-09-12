@@ -121,6 +121,62 @@ export function buildVfmPayload(inputMarkdown: string, options?: {
   return { rawMarkdown: inputMarkdown, userCss, finalCss, html: withScript };
 }
 
+// Async variants that run stringify in a worker thread using the vfm worker client.
+import { createVfmClient } from '../vfmWorkerClient';
+
+export async function buildVfmPayloadAsync(inputMarkdown: string, options?: {
+  title?: string;
+  language?: string;
+  styleUrls?: string[];
+  inlineCss?: string;
+  enableMath?: boolean;
+  inlineScript?: string;
+  parseVivlioUserCss?: boolean;
+}) {
+  const {
+    title = 'Preview',
+    language = 'ja',
+    styleUrls,
+    inlineCss,
+    enableMath = true,
+    inlineScript,
+    parseVivlioUserCss = true,
+  } = options || {};
+
+  let rawMarkdown = inputMarkdown || '';
+  let userCss = '';
+  if (parseVivlioUserCss && typeof rawMarkdown === 'string') {
+    try {
+      rawMarkdown = rawMarkdown.replace(/```\s*vivliocss\s*\n([\s\S]*?)```/gmi, (_m, css) => {
+        if (css && css.trim()) userCss += '\n' + css.trim();
+        return '';
+      });
+    } catch (e) { userCss = ''; }
+  }
+
+  const client = createVfmClient();
+  const optionsForStringify: any = { title, language, style: styleUrls, math: enableMath };
+  const html = await client.stringify(rawMarkdown + '', optionsForStringify);
+
+  const finalCss = '' + (userCss ? '\n' + userCss : '') + (inlineCss ? '\n' + inlineCss : '');
+  const withCss = injectInlineStyle(html, finalCss);
+  const withScript = inlineScript ? injectInlineScript(withCss, inlineScript) : withCss;
+  return { rawMarkdown: inputMarkdown, userCss, finalCss, html: withScript };
+}
+
+export async function buildVfmHtmlAsync(inputMarkdown: string, options?: {
+  title?: string;
+  language?: string;
+  styleUrls?: string[];
+  inlineCss?: string;
+  enableMath?: boolean;
+  inlineScript?: string;
+  parseVivlioUserCss?: boolean;
+}) : Promise<string> {
+  const payload = await buildVfmPayloadAsync(inputMarkdown, options);
+  return payload.html;
+}
+
 /** </head> の直前に <style> を挿入する */
 function injectInlineStyle(html: string, css: string): string {
   const tag = `<style>${css}</style>`;

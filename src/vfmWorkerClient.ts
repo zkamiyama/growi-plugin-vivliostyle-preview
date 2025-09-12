@@ -35,7 +35,7 @@ export function createVfmClient() {
         if (!libRes.ok) throw new Error('vfm lib fetch failed: ' + libRes.status);
         const libTxt = await libRes.text();
         const workerSrc = libTxt + '\n' +
-          `self.onmessage = function(ev){ var seq=ev.data&&ev.data.seq?ev.data.seq:null; var md=ev.data&&ev.data.markdown?ev.data.markdown:''; try{ var html=(typeof self.vfm!=='undefined'&&self.vfm.stringify)?self.vfm.stringify(md): (typeof vfm!=='undefined'&&vfm.stringify)?vfm.stringify(md): ''; self.postMessage({seq,ok:true,html}); }catch(e){ self.postMessage({seq,ok:false,error:String(e)}); } };`;
+          `self.onmessage = function(ev){ var data = ev.data; try{ if(typeof data === 'string'){ data = JSON.parse(data); } }catch(e){} var seq = data && (data.seq?data.seq:null); var md = data && data.markdown?data.markdown : ''; var options = data && data.options?data.options: undefined; try{ var html = (typeof self.vfm !== 'undefined' && self.vfm.stringify) ? (typeof options !== 'undefined' ? self.vfm.stringify(md, options) : self.vfm.stringify(md)) : ((typeof vfm!=='undefined'&&vfm.stringify)? (typeof options !== 'undefined' ? vfm.stringify(md, options) : vfm.stringify(md)) : ''); self.postMessage({seq,ok:true,html}); }catch(e){ self.postMessage({seq,ok:false,error:String(e)}); } };`;
         const blob = new Blob([workerSrc], { type: 'application/javascript' });
         const url = URL.createObjectURL(blob);
         const w = new Worker(url);
@@ -109,14 +109,16 @@ export function createVfmClient() {
   };
 
   return {
-    async stringify(markdown: string): Promise<string> {
+    async stringify(markdown: string, options?: any): Promise<string> {
       seq += 1;
       const id = seq;
       const w = await ensureWorker();
       return new Promise((resolve, reject) => {
         pending.set(id, (r) => r.ok ? resolve(r.html!) : reject(new Error(r.error || 'unknown')));
         try {
-          const payload = JSON.stringify({ seq: id, markdown });
+          const payloadObj: any = { seq: id, markdown };
+          if (typeof options !== 'undefined') payloadObj.options = options;
+          const payload = JSON.stringify(payloadObj);
           console.debug('[vfmWorkerClient] postMessage to worker (json)', { seq: id, len: markdown.length });
           w.postMessage(payload);
         } catch (e) {

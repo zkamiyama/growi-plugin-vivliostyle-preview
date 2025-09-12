@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Renderer } from '@vivliostyle/react';
-import { buildVfmPayload } from '../vfm/buildVfmHtml';
+import { buildVfmPayload, buildVfmPayloadAsync } from '../vfm/buildVfmHtml';
 import './VivliostylePreview.css';
 
 interface VivliostylePreviewProps {
@@ -106,18 +106,21 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   }, [showInfo]);
 
   useEffect(() => {
-    if (!markdown) { setSourceUrl(null); setVivlioPayload(null); return; }
-    try {
-      // Build payload without injecting @page rules; margin visuals are not used.
-      const payload = buildVfmPayload(markdown, {});
-      setVivlioPayload(payload);
-      const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(payload.html)}`;
-      setSourceUrl(dataUrl);
-    } catch (error) {
-      console.error('[VivlioDBG] Error building HTML:', error);
-      setSourceUrl(null);
-      setVivlioPayload(null);
-    }
+    let cancelled = false;
+    (async () => {
+      if (!markdown) { if (!cancelled) { setSourceUrl(null); setVivlioPayload(null); } return; }
+      try {
+        const payload = await buildVfmPayloadAsync(markdown, {});
+        if (cancelled) return;
+        setVivlioPayload(payload);
+        const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(payload.html)}`;
+        setSourceUrl(dataUrl);
+      } catch (error) {
+        console.error('[VivlioDBG] Error building HTML (async):', error);
+        if (!cancelled) { setSourceUrl(null); setVivlioPayload(null); }
+      }
+    })();
+    return () => { cancelled = true; };
   }, [markdown]);
 
   // Setup portal container when iframe loads. Use srcDoc instead of document.write
