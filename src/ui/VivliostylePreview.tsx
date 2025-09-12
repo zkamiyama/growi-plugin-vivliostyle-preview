@@ -253,7 +253,68 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             [data-vivliostyle-spread-container], [data-vivliostyle-root] { background: transparent; }
             /* ensure the viewer viewport uses the same gutter color (override runtime CSS if necessary) */
             [data-vivliostyle-viewer-viewport], html[data-vivliostyle-paginated] [data-vivliostyle-viewer-viewport] { background: var(--vivlio-bg) !important; }
-          </style></head><body><div id="vivlio-root"></div></body></html>`;
+          </style></head><body><div id="vivlio-root"></div>
+          <script>
+            (function(){
+              try {
+                // Create overlay div that will render the outer boundary shadow.
+                function createOverlay(){
+                  var id = 'vivlio-bleed-shadow';
+                  var el = document.getElementById(id);
+                  if (!el) {
+                    el = document.createElement('div');
+                    el.id = id;
+                    Object.assign(el.style, {
+                      position: 'absolute',
+                      pointerEvents: 'none',
+                      zIndex: '2147483000',
+                      boxShadow: '0 24px 60px rgba(0,0,0,0.56)',
+                      borderRadius: '4px',
+                      transition: 'left 0.12s linear, top 0.12s linear, width 0.12s linear, height 0.12s linear, opacity 0.12s',
+                      background: 'transparent',
+                      opacity: '0.98'
+                    });
+                    document.body.appendChild(el);
+                  }
+                  return el;
+                }
+
+                var overlay = createOverlay();
+
+                function updateOverlay(){
+                  var target = document.querySelector('[data-vivliostyle-bleed-box]');
+                  if (!target) { overlay.style.display = 'none'; return; }
+                  var r = target.getBoundingClientRect();
+                  overlay.style.display = 'block';
+                  // Position relative to viewport + page scroll so absolute in body works
+                  overlay.style.left = (r.left + window.scrollX) + 'px';
+                  overlay.style.top = (r.top + window.scrollY) + 'px';
+                  overlay.style.width = r.width + 'px';
+                  overlay.style.height = r.height + 'px';
+                }
+
+                var ro = null;
+                var mo = null;
+
+                function ensureObservers(){
+                  var target = document.querySelector('[data-vivliostyle-bleed-box]');
+                  if (target && typeof window.ResizeObserver !== 'undefined') {
+                    try { ro = new ResizeObserver(updateOverlay); ro.observe(target); } catch(e) { ro = null; }
+                  }
+                  try { mo = new MutationObserver(updateOverlay); mo.observe(document.body, { subtree: true, childList: true }); } catch(e) { mo = null; }
+                  updateOverlay();
+                }
+
+                document.addEventListener('DOMContentLoaded', function(){ ensureObservers(); setTimeout(ensureObservers, 500); });
+                window.addEventListener('resize', updateOverlay);
+                window.addEventListener('scroll', updateOverlay, true);
+                // periodic fallback in case other observers miss changes
+                var iv = setInterval(updateOverlay, 500);
+                // try one immediate update
+                setTimeout(updateOverlay, 50);
+              } catch (e) { /* don't break host if anything goes wrong */ }
+            })();
+          </script></body></html>`;
           const iframeSrcDoc = showRawInline ? vivlioPayload.html : minimalShell;
           return (
             <iframe
