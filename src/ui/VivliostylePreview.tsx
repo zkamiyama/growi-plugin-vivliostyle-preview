@@ -241,13 +241,13 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             html, body { height: 100%; margin: 0; padding: 0; background: var(--vivlio-bg); }
             /* center the viewer inside the gray gutter */
             #vivlio-root { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; }
-            /* pages themselves (spread container contents) should remain white; use drop-shadow to render shadow image */
+            /* pages themselves (spread container contents) should remain white; use a clear black border */
             .vivliostyle-page, .page, [data-vivliostyle-page-container] {
               background: white;
               box-shadow: none;
               box-sizing: border-box;
-              /* use filter drop-shadow so the shadow is applied to the rendered page image */
-              filter: drop-shadow(0 12px 40px rgba(0,0,0,0.56));
+              /* use a 1px black border to visually separate the page from the gutter */
+              border: 1px solid rgba(0,0,0,0.9);
             }
             /* keep spread container transparent so the gutter (body) shows through as gray */
             [data-vivliostyle-spread-container], [data-vivliostyle-root] { background: transparent; }
