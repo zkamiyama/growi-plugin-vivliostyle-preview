@@ -195,6 +195,10 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             <pre className="vivlio-pre-small">{vivlioPayload ? (vivlioPayload.rawMarkdown || '(empty)') : '(not built yet)'}</pre>
           </Section>
 
+          <Section title="User CSS" collapsed={collapsed.userCss} onToggle={() => setCollapsed((s) => ({ ...s, userCss: !s.userCss }))} copy={() => doCopy('userCss', vivlioPayload?.userCss || '')} active={lastCopied === 'userCss'}>
+            <pre className="vivlio-pre-small">{vivlioPayload ? (vivlioPayload.userCss || '(none)') : '(not built yet)'}</pre>
+          </Section>
+
           <Section title="Final HTML (passed to Vivliostyle)" collapsed={collapsed.html} onToggle={() => setCollapsed((s) => ({ ...s, html: !s.html }))} copy={() => doCopy('html', vivlioPayload?.html || '')} active={lastCopied === 'html'}>
             <pre className="vivlio-pre">{vivlioPayload ? (vivlioPayload.html || '(none)') : '(not built yet)'}</pre>
           </Section>
