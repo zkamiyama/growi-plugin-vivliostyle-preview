@@ -125,15 +125,10 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   useEffect(() => {
     if (!markdown) { setSourceUrl(null); setVivlioPayload(null); return; }
     try {
-      const payload = buildVfmPayload(markdown, {
-        inlineCss: showMargins ? `
-          @page {
-            margin: 12mm;
-            marks: crop cross;
-            bleed: 3mm;
-          }
-        ` : undefined,
-      });
+      // Do NOT inject @page via inlineCss when toggling margins.
+      // Instead render visual margin guides in the iframe so the
+      // layout (page size) remains unchanged.
+      const payload = buildVfmPayload(markdown, {});
       setVivlioPayload(payload);
       const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(payload.html)}`;
       setSourceUrl(dataUrl);
@@ -241,7 +236,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             html, body { height: 100%; margin: 0; padding: 0; background: var(--vivlio-bg); }
             /* center the viewer inside the gray gutter */
             #vivlio-root { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; }
-            /* pages themselves (spread container contents) should remain white; use a clear black border */
+            /* pages themselves (spread container contents) should remain white; remove runtime shadows */
             .vivliostyle-page, .page, [data-vivliostyle-page-container] {
               background: white;
               box-shadow: none;
@@ -250,72 +245,92 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             [data-vivliostyle-spread-container], [data-vivliostyle-root] { background: transparent; }
             /* ensure the viewer viewport uses the same gutter color (override runtime CSS if necessary) */
             [data-vivliostyle-viewer-viewport], html[data-vivliostyle-paginated] [data-vivliostyle-viewer-viewport] { background: var(--vivlio-bg) !important; }
+            /* overlays injected by the host script */
+            #vivlio-bleed-shadow, #vivlio-margin-guide { position: absolute; pointer-events: none; z-index: 9999; box-sizing: border-box; }
+            #vivlio-bleed-shadow { box-shadow: 0 32px 64px rgba(0,0,0,0.5); transition: opacity 220ms linear; opacity: 0.98; }
+            #vivlio-margin-guide { border: 2px dashed rgba(255,165,0,0.95); border-radius: 0; display: none; }
           </style></head><body><div id="vivlio-root"></div>
           <script>
             (function(){
               try {
-                // Create overlay div that will render the outer boundary shadow.
-                function createOverlay(){
-                  var id = 'vivlio-bleed-shadow';
-                  var el = document.getElementById(id);
-                  if (!el) {
-                    el = document.createElement('div');
-                    el.id = id;
-                    Object.assign(el.style, {
-                      position: 'absolute',
-                      pointerEvents: 'none',
-                      zIndex: '2147483000',
-                      boxShadow: '0 24px 60px rgba(0,0,0,0.56)',
-                      // Avoid animating left/top/width/height to prevent misaligned transitions during resize.
-                      // Only animate opacity for gentle fade; use will-change to hint the browser.
-                      transition: 'opacity 0.12s linear',
-                      willChange: 'left, top, width, height',
-                      background: 'transparent',
-                      opacity: '0.98'
-                    });
-                    document.body.appendChild(el);
+                var SHOW_MARGINS = ${showMargins ? 'true' : 'false'};
+                function ensureOverlays() {
+                  if (!document.getElementById('vivlio-bleed-shadow')) {
+                    var s = document.createElement('div');
+                    s.id = 'vivlio-bleed-shadow';
+                    s.style.position = 'absolute';
+                    s.style.pointerEvents = 'none';
+                    s.style.zIndex = '9999';
+                    s.style.boxShadow = '0 32px 64px rgba(0,0,0,0.5)';
+                    s.style.transition = 'opacity 220ms linear';
+                    s.style.opacity = '0.98';
+                    document.body.appendChild(s);
                   }
-                  return el;
-                }
-
-                var overlay = createOverlay();
-
-                function updateOverlay(){
-                  // Track the spread container (covers the whole spread including bleed)
-                  var target = document.querySelector('[data-vivliostyle-spread-container]');
-                  if (!target) { overlay.style.display = 'none'; return; }
-                  var r = target.getBoundingClientRect();
-                  overlay.style.display = 'block';
-                  // Position relative to viewport + page scroll so absolute in body works
-                  overlay.style.left = (r.left + window.scrollX) + 'px';
-                  overlay.style.top = (r.top + window.scrollY) + 'px';
-                  overlay.style.width = r.width + 'px';
-                  overlay.style.height = r.height + 'px';
-                }
-
-                var ro = null;
-                var mo = null;
-
-                function ensureObservers(){
-                  var target = document.querySelector('[data-vivliostyle-spread-container]');
-                  if (target && typeof window.ResizeObserver !== 'undefined') {
-                    try { ro = new ResizeObserver(updateOverlay); ro.observe(target); } catch(e) { ro = null; }
+                  if (!document.getElementById('vivlio-margin-guide')) {
+                    var g = document.createElement('div');
+                    g.id = 'vivlio-margin-guide';
+                    g.style.position = 'absolute';
+                    g.style.pointerEvents = 'none';
+                    g.style.zIndex = '9999';
+                    g.style.border = '2px dashed rgba(255,165,0,0.95)';
+                    g.style.display = 'none';
+                    // inner guide uses CSS inset in mm to avoid layout math here
+                    var inner = document.createElement('div');
+                    inner.style.position = 'absolute';
+                    inner.style.left = '12mm';
+                    inner.style.top = '12mm';
+                    inner.style.right = '12mm';
+                    inner.style.bottom = '12mm';
+                    inner.style.border = '1px dashed rgba(255,165,0,0.9)';
+                    inner.style.pointerEvents = 'none';
+                    g.appendChild(inner);
+                    document.body.appendChild(g);
                   }
-                  try { mo = new MutationObserver(updateOverlay); mo.observe(document.body, { subtree: true, childList: true }); } catch(e) { mo = null; }
-                  updateOverlay();
                 }
 
-                document.addEventListener('DOMContentLoaded', function(){ ensureObservers(); setTimeout(ensureObservers, 500); });
-                window.addEventListener('resize', updateOverlay);
-                window.addEventListener('scroll', updateOverlay, true);
-                // periodic fallback in case other observers miss changes
-                var iv = setInterval(updateOverlay, 500);
-                // try one immediate update
-                setTimeout(updateOverlay, 50);
-              } catch (e) { /* don't break host if anything goes wrong */ }
+                function updateOverlays() {
+                  var spread = document.querySelector('[data-vivliostyle-spread-container]') || document.querySelector('[data-vivliostyle-page-container]') || document.querySelector('.page');
+                  var s = document.getElementById('vivlio-bleed-shadow');
+                  var g = document.getElementById('vivlio-margin-guide');
+                  if (!spread || !s) return;
+                  var r = spread.getBoundingClientRect();
+                  var left = r.left + window.scrollX;
+                  var top = r.top + window.scrollY;
+                  s.style.left = left + 'px';
+                  s.style.top = top + 'px';
+                  s.style.width = Math.max(0, r.width) + 'px';
+                  s.style.height = Math.max(0, r.height) + 'px';
+                  if (g) {
+                    g.style.left = left + 'px';
+                    g.style.top = top + 'px';
+                    g.style.width = Math.max(0, r.width) + 'px';
+                    g.style.height = Math.max(0, r.height) + 'px';
+                    g.style.display = SHOW_MARGINS ? 'block' : 'none';
+                  }
+                }
+
+                ensureOverlays();
+                updateOverlays();
+
+                var ro = new ResizeObserver(function(){ updateOverlays(); });
+                var mo = new MutationObserver(function(){ updateOverlays(); });
+                var spreadEl = document.querySelector('[data-vivliostyle-spread-container]') || document.querySelector('[data-vivliostyle-page-container]') || document.querySelector('.page');
+                if (spreadEl) {
+                  try { ro.observe(spreadEl); } catch(e) { /* ignore */ }
+                  try { mo.observe(spreadEl, { childList: true, subtree: true, attributes: true }); } catch(e) { /* ignore */ }
+                }
+                window.addEventListener('resize', updateOverlays);
+                window.addEventListener('scroll', updateOverlays, true);
+                // fallback polling for environments without RO
+                var poll = setInterval(updateOverlays, 500);
+                // clean up on unload
+                window.addEventListener('unload', function(){ try { clearInterval(poll); ro.disconnect(); mo.disconnect(); } catch(e) {} });
+              } catch (e) { /* ignore iframe helper errors */ }
             })();
           </script></body></html>`;
-          const iframeSrcDoc = showRawInline ? vivlioPayload.html : minimalShell;
+
+          const iframeSrcDoc = showRawInline ? (vivlioPayload?.html || '') : minimalShell;
+
           return (
             <iframe
               ref={iframeRef}
