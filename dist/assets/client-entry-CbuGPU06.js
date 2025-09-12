@@ -1773,7 +1773,6 @@ span[data-viv-leader] {
                       pointerEvents: 'none',
                       zIndex: '2147483000',
                       boxShadow: '0 24px 60px rgba(0,0,0,0.56)',
-                      borderRadius: '4px',
                       // Avoid animating left/top/width/height to prevent misaligned transitions during resize.
                       // Only animate opacity for gentle fade; use will-change to hint the browser.
                       transition: 'opacity 0.12s linear',
@@ -1789,7 +1788,8 @@ span[data-viv-leader] {
                 var overlay = createOverlay();
 
                 function updateOverlay(){
-                  var target = document.querySelector('[data-vivliostyle-bleed-box]');
+                  // Track the spread container (covers the whole spread including bleed)
+                  var target = document.querySelector('[data-vivliostyle-spread-container]');
                   if (!target) { overlay.style.display = 'none'; return; }
                   var r = target.getBoundingClientRect();
                   overlay.style.display = 'block';
