@@ -238,6 +238,8 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             }
             /* keep spread container transparent so the gutter (body) shows through as gray */
             [data-vivliostyle-spread-container], [data-vivliostyle-root] { background: transparent; }
+            /* allow shadows to overflow viewer containers so outer shadow isn't clipped */
+            [data-vivliostyle-viewer-viewport], [data-vivliostyle-root], [data-vivliostyle-spread-container], [data-vivliostyle-page-container], .page { overflow: visible !important; }
             /* ensure the viewer viewport uses the same gutter color (override runtime CSS if necessary) */
             [data-vivliostyle-viewer-viewport], html[data-vivliostyle-paginated] [data-vivliostyle-viewer-viewport] { background: var(--vivlio-bg) !important; }
         /* overlays injected by the host script */
@@ -251,7 +253,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         .vivlio--ancestor-transparent { background: transparent !important; }
           </style></head><body><div id="vivlio-root"></div>
           <script>
-            (function(){
+                (function(){
               try {
                 var SHOW_MARGINS = false;
                 function ensureOverlays() {
@@ -340,22 +342,42 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
                   }
                 }
 
+                // Initial attempt to create overlays and wire observers.
                 ensureOverlays();
                 updateOverlays();
 
                 var ro = new ResizeObserver(function(){ updateOverlays(); });
                 var mo = new MutationObserver(function(){ updateOverlays(); });
-                var spreadEl = document.querySelector('[data-vivliostyle-spread-container]') || document.querySelector('[data-vivliostyle-page-container]') || document.querySelector('.page');
-                if (spreadEl) {
+
+                // Helper to attach observers to the found spread/page element
+                function attachToSpread(spreadEl) {
+                  if (!spreadEl) return false;
                   try { ro.observe(spreadEl); } catch(e) { /* ignore */ }
                   try { mo.observe(spreadEl, { childList: true, subtree: true, attributes: true }); } catch(e) { /* ignore */ }
+                  return true;
                 }
+
+                var spreadEl = document.querySelector('[data-vivliostyle-spread-container]') || document.querySelector('[data-vivliostyle-page-container]') || document.querySelector('.page');
+                if (spreadEl) { attachToSpread(spreadEl); }
+
+                // If the renderer creates the spread/page element asynchronously, observe body mutations
+                // and attach when it appears. This is important because the Renderer may mount after
+                // the iframe helper script runs.
+                var bodyObserver = new MutationObserver(function(muts){
+                  var found = document.querySelector('[data-vivliostyle-spread-container]') || document.querySelector('[data-vivliostyle-page-container]') || document.querySelector('.page');
+                  if (found) {
+                    try { ensureOverlays(); updateOverlays(); attachToSpread(found); } catch(e) {}
+                    try { bodyObserver.disconnect(); } catch(e) {}
+                  }
+                });
+                try { bodyObserver.observe(document.body, { childList: true, subtree: true }); } catch(e) { /* ignore */ }
+
                 window.addEventListener('resize', updateOverlays);
                 window.addEventListener('scroll', updateOverlays, true);
                 // fallback polling for environments without RO
                 var poll = setInterval(updateOverlays, 500);
                 // clean up on unload
-                window.addEventListener('unload', function(){ try { clearInterval(poll); ro.disconnect(); mo.disconnect(); } catch(e) {} });
+                window.addEventListener('unload', function(){ try { clearInterval(poll); ro.disconnect(); mo.disconnect(); bodyObserver.disconnect(); } catch(e) {} });
               } catch (e) { /* ignore iframe helper errors */ }
             })();
           </script></body></html>`;
