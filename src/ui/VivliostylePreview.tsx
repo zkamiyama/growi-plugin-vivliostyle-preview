@@ -247,8 +247,6 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             [data-vivliostyle-spread-container], [data-vivliostyle-root] { background: transparent; }
             /* ensure the viewer viewport uses the same gutter color (override runtime CSS if necessary) */
             [data-vivliostyle-viewer-viewport], html[data-vivliostyle-paginated] [data-vivliostyle-viewer-viewport] { background: var(--vivlio-bg) !important; }
-            /* subtle emphasis for the bleed box */
-            [data-vivliostyle-bleed-box] { box-shadow: 0 12px 30px var(--bleed-shadow); border-radius: 4px; }
           </style></head><body><div id="vivlio-root"></div></body></html>`;
           const iframeSrcDoc = showRawInline ? vivlioPayload.html : minimalShell;
           return (
