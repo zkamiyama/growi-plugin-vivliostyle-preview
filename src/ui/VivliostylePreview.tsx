@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Renderer } from '@vivliostyle/react';
-import { buildVfmPayload, buildVfmPayloadAsync } from '../vfm/buildVfmHtml';
+import { buildVfmPayload, buildVfmPayloadAsync, injectInlineStyle } from '../vfm/buildVfmHtml';
+import { createVfmClient } from '../vfmWorkerClient';
 import './VivliostylePreview.css';
 
 interface VivliostylePreviewProps {
@@ -107,20 +108,31 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
 
   useEffect(() => {
     let cancelled = false;
+    const client = createVfmClient();
     (async () => {
       if (!markdown) { if (!cancelled) { setSourceUrl(null); setVivlioPayload(null); } return; }
       try {
-        const payload = await buildVfmPayloadAsync(markdown, {});
+        // use stringifyLatest so newer edits cancel older work
+        const html = await client.stringifyLatest(markdown, { title: 'Preview', language: 'ja', math: true });
         if (cancelled) return;
+        // inject CSS & script the same way as buildVfmPayloadAsync
+        const payload = (() => {
+          // reuse synchronous helper to assemble final HTML pieces
+          const userCssMatch = (markdown || '').match(/```\s*vivliocss\s*\n([\s\S]*?)```/i);
+          const userCss = userCssMatch ? (userCssMatch[1] || '') : '';
+          const finalCss = '' + (userCss ? '\n' + userCss : '');
+          const withCss = injectInlineStyle(html, finalCss);
+          return { rawMarkdown: markdown, userCss, finalCss, html: withCss };
+        })();
         setVivlioPayload(payload);
         const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(payload.html)}`;
         setSourceUrl(dataUrl);
       } catch (error) {
-        console.error('[VivlioDBG] Error building HTML (async):', error);
+        console.error('[VivlioDBG] Error building HTML (async worker):', error);
         if (!cancelled) { setSourceUrl(null); setVivlioPayload(null); }
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; try { client.cancelPending(); client.terminate(); } catch (e) {} };
   }, [markdown]);
 
   // Setup portal container when iframe loads. Use srcDoc instead of document.write

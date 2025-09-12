@@ -127,6 +127,27 @@ export function createVfmClient() {
         }
       });
     },
+    /**
+     * Cancel all pending requests and terminate the current worker.
+     * Pending promises will be rejected with Error('cancelled').
+     */
+    cancelPending() {
+      try {
+        for (const [id, cb] of Array.from(pending.entries())) {
+          try { pending.delete(id); cb({ seq: id, ok: false, error: 'cancelled' }); } catch (e) { /* ignore */ }
+        }
+        if (worker) { try { worker.terminate(); } catch (e) { /* ignore */ } worker = null; }
+      } catch (e) { /* ignore */ }
+    },
+    /**
+     * Convenience: cancel previous pending jobs then start a new stringify job.
+     * Useful for editor-update-driven calls where newer input supersedes older.
+     */
+    async stringifyLatest(markdown: string, options?: any): Promise<string> {
+      // Cancel any in-flight jobs first
+      try { this.cancelPending(); } catch (e) { /* ignore */ }
+      return this.stringify(markdown, options);
+    },
     terminate(){ if (worker) { worker.terminate(); worker = null; } }
   };
 }

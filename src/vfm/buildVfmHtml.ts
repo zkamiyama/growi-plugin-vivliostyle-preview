@@ -178,7 +178,7 @@ export async function buildVfmHtmlAsync(inputMarkdown: string, options?: {
 }
 
 /** </head> の直前に <style> を挿入する */
-function injectInlineStyle(html: string, css: string): string {
+export function injectInlineStyle(html: string, css: string): string {
   const tag = `<style>${css}</style>`;
   const idx = html.indexOf('</head>');
   if (idx === -1) {
@@ -189,7 +189,7 @@ function injectInlineStyle(html: string, css: string): string {
 }
 
 /** </body> の直前に <script> を挿入する */
-function injectInlineScript(html: string, script: string): string {
+export function injectInlineScript(html: string, script: string): string {
   const tag = `<script>${script}</script>`;
   const idx = html.indexOf('</body>');
   if (idx === -1) {
