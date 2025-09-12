@@ -1754,10 +1754,10 @@ span[data-viv-leader] {
         #vivlio-bleed-shadow, #vivlio-margin-guide { position: absolute; pointer-events: none; z-index: 9999; box-sizing: border-box; }
         #vivlio-bleed-shadow { box-shadow: 0 32px 64px rgba(0,0,0,0.5); transition: opacity 220ms linear; opacity: 0.98; }
         #vivlio-margin-guide { border: 2px dashed rgba(255,165,0,0.95); border-radius: 0; display: none; }
-        /* Preferred: if Vivliostyle exposes a bleed-box, style it directly and make ancestors visually transparent
-          so the shadow from bleed-box is visible without extra overlay elements. This avoids duplicating layout.
-          We add fallbacks in the host script to toggle these classes when a bleed box is found. */
-        [data-vivliostyle-bleed-box] { box-shadow: 0 32px 64px rgba(0,0,0,0.5); position: relative; z-index: 9998; }
+        /* Preferred: if Vivliostyle exposes a spread container, style it directly and make ancestors visually transparent
+          so the shadow from spread container is visible without extra overlay elements. This avoids duplicating layout.
+          We add fallbacks in the host script to toggle these classes when a spread container is found. */
+        [data-vivliostyle-spread-container] { box-shadow: 0 32px 64px rgba(0,0,0,0.5); position: relative; z-index: 9998; }
         .vivlio--ancestor-transparent { background: transparent !important; }
           </style></head><body><div id="vivlio-root"></div>
           <script>
@@ -1766,18 +1766,18 @@ span[data-viv-leader] {
                 var SHOW_MARGINS = false;
                 function ensureOverlays() {
                   // create helper overlay elements only if a native bleed-box isn't present
-                  var nativeBleed = document.querySelector('[data-vivliostyle-bleed-box]');
-                  if (nativeBleed) {
-                    // mark ancestor chain to be transparent so bleed-box's shadow is visible
-                    var p = nativeBleed.parentElement;
+                  var nativeSpread = document.querySelector('[data-vivliostyle-spread-container]');
+                  if (nativeSpread) {
+                    // mark ancestor chain to be transparent so spread-container's shadow is visible
+                    var p = nativeSpread.parentElement;
                     while (p && p !== document.documentElement) {
                       p.classList.add('vivlio--ancestor-transparent');
                       p = p.parentElement;
                     }
-                    // ensure bleed element has proper stacking
-                    nativeBleed.style.zIndex = '9998';
-                    nativeBleed.style.position = nativeBleed.style.position || 'relative';
-                    // don't create overlays when native bleed exists
+                    // ensure spread element has proper stacking
+                    nativeSpread.style.zIndex = '9998';
+                    nativeSpread.style.position = nativeSpread.style.position || 'relative';
+                    // don't create overlays when native spread exists
                     return;
                   }
 
@@ -1816,17 +1816,17 @@ span[data-viv-leader] {
 
                 function updateOverlays() {
                   // Prefer native bleed-box if available
-                  var nativeBleed = document.querySelector('[data-vivliostyle-bleed-box]');
-                  if (nativeBleed) {
+                  var nativeSpread = document.querySelector('[data-vivliostyle-spread-container]');
+                  if (nativeSpread) {
                     // ensure ancestor transparency class applied (defensive)
-                    var p = nativeBleed.parentElement;
+                    var p = nativeSpread.parentElement;
                     while (p && p !== document.documentElement) {
                       p.classList.add('vivlio--ancestor-transparent');
                       p = p.parentElement;
                     }
                     // apply shadow directly in case CSS didn't catch it
-                    nativeBleed.style.boxShadow = nativeBleed.style.boxShadow || '0 32px 64px rgba(0,0,0,0.5)';
-                    nativeBleed.style.position = nativeBleed.style.position || 'relative';
+                    nativeSpread.style.boxShadow = nativeSpread.style.boxShadow || '0 32px 64px rgba(0,0,0,0.5)';
+                    nativeSpread.style.position = nativeSpread.style.position || 'relative';
                     return;
                   }
 
