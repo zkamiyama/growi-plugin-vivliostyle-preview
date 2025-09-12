@@ -48,6 +48,17 @@ self.addEventListener('message', async (ev: MessageEvent) => {
     (self as any).onerror = () => true;
     try {
       try {
+        // If caller requested line-breaks -> <br>, perform a lightweight
+        // preprocessing to insert Markdown hard-breaks (two spaces + \n)
+        // outside of fenced/indented code blocks. This avoids importing
+        // remark-breaks inside the worker which caused bundling issues.
+        if (options && options.enableBreaks) {
+          try {
+            md = applyHardBreaks(md);
+          } catch (hbErr) {
+            console.warn('[vfmWorker] applyHardBreaks failed, continuing without it', hbErr);
+          }
+        }
         html = typeof options !== 'undefined' ? stringify(md, options) : stringify(md);
       } catch (e) {
         try { console.error('[vfmWorker] vfm.stringify failed', e); } catch (e2) { /* ignore */ }
@@ -64,3 +75,56 @@ self.addEventListener('message', async (ev: MessageEvent) => {
     (self as any).postMessage(JSON.stringify({ seq: null, ok: false, error: String(e) }));
   }
 });
+
+/**
+ * Apply simple hard-break preprocessing: convert single newlines between
+ * non-empty lines into Markdown hard-breaks (two spaces + \n), skipping
+ * fenced code blocks and indented code blocks.
+ */
+function applyHardBreaks(md: string): string {
+  const lines = md.split(/\r?\n/);
+  let inFence = false;
+  let fenceMarker: string | null = null;
+  const out: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // detect fence open/close (``` or ~~~)
+    const fenceMatch = line.match(/^(\s*)(```|~~~)/);
+    if (fenceMatch) {
+      const marker = fenceMatch[2];
+      if (!inFence) {
+        inFence = true;
+        fenceMarker = marker;
+        out.push(line);
+        continue;
+      }
+      // closing if same marker
+      if (inFence && fenceMarker === marker) {
+        inFence = false;
+        fenceMarker = null;
+        out.push(line);
+        continue;
+      }
+    }
+
+    // skip processing inside fenced blocks or indented code blocks
+    if (inFence || /^\s{4,}|\t/.test(line)) {
+      out.push(line);
+      continue;
+    }
+
+    if (out.length > 0) {
+      const prev = out[out.length - 1];
+      if (prev.trim() !== '' && trimmed !== '') {
+        // add two spaces to previous line to force a hard break in Markdown
+        out[out.length - 1] = prev + '  ';
+      }
+    }
+    out.push(line);
+  }
+
+  return out.join('\n');
+}

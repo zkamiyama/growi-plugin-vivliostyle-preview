@@ -1,5 +1,4 @@
 import { stringify } from '@vivliostyle/vfm';
-import remarkBreaks from 'remark-breaks';
 
 /**
  * VFM で Markdown → 完全HTML へ変換し、必要ならインラインCSSを <head> に注入。
@@ -54,13 +53,9 @@ export function buildVfmHtml(
   }
 
   // 1) VFM → 完全HTML
-  const html = stringify(markdown, {
-    title,
-    language,
-    style: styleUrls,
-    math: enableMath,
-    remarkPlugins: [remarkBreaks], // 改行1つを<br>に変換
-  } as any);
+  // For the synchronous path we avoid importing plugins (keeps API stable).
+  // The async/worker path will perform remark-breaks if requested via flag.
+  const html = stringify(markdown, { title, language, style: styleUrls, math: enableMath } as any);
 
   // 2) CSS を組み立てる: userCss -> inlineCss (baseCss removed)
   let finalCss = '';
@@ -109,13 +104,8 @@ export function buildVfmPayload(inputMarkdown: string, options?: {
     }
   }
 
-  const html = stringify(rawMarkdown, {
-    title,
-    language,
-    style: styleUrls,
-    math: enableMath,
-    remarkPlugins: [remarkBreaks], // 改行1つを<br>に変換
-  } as any);
+  // synchronous payload path: do not apply remark-breaks here (use async path)
+  const html = stringify(rawMarkdown, { title, language, style: styleUrls, math: enableMath } as any);
 
   const finalCss = '' + (userCss ? '\n' + userCss : '') + (inlineCss ? '\n' + inlineCss : '');
   const withCss = injectInlineStyle(html, finalCss);
@@ -157,7 +147,10 @@ export async function buildVfmPayloadAsync(inputMarkdown: string, options?: {
     } catch (e) { userCss = ''; }
   }
 
-  const optionsForStringify: any = { title, language, style: styleUrls, math: enableMath, remarkPlugins: [remarkBreaks] };
+  // When calling the worker, we cannot serialize plugin functions. Use a
+  // simple boolean flag `enableBreaks` which the worker recognizes and will
+  // dynamically import `remark-breaks` before calling stringify.
+  const optionsForStringify: any = { title, language, style: styleUrls, math: enableMath, enableBreaks: true };
   let html: string;
   if (client) {
     if (typeof client.stringifyLatest === 'function') {
