@@ -246,8 +246,6 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
               background: white;
               box-shadow: none;
               box-sizing: border-box;
-              /* use a 1px black border to visually separate the page from the gutter */
-              border: 1px solid rgba(0,0,0,0.9);
             }
             /* keep spread container transparent so the gutter (body) shows through as gray */
             [data-vivliostyle-spread-container], [data-vivliostyle-root] { background: transparent; }
