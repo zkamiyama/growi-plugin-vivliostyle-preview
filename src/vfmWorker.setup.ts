@@ -21,25 +21,26 @@
       if (orig && typeof orig === 'object' && typeof orig.highlight === 'function') {
         const originalFn = orig.highlight.bind(orig);
         orig.highlight = function(a: any, b: any) {
+          // compute safe preview
+          let preview = '';
+          try { preview = (a && a.toString && a.toString().slice ? a.toString().slice(0,80) : String(a)).slice(0,80); } catch (e) { preview = String(a); }
+          // coerce falsy/invalid lang to 'text'
+          const lang = (b && typeof b === 'string' && b.trim()) ? b : 'text';
+          // lightweight debug - avoid heavy stack capture in hot path
+          try { console.debug && console.debug('[vfmWorker][' + name + '.highlight] called', { lang, preview }); } catch (e) { /* ignore */ }
           try {
-            const preview = (a && a.toString && a.toString().slice ? a.toString().slice(0,80) : String(a)).slice(0,80);
-            const stack = (new Error()).stack;
-            console.debug('[vfmWorker][' + name + '.highlight] called', { lang: b, preview, stack });
-          } catch (e) { /* ignore */ }
-          if (!b) {
-            return { value: escapeHtml(String(a)) };
-          }
-          try { return originalFn(a, b); } catch (e) {
-            try { console.debug('[vfmWorker][' + name + '.highlight] error', e, (new Error()).stack); } catch (e2) { /* ignore */ }
-            return { value: escapeHtml(String(a)) };
+            return originalFn(a, lang);
+          } catch (e) {
+            // avoid noisy error logs from highlighter internals; return escaped text
+            try { return { value: escapeHtml(String(a)) }; } catch (ee) { return { value: String(a) }; }
           }
         };
         globalObj[name] = orig;
       } else if (!globalObj[name]) {
         globalObj[name] = {
           highlight: function(a: any, b: any) {
-            try { console.debug('[vfmWorker][' + name + '.highlight shim] called', { lang: b, preview: (a && a.toString && a.toString().slice ? a.toString().slice(0,80) : String(a)).slice(0,80), stack: (new Error()).stack }); } catch (e) { /* ignore */ }
-            if (!b) return { value: escapeHtml(String(a)) };
+            try { console.debug && console.debug('[vfmWorker][' + name + '.highlight shim] called', { lang: b }); } catch (e) { /* ignore */ }
+            // return escaped content
             return { value: escapeHtml(String(a)) };
           },
         };
