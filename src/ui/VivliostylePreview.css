@@ -14,7 +14,7 @@
   backdrop-filter: blur(6px);
 }
 .vivlio-info-button { right: 24px; }
-.vivlio-raw-button { right: 104px; }
+.vivlio-raw-button { right: 60px; }
 .vivlio-info-button.active, .vivlio-raw-button.active { background: rgba(40,120,180,0.95); box-shadow: 0 6px 18px rgba(0,0,0,0.32); color: white; }
 
 .vivlio-info-panel {
