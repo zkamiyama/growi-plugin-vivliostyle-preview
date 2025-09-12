@@ -245,7 +245,6 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             .vivliostyle-page, .page, [data-vivliostyle-page-container] {
               background: white;
               box-shadow: none;
-              box-sizing: border-box;
             }
             /* keep spread container transparent so the gutter (body) shows through as gray */
             [data-vivliostyle-spread-container], [data-vivliostyle-root] { background: transparent; }
@@ -298,7 +297,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
                 var mo = null;
 
                 function ensureObservers(){
-                  var target = document.querySelector('[data-vivliostyle-bleed-box]');
+                  var target = document.querySelector('[data-vivliostyle-spread-container]');
                   if (target && typeof window.ResizeObserver !== 'undefined') {
                     try { ro = new ResizeObserver(updateOverlay); ro.observe(target); } catch(e) { ro = null; }
                   }
