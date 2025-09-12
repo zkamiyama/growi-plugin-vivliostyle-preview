@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-  "build-and-push": "powershell -NoProfile -ExecutionPolicy Bypass -File ./build-and-push.ps1 \"$npm_config_message\"",
+    "build-and-push": "powershell -NoProfile -ExecutionPolicy Bypass -File ./build-and-push.ps1 \"$npm_config_message\"",
     "test": "jest",
     "preview": "vite preview"
   },
@@ -23,6 +23,7 @@
     "hastscript": "^9.0.1",
     "markdown-it": "^14.1.0",
     "react-innertext": "^1.1.5",
+    "remark-breaks": "^4.0.0",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.0.0"
   },
