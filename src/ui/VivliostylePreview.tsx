@@ -244,7 +244,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             /* pages themselves (spread container contents) should remain white */
             .vivliostyle-page, .page { background: white; box-shadow: none; }
             /* keep spread container transparent so the gutter (body) shows through as gray */
-            [data-vivliostyle-spread-container], [data-vivliostyle-root] { background: transparent; }
+            [data-vivliostyle-spread-container], [data-vivliostyle-root] { background: transparent; box-shadow: 0 0 20px rgba(0,0,0,0.4); }
             /* ensure the viewer viewport uses the same gutter color (override runtime CSS if necessary) */
             [data-vivliostyle-viewer-viewport], html[data-vivliostyle-paginated] [data-vivliostyle-viewer-viewport] { background: var(--vivlio-bg) !important; }
           </style></head><body><div id="vivlio-root"></div></body></html>`;
