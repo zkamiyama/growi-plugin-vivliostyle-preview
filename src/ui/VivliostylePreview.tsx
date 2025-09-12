@@ -107,8 +107,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   backdropFilter: 'blur(6px)',
   borderRadius: 8,
   cursor: 'pointer',
-  fontSize: 12,
-  boxShadow: '0 4px 10px rgba(0,0,0,0.18)'
+  fontSize: 12
   };
 
   // Minimal viewer: we only build payload and display it. Advanced debug/page logic removed.
@@ -207,7 +206,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
 
       {/* Information panel (simplified) */}
   {showInfo && (
-  <div style={{ position: 'absolute', top: 40, right: 20, width: 760, height: '72vh', background: 'rgba(28,28,30,0.85)', color: 'rgba(255,255,255,0.95)', borderRadius: 10, padding: 12, zIndex: 1000, overflow: 'auto', fontSize: 12, backdropFilter: 'blur(6px)', boxShadow: '0 12px 40px rgba(0,0,0,0.36)', border: '1px solid rgba(255,255,255,0.04)' }}>
+  <div style={{ position: 'absolute', top: 40, right: 20, width: 760, height: '72vh', background: 'rgba(28,28,30,0.85)', color: 'rgba(255,255,255,0.95)', borderRadius: 10, padding: 12, zIndex: 1000, overflow: 'auto', fontSize: 12, backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.04)' }}>
         <style>{localScrollStyles}</style>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <strong style={{ fontSize: 13 }}>Vivliostyle Info</strong>
@@ -244,7 +243,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             /* pages themselves (spread container contents) should remain white */
             .vivliostyle-page, .page { background: white; box-shadow: none; }
             /* keep spread container transparent so the gutter (body) shows through as gray */
-            [data-vivliostyle-spread-container], [data-vivliostyle-root] { background: transparent; box-shadow: 0 0 20px rgba(0,0,0,0.4); }
+            [data-vivliostyle-spread-container], [data-vivliostyle-root] { background: transparent; border: 1px solid black; }
             /* ensure the viewer viewport uses the same gutter color (override runtime CSS if necessary) */
             [data-vivliostyle-viewer-viewport], html[data-vivliostyle-paginated] [data-vivliostyle-viewer-viewport] { background: var(--vivlio-bg) !important; }
           </style></head><body><div id="vivlio-root"></div></body></html>`;
