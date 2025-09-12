@@ -270,7 +270,10 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
                       zIndex: '2147483000',
                       boxShadow: '0 24px 60px rgba(0,0,0,0.56)',
                       borderRadius: '4px',
-                      transition: 'left 0.12s linear, top 0.12s linear, width 0.12s linear, height 0.12s linear, opacity 0.12s',
+                      // Avoid animating left/top/width/height to prevent misaligned transitions during resize.
+                      // Only animate opacity for gentle fade; use will-change to hint the browser.
+                      transition: 'opacity 0.12s linear',
+                      willChange: 'left, top, width, height',
                       background: 'transparent',
                       opacity: '0.98'
                     });
