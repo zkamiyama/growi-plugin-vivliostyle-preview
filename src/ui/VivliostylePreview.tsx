@@ -243,8 +243,8 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             #vivlio-root { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; }
             /* pages themselves (spread container contents) should remain white and use a stronger shadow */
             .vivliostyle-page, .page, [data-vivliostyle-page-container] { background: white; box-shadow: 0 12px 40px rgba(0,0,0,0.56); box-sizing: border-box; }
-            /* keep spread container transparent so the gutter (body) shows through as gray */
-            [data-vivliostyle-spread-container], [data-vivliostyle-root] { background: transparent; }
+            /* keep spread container transparent so the gutter (body) shows through as gray and allow shadows to overflow */
+            [data-vivliostyle-spread-container], [data-vivliostyle-root] { background: transparent; overflow: visible; }
             /* ensure the viewer viewport uses the same gutter color (override runtime CSS if necessary) */
             [data-vivliostyle-viewer-viewport], html[data-vivliostyle-paginated] [data-vivliostyle-viewer-viewport] { background: var(--vivlio-bg) !important; }
           </style></head><body><div id="vivlio-root"></div></body></html>`;
