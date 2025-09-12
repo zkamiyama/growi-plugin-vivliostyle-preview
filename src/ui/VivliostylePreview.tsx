@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Renderer } from '@vivliostyle/react';
 import { buildVfmPayload } from '../vfm/buildVfmHtml';
+import './VivliostylePreview.css';
 
 interface VivliostylePreviewProps {
   markdown: string;
@@ -20,49 +21,25 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   
   // collapsible Section helper — compact header with emphasized border and small right-aligned Copy
   const Section: React.FC<{ title: string; collapsed: boolean; onToggle: () => void; copy?: () => void; active?: boolean; children?: React.ReactNode }> = ({ title, collapsed, onToggle, copy, active, children }) => (
-    <div style={{ marginBottom: 8, borderRadius: 6, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <div
-        onClick={onToggle}
-        role="button"
-        tabIndex={0}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-          padding: '6px 8px',
-          cursor: 'pointer',
-          userSelect: 'none',
-          background: 'rgba(0,0,0,0.08)',
-          borderBottom: '1px solid rgba(255,255,255,0.03)'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div className="vivlio-section">
+      <div className="vivlio-section-header" onClick={onToggle} role="button" tabIndex={0}>
+        <div className="vivlio-section-title">
           <span style={{ display: 'inline-block', width: 14, textAlign: 'center', fontSize: 12, lineHeight: '12px' }}>{collapsed ? '▶' : '▼'}</span>
           <span style={{ fontSize: 12, lineHeight: '14px' }}>{title}</span>
         </div>
-        {/* copy button on the right edge of the header; stopPropagation so it doesn't toggle */}
         {copy && (
           <button
             onClick={(e) => { e.stopPropagation(); copy(); }}
             aria-label={`Copy ${title}`}
-            style={{
-              padding: '4px 8px',
-              fontSize: 12,
-              borderRadius: 6,
-              background: active ? 'rgba(60,160,60,0.85)' : 'rgba(40,40,40,0.55)',
-              color: 'white',
-              border: '1px solid rgba(255,255,255,0.04)',
-              cursor: 'pointer'
-            }}
+            className={`vivlio-section-copy ${active ? 'active' : ''}`}
           >
             {active ? 'Copied' : 'Copy'}
           </button>
         )}
       </div>
       {!collapsed && (
-        <div style={{ position: 'relative', padding: 8, background: 'rgba(0,0,0,0.02)' }}>
-          <div className="vivlio-section-scroll" style={{ overflow: 'auto', maxHeight: 380 }}>{children}</div>
+        <div className="vivlio-section-content">
+          <div className="vivlio-section-scroll">{children}</div>
         </div>
       )}
     </div>
@@ -172,13 +149,13 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   }
 
   return (
-    <div className="vivlio-simple-viewer" style={{ height: '100%', width: '100%', position: 'relative', background: GUTTER_COLOR }}>
+    <div className="vivlio-simple-viewer" style={{ background: GUTTER_COLOR }}>
       {/* Information button */}
       <button
         onClick={() => setShowInfo(!showInfo)}
         title="Toggle info"
         aria-label="Toggle info"
-        style={{ position: 'absolute', top: 10, right: 24, zIndex: 1000, padding: '6px', ...activeBtn(showInfo) }}
+        className={`vivlio-info-button ${showInfo ? 'active' : ''}`}
       >
         ℹ️
       </button>
@@ -188,7 +165,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         onClick={openRawHtml}
         title="Open raw HTML"
         aria-label="Open raw HTML"
-        style={{ position: 'absolute', top: 10, right: 104, zIndex: 1000, padding: '6px', ...activeBtn(showRawInline) }}
+        className={`vivlio-raw-button ${showRawInline ? 'active' : ''}`}
       >
         🧾
       </button>
@@ -209,11 +186,11 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           </div>
 
           <Section title="Raw Markdown" collapsed={collapsed.md} onToggle={() => setCollapsed((s) => ({ ...s, md: !s.md }))} copy={() => doCopy('md', vivlioPayload?.rawMarkdown || '')} active={lastCopied === 'md'}>
-            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto', background: 'rgba(0,0,0,0.06)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.rawMarkdown || '(empty)') : '(not built yet)'}</pre>
+            <pre className="vivlio-pre-small">{vivlioPayload ? (vivlioPayload.rawMarkdown || '(empty)') : '(not built yet)'}</pre>
           </Section>
 
           <Section title="Final HTML (passed to Vivliostyle)" collapsed={collapsed.html} onToggle={() => setCollapsed((s) => ({ ...s, html: !s.html }))} copy={() => doCopy('html', vivlioPayload?.html || '')} active={lastCopied === 'html'}>
-            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 320, overflow: 'auto', background: 'rgba(0,0,0,0.04)', padding: 8, borderRadius: 6, fontSize: 11 }}>{vivlioPayload ? (vivlioPayload.html || '(none)') : '(not built yet)'}</pre>
+            <pre className="vivlio-pre">{vivlioPayload ? (vivlioPayload.html || '(none)') : '(not built yet)'}</pre>
           </Section>
         </div>
       )}
@@ -226,159 +203,35 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           // shell that only contains the mount node to avoid double-initialization
           // by scripts present in the full payload.
           const minimalShell = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1" /><title>Vivlio Preview</title><style>
-            /* unified bg token for gutters/outside area */
-            :root { --vivlio-bg: ${GUTTER_COLOR}; --bleed-shadow: rgba(0,0,0,0.12); }
-            html, body { height: 100%; margin: 0; padding: 0; background: var(--vivlio-bg); }
-            /* center the viewer inside the gray gutter */
-            #vivlio-root { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; }
-            /* pages themselves (spread container contents) should remain white; remove runtime shadows */
-            .vivliostyle-page, .page, [data-vivliostyle-page-container] {
-              background: white;
-              box-shadow: none;
-            }
-            /* keep spread container transparent so the gutter (body) shows through as gray */
-            [data-vivliostyle-spread-container], [data-vivliostyle-root] { background: transparent; }
-            /* allow shadows to overflow viewer containers so outer shadow isn't clipped */
-            [data-vivliostyle-viewer-viewport], [data-vivliostyle-root], [data-vivliostyle-spread-container], [data-vivliostyle-page-container], .page { overflow: visible !important; }
-            /* ensure the viewer viewport uses the same gutter color (override runtime CSS if necessary) */
-            [data-vivliostyle-viewer-viewport], html[data-vivliostyle-paginated] [data-vivliostyle-viewer-viewport] { background: var(--vivlio-bg) !important; }
-        /* overlays injected by the host script */
-        #vivlio-bleed-shadow, #vivlio-margin-guide { position: absolute; pointer-events: none; z-index: 9999; box-sizing: border-box; }
-        #vivlio-bleed-shadow { box-shadow: 0 32px 64px rgba(0,0,0,0.5); transition: opacity 220ms linear; opacity: 0.98; }
-        #vivlio-margin-guide { border: 2px dashed rgba(255,165,0,0.95); border-radius: 0; display: none; }
-        /* Preferred: if Vivliostyle exposes a spread container, style it directly and make ancestors visually transparent
-          so the shadow from spread container is visible without extra overlay elements. This avoids duplicating layout.
-          We add fallbacks in the host script to toggle these classes when a spread container is found. */
-        [data-vivliostyle-spread-container] { box-shadow: 0 32px 64px rgba(0,0,0,0.5); position: relative; z-index: 9998; }
-        .vivlio--ancestor-transparent { background: transparent !important; }
-          </style></head><body><div id="vivlio-root"></div>
-          <script>
-                (function(){
-              try {
-                var SHOW_MARGINS = false;
-                function ensureOverlays() {
-                  // create helper overlay elements only if a native bleed-box isn't present
-                  var nativeSpread = document.querySelector('[data-vivliostyle-spread-container]');
-                  if (nativeSpread) {
-                    // mark ancestor chain to be transparent so spread-container's shadow is visible
-                    var p = nativeSpread.parentElement;
-                    while (p && p !== document.documentElement) {
-                      p.classList.add('vivlio--ancestor-transparent');
-                      p = p.parentElement;
-                    }
-                    // ensure spread element has proper stacking
-                    nativeSpread.style.zIndex = '9998';
-                    nativeSpread.style.position = nativeSpread.style.position || 'relative';
-                    // don't create overlays when native spread exists
-                    return;
-                  }
-
-                  if (!document.getElementById('vivlio-bleed-shadow')) {
-                    var s = document.createElement('div');
-                    s.id = 'vivlio-bleed-shadow';
-                    s.style.position = 'absolute';
-                    s.style.pointerEvents = 'none';
-                    s.style.zIndex = '9999';
-                    s.style.boxShadow = '0 32px 64px rgba(0,0,0,0.5)';
-                    s.style.transition = 'opacity 220ms linear';
-                    s.style.opacity = '0.98';
-                    document.body.appendChild(s);
-                  }
-                  if (!document.getElementById('vivlio-margin-guide')) {
-                    var g = document.createElement('div');
-                    g.id = 'vivlio-margin-guide';
-                    g.style.position = 'absolute';
-                    g.style.pointerEvents = 'none';
-                    g.style.zIndex = '9999';
-                    g.style.border = '2px dashed rgba(255,165,0,0.95)';
-                    g.style.display = 'none';
-                    // inner guide uses CSS inset in mm to avoid layout math here
-                    var inner = document.createElement('div');
-                    inner.style.position = 'absolute';
-                    inner.style.left = '12mm';
-                    inner.style.top = '12mm';
-                    inner.style.right = '12mm';
-                    inner.style.bottom = '12mm';
-                    inner.style.border = '1px dashed rgba(255,165,0,0.9)';
-                    inner.style.pointerEvents = 'none';
-                    g.appendChild(inner);
-                    document.body.appendChild(g);
+            :root{ --vivlio-bg: ${GUTTER_COLOR}; }
+            html,body{height:100%;margin:0;padding:0;background:var(--vivlio-bg)}
+            #vivlio-root{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box}
+            .page,[data-vivliostyle-page-container]{background:#fff}
+            [data-vivliostyle-viewer-viewport],[data-vivliostyle-root],[data-vivliostyle-spread-container]{overflow:visible!important}
+            #vivlio-bleed-shadow{position:absolute;pointer-events:none;z-index:9999;box-shadow:0 32px 64px rgba(0,0,0,0.5);transition:opacity .22s;opacity:.98}
+          </style></head><body><div id="vivlio-root"></div><script>
+            (function(){
+              try{
+                function createOverlay(){
+                  if(!document.getElementById('vivlio-bleed-shadow')){
+                    var s=document.createElement('div');s.id='vivlio-bleed-shadow';document.body.appendChild(s);
                   }
                 }
-
-                function updateOverlays() {
-                  // Prefer native bleed-box if available
-                  var nativeSpread = document.querySelector('[data-vivliostyle-spread-container]');
-                  if (nativeSpread) {
-                    // ensure ancestor transparency class applied (defensive)
-                    var p = nativeSpread.parentElement;
-                    while (p && p !== document.documentElement) {
-                      p.classList.add('vivlio--ancestor-transparent');
-                      p = p.parentElement;
-                    }
-                    // apply shadow directly in case CSS didn't catch it
-                    nativeSpread.style.boxShadow = nativeSpread.style.boxShadow || '0 32px 64px rgba(0,0,0,0.5)';
-                    nativeSpread.style.position = nativeSpread.style.position || 'relative';
-                    return;
-                  }
-
-                  var spread = document.querySelector('[data-vivliostyle-spread-container]') || document.querySelector('[data-vivliostyle-page-container]') || document.querySelector('.page');
-                  var s = document.getElementById('vivlio-bleed-shadow');
-                  var g = document.getElementById('vivlio-margin-guide');
-                  if (!spread || !s) return;
-                  var r = spread.getBoundingClientRect();
-                  var left = r.left + window.scrollX;
-                  var top = r.top + window.scrollY;
-                  s.style.left = left + 'px';
-                  s.style.top = top + 'px';
-                  s.style.width = Math.max(0, r.width) + 'px';
-                  s.style.height = Math.max(0, r.height) + 'px';
-                  if (g) {
-                    g.style.left = left + 'px';
-                    g.style.top = top + 'px';
-                    g.style.width = Math.max(0, r.width) + 'px';
-                    g.style.height = Math.max(0, r.height) + 'px';
-                    g.style.display = SHOW_MARGINS ? 'block' : 'none';
-                  }
+                function update(){
+                  var spread=document.querySelector('[data-vivliostyle-spread-container]')||document.querySelector('[data-vivliostyle-page-container]')||document.querySelector('.page');
+                  var s=document.getElementById('vivlio-bleed-shadow');
+                  if(!spread||!s) return;
+                  var r=spread.getBoundingClientRect();s.style.left=(r.left+window.scrollX)+'px';s.style.top=(r.top+window.scrollY)+'px';s.style.width=Math.max(0,r.width)+'px';s.style.height=Math.max(0,r.height)+'px';
                 }
-
-                // Initial attempt to create overlays and wire observers.
-                ensureOverlays();
-                updateOverlays();
-
-                var ro = new ResizeObserver(function(){ updateOverlays(); });
-                var mo = new MutationObserver(function(){ updateOverlays(); });
-
-                // Helper to attach observers to the found spread/page element
-                function attachToSpread(spreadEl) {
-                  if (!spreadEl) return false;
-                  try { ro.observe(spreadEl); } catch(e) { /* ignore */ }
-                  try { mo.observe(spreadEl, { childList: true, subtree: true, attributes: true }); } catch(e) { /* ignore */ }
-                  return true;
-                }
-
-                var spreadEl = document.querySelector('[data-vivliostyle-spread-container]') || document.querySelector('[data-vivliostyle-page-container]') || document.querySelector('.page');
-                if (spreadEl) { attachToSpread(spreadEl); }
-
-                // If the renderer creates the spread/page element asynchronously, observe body mutations
-                // and attach when it appears. This is important because the Renderer may mount after
-                // the iframe helper script runs.
-                var bodyObserver = new MutationObserver(function(muts){
-                  var found = document.querySelector('[data-vivliostyle-spread-container]') || document.querySelector('[data-vivliostyle-page-container]') || document.querySelector('.page');
-                  if (found) {
-                    try { ensureOverlays(); updateOverlays(); attachToSpread(found); } catch(e) {}
-                    try { bodyObserver.disconnect(); } catch(e) {}
-                  }
-                });
-                try { bodyObserver.observe(document.body, { childList: true, subtree: true }); } catch(e) { /* ignore */ }
-
-                window.addEventListener('resize', updateOverlays);
-                window.addEventListener('scroll', updateOverlays, true);
-                // fallback polling for environments without RO
-                var poll = setInterval(updateOverlays, 500);
-                // clean up on unload
-                window.addEventListener('unload', function(){ try { clearInterval(poll); ro.disconnect(); mo.disconnect(); bodyObserver.disconnect(); } catch(e) {} });
-              } catch (e) { /* ignore iframe helper errors */ }
+                createOverlay();update();
+                var ro=new ResizeObserver(update);var mo=new MutationObserver(update);
+                var found=document.querySelector('[data-vivliostyle-spread-container]')||document.querySelector('[data-vivliostyle-page-container]')||document.querySelector('.page');
+                if(found){ try{ ro.observe(found); mo.observe(found,{childList:true,subtree:true,attributes:true}); }catch(e){} }
+                var bodyObserver=new MutationObserver(function(){ var f=document.querySelector('[data-vivliostyle-spread-container]')||document.querySelector('[data-vivliostyle-page-container]')||document.querySelector('.page'); if(f){ try{ update(); ro.observe(f); mo.observe(f,{childList:true,subtree:true,attributes:true}); }catch(e){} bodyObserver.disconnect(); } });
+                try{ bodyObserver.observe(document.body,{childList:true,subtree:true}); }catch(e){}
+                window.addEventListener('resize',update);window.addEventListener('scroll',update,true);var poll=setInterval(update,500);
+                window.addEventListener('unload',function(){ try{ clearInterval(poll); ro.disconnect(); mo.disconnect(); bodyObserver.disconnect(); }catch(e){} });
+              }catch(e){}
             })();
           </script></body></html>`;
 
