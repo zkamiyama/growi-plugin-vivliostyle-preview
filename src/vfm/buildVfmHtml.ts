@@ -132,7 +132,7 @@ export async function buildVfmPayloadAsync(inputMarkdown: string, options?: {
   enableMath?: boolean;
   inlineScript?: string;
   parseVivlioUserCss?: boolean;
-}) {
+}, client?: { stringify?: (md: string, opts?: any) => Promise<string>; stringifyLatest?: (md: string, opts?: any) => Promise<string> }) {
   const {
     title = 'Preview',
     language = 'ja',
@@ -154,9 +154,24 @@ export async function buildVfmPayloadAsync(inputMarkdown: string, options?: {
     } catch (e) { userCss = ''; }
   }
 
-  const client = createVfmClient();
   const optionsForStringify: any = { title, language, style: styleUrls, math: enableMath };
-  const html = await client.stringify(rawMarkdown + '', optionsForStringify);
+  let html: string;
+  if (client) {
+    if (typeof client.stringifyLatest === 'function') {
+      html = await client.stringifyLatest(rawMarkdown + '', optionsForStringify);
+    } else if (typeof client.stringify === 'function') {
+      html = await client.stringify(rawMarkdown + '', optionsForStringify);
+    } else {
+      // fallback to local client
+      const local = createVfmClient();
+      html = await local.stringify(rawMarkdown + '', optionsForStringify);
+      local.terminate();
+    }
+  } else {
+    const local = createVfmClient();
+    html = await local.stringify(rawMarkdown + '', optionsForStringify);
+    local.terminate();
+  }
 
   const finalCss = '' + (userCss ? '\n' + userCss : '') + (inlineCss ? '\n' + inlineCss : '');
   const withCss = injectInlineStyle(html, finalCss);

@@ -112,18 +112,9 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     (async () => {
       if (!markdown) { if (!cancelled) { setSourceUrl(null); setVivlioPayload(null); } return; }
       try {
-        // use stringifyLatest so newer edits cancel older work
-        const html = await client.stringifyLatest(markdown, { title: 'Preview', language: 'ja', math: true });
+        // pass client to builder which will call stringifyLatest when available
+        const payload = await buildVfmPayloadAsync(markdown, {}, client);
         if (cancelled) return;
-        // inject CSS & script the same way as buildVfmPayloadAsync
-        const payload = (() => {
-          // reuse synchronous helper to assemble final HTML pieces
-          const userCssMatch = (markdown || '').match(/```\s*vivliocss\s*\n([\s\S]*?)```/i);
-          const userCss = userCssMatch ? (userCssMatch[1] || '') : '';
-          const finalCss = '' + (userCss ? '\n' + userCss : '');
-          const withCss = injectInlineStyle(html, finalCss);
-          return { rawMarkdown: markdown, userCss, finalCss, html: withCss };
-        })();
         setVivlioPayload(payload);
         const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(payload.html)}`;
         setSourceUrl(dataUrl);
