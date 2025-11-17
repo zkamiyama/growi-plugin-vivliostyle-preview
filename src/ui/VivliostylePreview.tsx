@@ -44,10 +44,25 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const stablePageRef = useRef<number>(1);
   const stablePageTimerRef = useRef<number | null>(null);
 
-  // Update stable page when page changes and stays for 1 second
+  // Reset stability timer when building starts
+  useEffect(() => {
+    if (isBuilding && stablePageTimerRef.current !== null) {
+      window.clearTimeout(stablePageTimerRef.current);
+      stablePageTimerRef.current = null;
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][preserve][parent] stability timer reset due to build');
+    }
+  }, [isBuilding]);
+
+  // Update stable page when page changes and stays for 1 second (without build interruption)
   useEffect(() => {
     if (stablePageTimerRef.current !== null) {
       window.clearTimeout(stablePageTimerRef.current);
+    }
+    
+    // Don't start timer if currently building
+    if (isBuilding) {
+      return;
     }
     
     stablePageTimerRef.current = window.setTimeout(() => {
@@ -64,7 +79,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         window.clearTimeout(stablePageTimerRef.current);
       }
     };
-  }, [page]);
+  }, [page, isBuilding]);
 
   // Save STABLE page before reset when markdown changes (not the current page)
   const lastMarkdownRef = useRef<string>(markdown);
