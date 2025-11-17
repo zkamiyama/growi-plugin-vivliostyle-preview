@@ -5,6 +5,10 @@ export function createVfmClient() {
   const pending = new Map<number,(r:{seq?:number;ok:boolean;html?:string;error?:string})=>void>();
   let structuredCloneSupported: boolean | null = null;
   const progressHandlers = new Set<(payload: { seq: number | null; stage: string; timestamp: number }) => void>();
+  
+  // Debouncing state for optimized stringifyDebounced
+  let debounceTimer: number | null = null;
+  let latestRequest: { markdown: string; options?: any; metadata?: unknown; resolve: (html: string) => void; reject: (err: Error) => void } | null = null;
 
   const emitProgress = (payload: { seq: number | null; stage: string; timestamp: number }) => {
     for (const handler of progressHandlers) {
@@ -202,6 +206,48 @@ export function createVfmClient() {
       });
     },
     /**
+     * Debounced stringify: accumulates rapid requests and executes only the latest
+     * Reduces redundant worker invocations during rapid markdown updates (e.g., typing)
+     * @param markdown - Markdown content to stringify
+     * @param options - VFM options
+     * @param metadata - Metadata
+     * @param debounceMs - Milliseconds to wait before executing (default: 150ms)
+     */
+    async stringifyDebounced(markdown: string, options?: any, metadata?: unknown, debounceMs = 150): Promise<string> {
+      // Cancel any pending request
+      if (latestRequest) {
+        latestRequest.reject(new Error('superseded by newer request'));
+        latestRequest = null;
+      }
+      
+      if (debounceTimer !== null) {
+        window.clearTimeout(debounceTimer);
+        debounceTimer = null;
+      }
+
+      return new Promise<string>((resolve, reject) => {
+        latestRequest = { markdown, options, metadata, resolve, reject };
+        
+        debounceTimer = window.setTimeout(async () => {
+          const req = latestRequest;
+          latestRequest = null;
+          debounceTimer = null;
+          
+          if (!req) {
+            reject(new Error('request cancelled'));
+            return;
+          }
+          
+          try {
+            const html = await this.stringify(req.markdown, req.options, req.metadata);
+            req.resolve(html);
+          } catch (err) {
+            req.reject(err instanceof Error ? err : new Error(String(err)));
+          }
+        }, debounceMs);
+      });
+    },
+    /**
      * Cancel all pending requests (reject promises) but keep the worker alive.
      * Pending promises will be rejected with Error('cancelled').
      */
@@ -209,6 +255,14 @@ export function createVfmClient() {
       try {
         for (const [id, cb] of Array.from(pending.entries())) {
           try { pending.delete(id); cb({ seq: id, ok: false, error: 'cancelled' }); } catch (e) { /* ignore */ }
+        }
+        if (latestRequest) {
+          latestRequest.reject(new Error('cancelled'));
+          latestRequest = null;
+        }
+        if (debounceTimer !== null) {
+          window.clearTimeout(debounceTimer);
+          debounceTimer = null;
         }
         // Do NOT terminate the worker here; allow reuse
       } catch (e) { /* ignore */ }
@@ -228,7 +282,17 @@ export function createVfmClient() {
         progressHandlers.delete(handler);
       };
     },
-    terminate(){ if (worker) { worker.terminate(); worker = null; } }
+    terminate(){ 
+      if (worker) { worker.terminate(); worker = null; }
+      if (debounceTimer !== null) {
+        window.clearTimeout(debounceTimer);
+        debounceTimer = null;
+      }
+      if (latestRequest) {
+        latestRequest.reject(new Error('worker terminated'));
+        latestRequest = null;
+      }
+    }
   };
 }
 
