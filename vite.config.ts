@@ -26,6 +26,22 @@ export default defineConfig({
       input: ['/client-entry.tsx'],
       output: {
         format: 'es',
+        manualChunks(id) {
+          // Vivliostyle関連を専用チャンクへ分離
+          if (id.includes('node_modules/@vivliostyle')) {
+            return 'vivliostyle-vendor';
+          }
+          // PDF関連ライブラリを専用チャンクへ分離
+          if (id.includes('node_modules/jszip')) {
+            return 'pdf-vendor';
+          }
+          // その他の大きなvendorライブラリを汎用チャンクへ分離
+          if (id.includes('node_modules/react') || 
+              id.includes('node_modules/react-dom') ||
+              id.includes('node_modules/scheduler')) {
+            return 'react-vendor';
+          }
+        },
       },
     },
   },

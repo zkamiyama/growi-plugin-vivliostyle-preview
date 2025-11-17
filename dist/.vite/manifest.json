@@ -1,9 +1,33 @@
 {
+  "_pdf-vendor-BMuSt807.js": {
+    "file": "assets/pdf-vendor-BMuSt807.js",
+    "name": "pdf-vendor"
+  },
+  "_react-vendor-ITi3kJGI.js": {
+    "file": "assets/react-vendor-ITi3kJGI.js",
+    "name": "react-vendor",
+    "imports": [
+      "_pdf-vendor-BMuSt807.js"
+    ]
+  },
+  "_vivliostyle-vendor-BLOEt5NL.js": {
+    "file": "assets/vivliostyle-vendor-BLOEt5NL.js",
+    "name": "vivliostyle-vendor",
+    "imports": [
+      "_pdf-vendor-BMuSt807.js",
+      "_react-vendor-ITi3kJGI.js"
+    ]
+  },
   "client-entry.tsx": {
-    "file": "assets/client-entry-DXVOn5jv.js",
+    "file": "assets/client-entry-CUZHWKS2.js",
     "name": "client-entry",
     "src": "client-entry.tsx",
     "isEntry": true,
+    "imports": [
+      "_react-vendor-ITi3kJGI.js",
+      "_vivliostyle-vendor-BLOEt5NL.js",
+      "_pdf-vendor-BMuSt807.js"
+    ],
     "css": [
       "assets/client-entry-BKR_fXy3.css"
     ]
