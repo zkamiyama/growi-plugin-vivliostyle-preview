@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>Vivliostyle Preview Host</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    html,body { margin:0; padding:0; height:100%; }
+    body { font-family: system-ui, sans-serif; line-height:1.5; }
+    #viewer-root { width:100%; height:100%; position:relative; overflow:auto; }
+    #status { position:absolute; top:4px; right:8px; background:rgba(0,0,0,.6); color:#fff; font-size:11px; padding:2px 6px; border-radius:4px; z-index:10; }
+    .error { color:#c00; }
+    pre.log { font-size:11px; background:#111; color:#eee; padding:6px; margin:8px; max-height:40%; overflow:auto; }
+  </style>
+  <!-- 固定バージョン (例) NOTE: integrity 値は本番で計測し直す -->
+  <script src="https://unpkg.com/@vivliostyle/viewer@2.34.1/dist/vivliostyle-viewer.js"></script>
+  <script src="https://unpkg.com/@vivliostyle/vfm@2.2.1/dist/vfm.min.js"></script>
+</head>
+<body>
+  <div id="viewer-root">
+    <div id="status">loading</div>
+    <div id="log" style="display:none"></div>
+  </div>
+  <script>
+    (function () {
+      const LOG = (...a) => console.log('[VivlioHost]', ...a);
+      const statusEl = document.getElementById('status');
+      const viewerRoot = document.getElementById('viewer-root');
+      
+      let viewer = null;
+      let ready = false;
+
+      // load の直列化
+      let inflight = false;
+      let queuedMarkdown = null;
+
+      async function ensureInit() {
+        if (ready) return true;
+        if (!(window.Vivliostyle && window.vfm)) return false;
+
+        // viewer インスタンス生成
+        viewer = window.Vivliostyle.viewer.create(viewerRoot);
+
+        // マイクロタスク1拍だけ待って内部初期化のレースを避ける（経験則）
+        await Promise.resolve();
+
+        ready = true;
+        statusEl.textContent = 'ready';
+        LOG('viewer instance created');
+        // 親へ ready 通知
+        try { parent.postMessage({ type: 'vivlio:ready' }, '*'); } catch (_) {}
+
+        // 溜まっていた初回分があれば処理
+        if (queuedMarkdown != null) {
+          const md = queuedMarkdown;
+          queuedMarkdown = null;
+          void renderMarkdown(md);
+        }
+        return true;
+      }
+
+      function buildHtmlFromMarkdown(md) {
+        // VFM 2.x 正式 API: stringify は完全な HTML 文書を返す
+        // render は本文断片の可能性があるため使用しない
+        let html;
+        if (window.vfm && typeof window.vfm.stringify === 'function') {
+          html = window.vfm.stringify(md || '');
+        } else if (window.vfm && typeof window.vfm.render === 'function') {
+          // フォールバック: 断片 -> 包装して完全なHTMLにする
+          const body = window.vfm.render(md || '');
+          html = '<!doctype html><html><head><meta charset="utf-8"></head><body>' + body + '</body></html>';
+        } else {
+          html = '<!doctype html><meta charset="utf-8"><body>' + String(md || '') + '</body>';
+        }
+
+        // 相対URL解決用に <base> を必ず注入
+        const baseHref = location.origin + '/';
+        if (html.includes('<head>')) {
+          html = html.replace('<head>', `<head><base href="${baseHref}">`);
+        } else if (html.match(/<html[^>]*>/i)) {
+          html = html.replace(/<html[^>]*>/i, m => `${m}<head><base href="${baseHref}"></head>`);
+        } else {
+          html = `<!doctype html><html><head><meta charset="utf-8"><base href="${baseHref}"></head><body>${html}</body></html>`;
+        }
+        return html;
+      }
+
+      async function renderMarkdown(md) {
+        // 初期化してなければ待つ（ポーリングと併用）
+        if (!ready) {
+          const ok = await ensureInit();
+          if (!ok) { queuedMarkdown = md; return; }
+        }
+        // 直列化: 実行中なら最後の1件だけキュー
+        if (inflight) { queuedMarkdown = md; return; }
+        inflight = true;
+
+        const html = buildHtmlFromMarkdown(md);
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+
+        statusEl.textContent = 'loading';
+        console.time('viewer.load');
+        try {
+          await viewer.load(url);
+          console.timeEnd('viewer.load');
+          statusEl.textContent = 'ok';
+          try { parent.postMessage({ type: 'vivlio:ok' }, '*'); } catch (_) {}
+        } catch (err) {
+          console.timeEnd('viewer.load');
+          console.error('[VivlioHost] viewer.load failed:', err);
+          statusEl.textContent = 'error';
+          try { parent.postMessage({ type: 'vivlio:error', message: String(err) }, '*'); } catch (_) {}
+        } finally {
+          URL.revokeObjectURL(url);
+          inflight = false;
+          if (queuedMarkdown != null) {
+            const next = queuedMarkdown;
+            queuedMarkdown = null;
+            void renderMarkdown(next);
+          }
+        }
+      }
+
+      window.addEventListener('message', ev => {
+        if (!ev || !ev.data) return;
+        if (ev.data.type === 'markdown:update-raw') {
+          void renderMarkdown(ev.data.markdown || '');
+        }
+      });
+
+      // 100ms ごとに init 試行
+      setInterval(ensureInit, 100);
+    })();
+  </script>
+</body>
+</html>

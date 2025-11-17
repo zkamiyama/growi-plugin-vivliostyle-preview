@@ -1,0 +1,98 @@
+.vivlio-buildpdf-modal .modal-content {
+  font-size: 0.9rem;
+}
+
+.vivlio-buildpdf-modal .modal-body {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.vivlio-buildpdf-logarea {
+  max-height: 340px;
+  overflow-y: auto;
+  font-family: var(--bs-font-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
+  font-size: 0.75rem;
+  padding: 0.75rem;
+  background-color: var(--bs-tertiary-bg, #f8f9fa);
+  border: 1px solid var(--bs-border-color, rgba(0, 0, 0, 0.125));
+  border-radius: var(--bs-border-radius, 0.375rem);
+}
+
+.vivlio-buildpdf-logline {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--bs-border-color, rgba(0, 0, 0, 0.1));
+  align-items: flex-start;
+}
+
+.vivlio-buildpdf-logline:last-child {
+  border-bottom: none;
+}
+
+.vivlio-buildpdf-logtime {
+  min-width: 4.5rem;
+  color: var(--bs-secondary-color, #6c757d);
+  font-variant-numeric: tabular-nums;
+}
+
+.vivlio-buildpdf-loglevel {
+  min-width: 3rem;
+  font-weight: 600;
+  color: var(--bs-secondary-color, #6c757d);
+}
+
+.level-info .vivlio-buildpdf-loglevel {
+  color: var(--bs-info, #0d6efd);
+}
+
+.level-warn .vivlio-buildpdf-loglevel {
+  color: var(--bs-warning, #ffc107);
+}
+
+.level-error .vivlio-buildpdf-loglevel {
+  color: var(--bs-danger, #dc3545);
+}
+
+.level-debug .vivlio-buildpdf-loglevel {
+  color: var(--bs-success, #198754);
+}
+
+.vivlio-buildpdf-logmessage {
+  flex: 1;
+  word-break: break-word;
+  white-space: pre-wrap;
+  color: var(--bs-body-color, #212529);
+}
+
+.vivlio-buildpdf-logdetails {
+  color: var(--bs-secondary-color, #6c757d);
+}
+
+.vivlio-buildpdf-config-preview {
+  min-height: 120px;
+  max-height: 260px;
+  overflow: auto;
+  font-family: var(--bs-font-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace);
+  font-size: 0.75rem;
+}
+
+.vivlio-buildpdf-modal .modal-footer .btn + .btn {
+  margin-left: 0.5rem;
+}
+
+.vivlio-buildpdf-modal .modal-title .material-symbols-outlined {
+  font-size: 20px;
+  line-height: 1;
+}
+
+@media (max-width: 576px) {
+  .vivlio-buildpdf-modal .modal-dialog {
+    margin: 0.75rem;
+  }
+
+  .vivlio-buildpdf-logarea {
+    max-height: 240px;
+  }
+}
+

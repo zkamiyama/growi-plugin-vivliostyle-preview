@@ -1,0 +1,169 @@
+import React from 'react';
+import { VivlioPayload } from '../hooks/useVivlioBuild';
+
+interface VivlioInfoPanelProps {
+  payload: VivlioPayload | null;
+  readingDirection?: 'ltr' | 'rtl';
+  onRefreshDependencies?: () => void;
+}
+
+interface SectionProps {
+  title: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  onCopy?: () => void;
+  copied?: boolean;
+  actionLabel?: string;
+  children?: React.ReactNode;
+}
+
+const Section: React.FC<SectionProps> = ({ title, collapsed, onToggle, onCopy, copied, actionLabel, children }) => (
+  <div className="vivlio-section">
+    <div className="vivlio-section-header" onClick={onToggle} role="button" tabIndex={0}>
+      <div className="vivlio-section-title">
+        <span className="vivlio-section-arrow">{collapsed ? '+' : '-'}</span>
+        <span className="vivlio-section-title-text">{title}</span>
+      </div>
+      {onCopy && (
+        <button
+          onClick={(event) => { event.stopPropagation(); onCopy(); }}
+          aria-label={`${actionLabel ?? 'Copy'} ${title}`}
+          className={`vivlio-section-copy ${copied ? 'active' : ''}`}
+        >
+          {copied ? 'Copied' : (actionLabel ?? 'Copy')}
+        </button>
+      )}
+    </div>
+    {!collapsed && (
+      <div className="vivlio-section-content">
+        <div className="vivlio-section-scroll">{children}</div>
+      </div>
+    )}
+  </div>
+);
+
+export const VivlioInfoPanel: React.FC<VivlioInfoPanelProps> = ({ payload, readingDirection, onRefreshDependencies }) => {
+  const [collapsed, setCollapsed] = React.useState({ md: true, userCss: true, compCss: true, html: true, deps: false });
+  const [copiedKey, setCopiedKey] = React.useState<string | null>(null);
+  const timerRef = React.useRef<number | null>(null);
+
+  React.useEffect(() => () => {
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+  }, []);
+
+  const localScrollStyles = `
+    .vivlio-simple-viewer .vivlio-section-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.14) transparent; }
+    .vivlio-simple-viewer .vivlio-section-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+    .vivlio-simple-viewer .vivlio-section-scroll::-webkit-scrollbar-track { background: transparent; }
+    .vivlio-simple-viewer .vivlio-section-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 8px; }
+    .vivlio-simple-viewer .vivlio-section-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+  `;
+
+  // Use simple labels without arrow symbols: '右左' / '左右'
+  const readingDirectionLabel = readingDirection === 'rtl' ? '右左 (rtl)' : '左右 (ltr)';
+  const handleCopy = (key: string, value?: string) => {
+    if (!value) return;
+    try {
+      navigator.clipboard?.writeText(value);
+      setCopiedKey(key);
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+      timerRef.current = window.setTimeout(() => setCopiedKey(null), 1500);
+    } catch (e) {
+      console.warn('[VivlioDBG] clipboard copy failed', e);
+    }
+  };
+
+  return (
+    <div className={`vivlio-info-panel fullscreen`}>
+      <style>{localScrollStyles}</style>
+      <div className="vivlio-info-title">
+        <span>Vivliostyle Info</span>
+      </div>
+      <div className="vivlio-info-body">
+        <div style={{ fontSize: 12, marginBottom: 8 }}>
+          <div><strong>Reading direction:</strong> {readingDirection ? readingDirectionLabel : 'unknown'}</div>
+        </div>
+
+        <Section
+          title="Dependencies"
+          collapsed={collapsed.deps}
+          onToggle={() => setCollapsed((state) => ({ ...state, deps: !state.deps }))}
+          onCopy={onRefreshDependencies}
+          copied={false}
+          actionLabel="Reload"
+        >
+          <div style={{ fontSize: 12, padding: '4px 0' }}>
+            {payload && payload.dependencies && payload.dependencies.length > 0 ? (
+              <>
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Inherited from {payload.dependencies.length} page(s):</strong>
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 20, listStyleType: 'disc' }}>
+                  {payload.dependencies.map((dep, idx) => (
+                    <li key={idx} style={{ marginBottom: 4 }}>
+                      <code style={{ fontSize: 11, background: 'rgba(255,255,255,0.1)', padding: '2px 4px', borderRadius: 2 }}>
+                        {dep}
+                      </code>
+                    </li>
+                  ))}
+                </ul>
+                {/* Reload action is now in the section header */}
+              </>
+            ) : (
+              <div style={{ color: 'rgba(255,255,255,0.6)' }}>
+                No dependencies (no parent CSS inherited)
+              </div>
+            )}
+          </div>
+        </Section>
+
+        {/* Source URL display removed - use HTML / copy raw HTML instead */}
+
+        {/* Config section removed: Use Build PDF dialog for Config editing */}
+
+        <Section
+          title="Raw Markdown"
+          collapsed={collapsed.md}
+          onToggle={() => setCollapsed((state) => ({ ...state, md: !state.md }))}
+          onCopy={() => handleCopy('md', payload?.rawMarkdown || '')}
+          copied={copiedKey === 'md'}
+        >
+          <pre className="vivlio-pre-small">{payload ? (payload.rawMarkdown || '(empty)') : '(not built yet)'}</pre>
+        </Section>
+
+        <Section
+          title="User CSS"
+          collapsed={collapsed.userCss}
+          onToggle={() => setCollapsed((state) => ({ ...state, userCss: !state.userCss }))}
+          onCopy={() => handleCopy('userCss', payload?.userCss || '')}
+          copied={copiedKey === 'userCss'}
+        >
+          <pre className="vivlio-pre-small">{payload ? (payload.userCss || '(empty)') : '(not built yet)'}</pre>
+        </Section>
+        {/* Dependencies moved above */}
+
+        <Section
+          title="Resolved CSS"
+          collapsed={collapsed.compCss}
+          onToggle={() => setCollapsed((state) => ({ ...state, compCss: !state.compCss }))}
+          onCopy={() => handleCopy('compCss', payload?.finalCss || '')}
+          copied={copiedKey === 'compCss'}
+        >
+          <pre className="vivlio-pre-small">{payload ? (payload.finalCss || '(empty)') : '(not built yet)'}</pre>
+        </Section>
+
+        <Section
+          title="HTML"
+          collapsed={collapsed.html}
+          onToggle={() => setCollapsed((state) => ({ ...state, html: !state.html }))}
+          onCopy={() => handleCopy('html', payload?.html || '')}
+          copied={copiedKey === 'html'}
+        >
+          <pre className="vivlio-pre">{payload ? (payload.html || '(none)') : '(not built yet)'}</pre>
+        </Section>
+      </div>
+    </div>
+  );
+};
+
+export default VivlioInfoPanel;

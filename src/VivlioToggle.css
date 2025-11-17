@@ -1,0 +1,161 @@
+/* Overflow fallback only (他は View ボタンのクラス継承) */
+.vivlio-inline-toggle .vivlio-toggle-btn.is-overflowing { font-size: 11px; }
+
+/* 常時高彩度補色: OFF=アウトライン, ON=塗りつぶし */
+.vivlio-inline-toggle .vivlio-toggle-btn.vivlio-comp:not(.active) {
+	border-color: var(--vivlio-comp-color, currentColor) !important;
+	color: var(--vivlio-comp-color, currentColor) !important;
+	background: transparent !important;
+}
+.vivlio-inline-toggle .vivlio-toggle-btn.vivlio-comp.active {
+	background: var(--vivlio-comp-color, currentColor) !important;
+	color: var(--vivlio-comp-fg, #fff) !important;
+	border-color: var(--vivlio-comp-color, currentColor) !important;
+	filter: saturate(1.1) brightness(1.02);
+}
+.vivlio-inline-toggle .vivlio-toggle-btn.vivlio-comp:not(.active):hover {
+	background: var(--vivlio-comp-color, currentColor) !important;
+	color: var(--vivlio-comp-fg, #fff) !important;
+	border-color: var(--vivlio-comp-color, currentColor) !important;
+}
+
+/* Glow text variant that mirrors the vivlio toggle's color (uses --vivlio-comp-color) */
+.vivlio-glow-text {
+	/* keep text readable (white) while the glow uses the gradient-derived colors */
+	color: #ffffff !important;
+	/* widened shadow spread for a stronger halo while keeping clarity */
+	text-shadow:
+		0 0 4px rgba(255,255,255,1),
+		0 0 14px var(--vivlio-comp-glow-1, rgba(10,79,240,1)),
+		0 0 30px var(--vivlio-comp-glow-2, rgba(255,31,31,1)),
+		0 0 56px var(--vivlio-comp-glow-3, rgba(10,79,240,0.98));
+}
+
+/* Stronger outline-and-glow for dark backgrounds */
+.vivlio-glow-text.vivlio-glow-strong {
+	text-shadow:
+		0 0 6px rgba(255,255,255,0.8),
+		0 0 12px var(--vivlio-comp-glow-1, rgba(26,99,184,0.9)),
+		0 0 28px var(--vivlio-comp-glow-2, rgba(208,82,50,0.7)),
+		0 0 44px var(--vivlio-comp-glow-3, rgba(26,99,184,0.45));
+}
+
+/* When this helper class is present, render the element's text using the
+   gradient stored in --vivlio-comp-bg. The gradient is clipped to the text
+   (so the button background remains transparent) and layered with the
+   existing text-shadow glow rules. */
+.vivlio-glow-textclip {
+    /* Ghost layer: a blurred, colored duplicate of the text/icon situated beneath
+       the foreground. Uses background-clip/text to provide the colored source;
+       the element itself is blurred so color diffuses strongly beyond glyph edges. */
+    /* symmetric red -> blue -> red for seamless loop */
+    background-image: linear-gradient(135deg, #d05232 0%, #1a63b8 50%, #d05232 100%);
+         /* use larger background-size for smoother motion and slower visible step */
+         /* background-size 300% works with keyframes 0%->200% to create one seamless cycle */
+         background-size: 300% 100%;
+    background-repeat: repeat-x;
+    background-position: 0% 50%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent !important; /* show gradient inside glyph shapes */
+    display: inline-block;
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    /* strengthen glow: larger blur for wider spread */
+         filter: blur(14px);
+         /* hint to promote GPU compositing where possible */
+         transform: translateZ(0);
+    opacity: 1;
+    mix-blend-mode: screen;
+    z-index: 1;
+    /* animate the gradient so the glow shifts dynamically */
+         /* slower, smoother scroll */
+         animation: vivlio-gradient-scroll 3.2s linear infinite;
+    animation-delay: 0s;
+    animation-fill-mode: both;
+    will-change: background-position;
+}@keyframes vivlio-gradient-scroll {
+	0% { background-position: 0% 50%; }
+	100% { background-position: 200% 50%; }
+}
+
+@keyframes vivlio-pulse-white {
+    0% { opacity: 0.15; }
+    50% { opacity: 1.0; }
+    100% { opacity: 0.15; }
+}
+
+.vivlio-glow-overlay {
+    /* white pulsing overlay for improved readability */
+    color: rgba(255, 255, 255, 1) !important;
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    display: inline-block;
+    pointer-events: none;
+    z-index: 4;
+    animation: vivlio-pulse-white 2.2s ease-in-out infinite;
+}
+
+/* wrapper to contain gradient layer and foreground text */
+.vivlio-glow-wrap {
+	position: relative;
+	display: inline-block;
+	overflow: visible;
+}
+
+.grw-page-control-dropdown-item {
+	/* allow glows to escape the item box while preserving hover background */
+	overflow: visible;
+}
+
+.vivlio-glow-plain {
+    position: relative;
+    z-index: 2;
+    /* no forced color; gradient clipping will provide the visible color */
+}/* Decorative blurred backdrop gradient that sits under the plain text */
+.vivlio-glow-backdrop {
+	/* Deprecated: Keep for backward compatibility but make it inert.
+	   Prefer using .vivlio-glow-textclip (ghost layer) for per-glyph glow. */
+	display: none;
+}
+
+/* Foreground clipped gradient: applies the same cycling gradient to the text glyphs
+   while preserving a thin white stroke/halo for readability. */
+.vivlio-glow-foreground-clip {
+    /* Foreground layer: applies vibrant cycling gradient to visible glyphs */
+    /* foreground: symmetric red -> blue -> red */
+    background-image: linear-gradient(135deg, #d05232 0%, #1a63b8 50%, #d05232 100%);
+    background-size: 300% 100%;
+    background-repeat: repeat-x;
+    background-position: 0% 50%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent !important;
+    display: inline-block;
+    position: relative;
+    z-index: 3;
+    /* foreground gradient for glyphs */
+        animation: vivlio-gradient-scroll 3.2s linear infinite;
+    animation-delay: 0s;
+    animation-fill-mode: both;
+    will-change: background-position;
+}/* Icon foreground gradient: same red->blue->red cycling gradient for icon glyphs */
+.vivlio-icon-foreground-clip {
+    /* Icon foreground: same vibrant gradient as text */
+    /* icon gradient: symmetric red -> blue -> red */
+    background-image: linear-gradient(135deg, #d05232 0%, #1a63b8 50%, #d05232 100%);
+        background-size: 300% 100%;
+    background-repeat: repeat-x;
+    background-position: 0% 50%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent !important;
+    display: inline-block;
+    position: relative;
+    z-index: 3;
+        animation: vivlio-gradient-scroll 3.2s linear infinite;
+    animation-delay: 0s;
+    animation-fill-mode: both;
+    will-change: background-position;
+}

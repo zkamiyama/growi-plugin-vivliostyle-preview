@@ -1,0 +1,466 @@
+// ExternalToggle.tsx
+// GROWI の既存編集バー(例えば Edit ボタン)の隣に常に表示させる外部トグル。
+// DOM 構造に強く依存しないよう、特定の既知クラスを探索し最初に見つかった要素の直後に差し込む。
+import * as React from 'react';
+import { useAppContext } from '../context/AppContext';
+import '../VivlioToggle.css';
+import { createPortal } from 'react-dom';
+import { readEditorMarkdownSnapshot } from '../utils/editor';
+
+/**
+ * ボタン挿入用アンカー探索ロジック
+ * - 複数候補CSSセレクタを優先順に試行
+ * - 見つからない場合はヒューリスティック(文言/role)走査
+ */
+const TOOLBAR_CONTAINER_SELECTORS = [
+  '#grw-page-editor-mode-manager',
+  '[data-testid="grw-page-editor-mode-manager"]',
+  '.grw-page-editor-mode-manager',
+];
+
+const ANCHOR_SELECTOR_CANDIDATES = [
+  '[data-testid="view-button"]',
+  '[data-testid="editor-button"]',
+  '.page-editor-meta .btn-edit-page',
+  '.page-editor-header .btn-edit',
+  '.btn-edit-page',
+];
+
+const FALLBACK_BUTTON_SELECTOR = 'button, a.btn, a';
+
+function pickFirst<T>(arr: T[] | null | undefined): T | null {
+  if (!arr || !arr.length) return null;
+  return arr[0];
+}
+
+function normalizeLabel(el: Element): string {
+  return (el.textContent || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function queryToolbarContainer(): HTMLElement | null {
+  for (const selector of TOOLBAR_CONTAINER_SELECTORS) {
+    const el = document.querySelector(selector);
+    if (el instanceof HTMLElement) return el;
+  }
+  return null;
+}
+
+function queryAnchorInContainer(container: HTMLElement): HTMLElement | null {
+  for (const sel of ANCHOR_SELECTOR_CANDIDATES) {
+    const el = container.querySelector(sel);
+    if (el instanceof HTMLElement) return el;
+  }
+  const fallback = container.querySelector(FALLBACK_BUTTON_SELECTOR);
+  return fallback instanceof HTMLElement ? fallback : null;
+}
+
+function queryAnchorBySelectors(root: ParentNode = document): HTMLElement | null {
+  for (const sel of ANCHOR_SELECTOR_CANDIDATES) {
+    const el = root.querySelector(sel);
+    if (el instanceof HTMLElement) return el;
+  }
+  return null;
+}
+
+function heuristicScan(): HTMLElement | null {
+  const buttons = Array.from(document.querySelectorAll(FALLBACK_BUTTON_SELECTOR)) as HTMLElement[];
+  const scored: { el: HTMLElement; score: number }[] = [];
+  buttons.forEach(el => {
+    const label = normalizeLabel(el);
+    if (!label) return;
+    let score = 0;
+    if (/view/.test(label)) score += 4;  // viewを最優先に
+    if (/edit/.test(label)) score += 2;
+    if (/page/.test(label)) score += 1;
+    if (/\bedit\b/.test(label)) score += 1;
+    if (score > 0) scored.push({ el, score });
+  });
+  scored.sort((a, b) => b.score - a.score);
+  return pickFirst(scored.map(s => s.el));
+}
+
+function findAnchorOnce(): HTMLElement | null {
+  return queryAnchorBySelectors() || heuristicScan();
+}
+
+export const ExternalToggle: React.FC = () => {
+  const { isOpen, toggle, forceUpdateMarkdown } = useAppContext();
+  const [wrapperEl, setWrapperEl] = React.useState<HTMLElement | null>(null);
+  const [anchorClasses, setAnchorClasses] = React.useState<string>('');
+  const [anchorMetrics, setAnchorMetrics] = React.useState<Record<string, string> | null>(null);
+  const resolvedRef = React.useRef(false);
+  const lastBaseColorRef = React.useRef<string | null>(null);
+  const anchorElRef = React.useRef<HTMLElement | null>(null);
+  const wrapperRef = React.useRef<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    // Debounce handle for resolving anchor to avoid heavy repeated DOM scans
+  const debounceRef = { id: 0 as number | null, delay: 16 };
+    const scheduleResolve = () => {
+      try {
+        if (debounceRef.id) window.clearTimeout(debounceRef.id);
+      } catch (e) { /* ignore */ }
+      // schedule slightly delayed to batch multiple mutations
+      // use setTimeout instead of rAF because some DOM mutations happen outside frame
+      // eslint-disable-next-line no-return-assign
+      // @ts-ignore
+      debounceRef.id = window.setTimeout(() => {
+        try { resolveAnchor(); } catch (e) { /* ignore */ }
+        // @ts-ignore
+        debounceRef.id = null;
+      }, debounceRef.delay) as unknown as number;
+    };
+    function ensureWrapperForAnchor(anchor: HTMLElement): HTMLElement | null {
+      const parent = anchor.parentElement;
+      if (!parent) return null;
+      let wrapper = wrapperRef.current;
+      if (wrapper && !wrapper.isConnected) {
+        wrapper = null;
+        wrapperRef.current = null;
+      }
+      if (wrapper && wrapper.parentElement !== parent) {
+        try { wrapper.parentElement?.removeChild(wrapper); } catch (e) { /* ignore */ }
+        wrapper = null;
+      }
+      if (!wrapper) {
+        wrapper = parent.querySelector('.vivlio-inline-toggle') as HTMLElement | null;
+      }
+      if (!wrapper) {
+        wrapper = document.createElement('span');
+        wrapper.className = 'vivlio-inline-toggle';
+        wrapper.style.marginRight = '6px';
+        wrapper.style.display = 'inline-flex';
+        wrapper.style.alignItems = 'center';
+      }
+      if (wrapper.parentElement !== parent || wrapper.nextSibling !== anchor) {
+        parent.insertBefore(wrapper, anchor);
+      }
+      wrapperRef.current = wrapper;
+      setWrapperEl(prev => (prev === wrapper ? prev : wrapper));
+      return wrapper;
+    }
+
+    function findEffectiveColor(elem: Element | null): string | null {
+      if (!elem) return null;
+      const isTransparentLocal = (c: string) => !c || c === 'transparent' || /rgba\(\s*0+\s*,\s*0+\s*,\s*0?\.?0*\s*\)/i.test(c);
+      try {
+        const csVars = window.getComputedStyle(elem as Element);
+        const varCandidates = ['--vivlio-comp-color', '--accent-color', '--primary-color', '--color'];
+        for (const v of varCandidates) {
+          const val = csVars.getPropertyValue(v).trim();
+          if (val) return val;
+        }
+      } catch (e) { /* ignore */ }
+      let node: Element | null = elem as Element;
+      for (let i = 0; node && i < 8; i++, node = node.parentElement) {
+        try {
+          const cs = window.getComputedStyle(node);
+          const props = [cs.backgroundColor, cs.borderColor, cs.color];
+          for (const p of props) {
+            if (!isTransparentLocal(p)) return p;
+          }
+        } catch (e) { /* ignore */ }
+      }
+      // as a last resort, scan descendants but limit to a small budget to avoid heavy work
+      try {
+        const maxNodes = 64;
+        const queue: Element[] = [];
+        for (const ch of Array.from(elem.children || [])) queue.push(ch as Element);
+        let inspected = 0;
+        while (queue.length && inspected < maxNodes) {
+          const node = queue.shift()!;
+          inspected += 1;
+          try {
+            const cs = window.getComputedStyle(node as Element);
+            const props = [cs.backgroundColor, cs.borderColor, cs.color];
+            for (const p of props) {
+              if (!isTransparentLocal(p)) return p;
+            }
+          } catch (e) { /* ignore */ }
+          // push children for BFS until budget exhausted
+          if (node.children && node.children.length) {
+            for (const ch of Array.from(node.children as HTMLCollectionOf<Element>)) {
+              queue.push(ch as Element);
+            }
+          }
+        }
+      } catch (e) { /* ignore */ }
+      return null;
+    }
+
+    function applyColorFromAnchor(anchor: HTMLElement) {
+      const wrapper = wrapperRef.current;
+      if (!wrapper) return;
+      try {
+        const effective = findEffectiveColor(anchor);
+        if (effective && effective !== lastBaseColorRef.current) {
+          wrapper.style.setProperty('--vivlio-comp-color', effective);
+          const btn = wrapper.querySelector('button') as HTMLElement | null;
+          if (btn) btn.style.setProperty('--vivlio-comp-color', effective);
+          lastBaseColorRef.current = effective;
+          // eslint-disable-next-line no-console
+          console.debug('[VivlioDBG][ExternalToggle] applied effective color', { effective });
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[VivlioDBG][ExternalToggle] error applying effective color', e);
+      }
+    }
+
+    function captureAnchorMetrics(anchor: HTMLElement) {
+      try {
+        const aCs = window.getComputedStyle(anchor);
+        setAnchorMetrics({
+          height: aCs.height || '',
+          paddingTop: aCs.paddingTop || '',
+          paddingBottom: aCs.paddingBottom || '',
+          paddingLeft: aCs.paddingLeft || '',
+          paddingRight: aCs.paddingRight || '',
+          fontSize: aCs.fontSize || '',
+          lineHeight: aCs.lineHeight || '',
+          borderRadius: aCs.borderRadius || '',
+          minWidth: aCs.minWidth || '',
+        });
+      } catch (e) { /* ignore */ }
+    }
+
+    function attach(initialAnchor: HTMLElement) {
+      if (!initialAnchor || !initialAnchor.isConnected) return;
+      const wrapper = ensureWrapperForAnchor(initialAnchor);
+      if (!wrapper) return;
+      anchorElRef.current = initialAnchor;
+      setAnchorClasses(initialAnchor.className || '');
+      captureAnchorMetrics(initialAnchor);
+      applyColorFromAnchor(initialAnchor);
+      resolvedRef.current = true;
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][ExternalToggle] attached to anchor', { anchorSel: initialAnchor.className, text: normalizeLabel(initialAnchor) });
+    }
+
+    function resetIfDetached() {
+      if (wrapperRef.current && !wrapperRef.current.isConnected) {
+        setWrapperEl(prev => (prev === wrapperRef.current ? null : prev));
+        wrapperRef.current = null;
+        resolvedRef.current = false;
+      }
+      if (anchorElRef.current && !anchorElRef.current.isConnected) {
+        anchorElRef.current = null;
+        resolvedRef.current = false;
+      }
+    }
+
+    function resolveAnchor() {
+      resetIfDetached();
+      const toolbar = queryToolbarContainer();
+      if (toolbar) {
+        const toolbarAnchor = queryAnchorInContainer(toolbar);
+        if (toolbarAnchor) {
+          if (anchorElRef.current !== toolbarAnchor) {
+            attach(toolbarAnchor);
+            applyColorFromAnchor(toolbarAnchor);
+          } else if (wrapperRef.current && (wrapperRef.current.parentElement !== toolbarAnchor.parentElement || wrapperRef.current.nextSibling !== toolbarAnchor)) {
+            ensureWrapperForAnchor(toolbarAnchor);
+            captureAnchorMetrics(toolbarAnchor);
+            applyColorFromAnchor(toolbarAnchor);
+          } else {
+            // Anchor同一でもスタイル変化に追従
+            captureAnchorMetrics(toolbarAnchor);
+            applyColorFromAnchor(toolbarAnchor);
+          }
+          return;
+        }
+      }
+
+      // Prefer re-attaching only when current anchor is missing
+      if (anchorElRef.current && anchorElRef.current.isConnected && resolvedRef.current) {
+        return;
+      }
+
+      const fallback = findAnchorOnce();
+      if (fallback) {
+        attach(fallback);
+      }
+    }
+
+    resolveAnchor();
+    const observer = new MutationObserver(() => {
+      // don't run resolveAnchor synchronously on every mutation; debounce/batch instead
+      scheduleResolve();
+    });
+    // observe structural changes; avoid observing all attributes globally (expensive)
+    try {
+      observer.observe(document.body, { childList: true, subtree: true });
+    } catch (e) {
+      // fallback: observe documentElement
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    }
+
+    return () => {
+      try { observer.disconnect(); } catch (e) { /* ignore */ }
+      try { if (debounceRef.id) window.clearTimeout(debounceRef.id); } catch (e) { /* ignore */ }
+    };
+  }, []);
+
+  // Force important inline styles on the real button element in case external CSS uses !important
+  React.useEffect(() => {
+    if (!wrapperEl) return;
+    try {
+      const btn = wrapperEl.querySelector('button.vivlio-toggle-btn') as HTMLElement | null;
+      if (!btn) return;
+  // vivid multi-stop 3D gradient (restore earlier appearance)
+  const activeBg = 'linear-gradient(135deg, #1a63b8 0%, #3b82f6 18%, #1a63b8 28%, #d05232 48%, #f28b6b 68%, #1a63b8 100%)';
+  // OFF overlay: radial darkening focused on center to keep rim visible
+  const radialOff = 'radial-gradient(circle at center, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.78) 40%, rgba(0,0,0,0.68) 65%, rgba(0,0,0,0.0) 100%)';
+  const offBg = `${radialOff}, ${activeBg}`;
+  // apply bg depending on state
+  btn.style.setProperty('background', isOpen ? activeBg : offBg, 'important');
+  // animate background scroll by toggling background-position
+  const pos = isOpen ? '100% 50%' : '0% 50%';
+  btn.style.setProperty('background-position', pos, 'important');
+  // text color: white when active, muted gray when off
+  btn.style.setProperty('color', isOpen ? '#ffffff' : '#9aa0a6', 'important');
+  // remove global filter; darkness handled by radial overlay and inset shadow
+  btn.style.setProperty('filter', 'none', 'important');
+  // keep the same outer drop shadow offset between states to avoid visual shift
+  const activeShadow = '0 4px 0 rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.12)';
+  const offShadow = '0 4px 0 rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -12px 28px rgba(0,0,0,0.9)';
+  btn.style.setProperty('box-shadow', isOpen ? activeShadow : offShadow, 'important');
+  // always keep a 1px rim border so size doesn't change between states; vary alpha for emphasis
+  // enforce consistent border width and box-sizing so toggling doesn't change layout
+  btn.style.setProperty('border', '1px solid rgba(255,255,255,0.12)', 'important');
+  btn.style.setProperty('box-sizing', 'border-box', 'important');
+  // force uniform 4-corner border radius
+  btn.style.setProperty('border-radius', '6px', 'important');
+      btn.style.setProperty('border-radius', '6px', 'important');
+      btn.style.setProperty('padding', '6px 10px', 'important');
+      btn.style.setProperty('font-weight', '600', 'important');
+      // apply measured metrics from anchor when available to match size/spacing
+      if (anchorMetrics) {
+        try {
+          if (anchorMetrics.height) btn.style.setProperty('height', anchorMetrics.height, 'important');
+          if (anchorMetrics.fontSize) btn.style.setProperty('font-size', anchorMetrics.fontSize, 'important');
+          // avoid using anchor line-height directly; keep normal to center text inside inline-flex
+          btn.style.setProperty('line-height', 'normal', 'important');
+          // use top/bottom + left/right padding if available
+          const pt = anchorMetrics.paddingTop || '6px';
+          const pb = anchorMetrics.paddingBottom || '6px';
+          const pl = anchorMetrics.paddingLeft || '10px';
+          const pr = anchorMetrics.paddingRight || '10px';
+          btn.style.setProperty('padding', `${pt} ${pr}`, 'important');
+          // border-radius: if anchor has 0px, fallback to 6px for rounded look
+          const br = (anchorMetrics.borderRadius && anchorMetrics.borderRadius !== '0px') ? anchorMetrics.borderRadius : '6px';
+          btn.style.setProperty('border-radius', br, 'important');
+          if (anchorMetrics.minWidth) btn.style.setProperty('min-width', anchorMetrics.minWidth, 'important');
+        } catch (e) { /* ignore */ }
+      }
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][ExternalToggle] applied important inline styles to button (isOpen=' + isOpen + ')');
+    } catch (e) {
+      // ignore
+    }
+  }, [wrapperEl, isOpen, anchorMetrics]);
+
+  // Show/hide the wrapper depending on whether we're in editing mode.
+  // Avoid polling; use MutationObserver to watch for class changes on the layout root.
+  React.useEffect(() => {
+    if (!wrapperEl) return;
+
+    const getRoot = () => document.querySelector('.layout-root') || document.documentElement;
+
+    const applyVisibility = () => {
+      const root = getRoot();
+      const isEditing = root && root.classList && root.classList.contains('editing');
+      try {
+        wrapperEl.style.display = isEditing ? 'inline-flex' : 'none';
+      } catch (e) { /* ignore */ }
+    };
+
+    // initial
+    applyVisibility();
+
+    const observer = new MutationObserver((mutations) => {
+      // only react to attribute/class changes or subtree changes that may affect layout-root
+      for (const m of mutations) {
+        if (m.type === 'attributes' && m.attributeName === 'class') {
+          applyVisibility();
+          return;
+        }
+        if (m.type === 'childList') {
+          applyVisibility();
+          return;
+        }
+      }
+    });
+
+    // observe the whole document for class/structure changes; lightweight enough for this use
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'], subtree: true, childList: true });
+
+    return () => observer.disconnect();
+  }, [wrapperEl]);
+
+  if (!wrapperEl) return null;
+  // アンカー基準クラスから active を除去し、状態に応じて付与
+  const baseClasses = anchorClasses
+    .split(/\s+/)
+    .filter(c => c && c !== 'active')
+    .join(' ');
+  const finalClassName = `${baseClasses} vivlio-toggle-btn vivlio-comp${isOpen ? ' active' : ''}`.trim();
+  // inline style: 立体的なグラデーション（提供画像のブルー→オレンジ系）と白文字を強制
+  const buttonStyle: React.CSSProperties = {
+    // balanced blue > red > blue areas with smooth transitions
+  background: 'linear-gradient(135deg, #1a63b8 0%, #1a63b8 25%, #d05232 25%, #d05232 75%, #1a63b8 75%, #1a63b8 100%)',
+  color: '#ffffff',
+  // keep a 1px rim always to avoid size shifts when toggling
+  border: '1px solid rgba(255,255,255,0.08)',
+  padding: '6px 10px',
+  borderRadius: '6px',
+  boxShadow: '0 4px 0 rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.12)',
+  boxSizing: 'border-box',
+    cursor: 'pointer',
+    fontWeight: 600,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    lineHeight: 'normal',
+    verticalAlign: 'middle',
+    // ensure CSS custom props don't override visible color
+    WebkitAppearance: 'none',
+  // make background scrollable and animate position
+  backgroundSize: '200% 100%',
+  backgroundPosition: '0% 50%',
+  transition: 'background-position 0.225s ease, color 0.225s ease, box-shadow 0.225s ease, border-color 0.225s ease',
+  };
+
+  return createPortal(
+    <button
+      type="button"
+      className={finalClassName}
+      style={buttonStyle}
+      onClick={(e) => {
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][ExternalToggle] click', { isOpenBefore: isOpen, time: Date.now(), anchorClasses });
+        // Try to synchronously read current editor Markdown and push it into context so
+        // the Vivliostyle preview uses the freshest content when opened.
+        try {
+          const md = readEditorMarkdownSnapshot();
+          if (md && typeof forceUpdateMarkdown === 'function') {
+            try { forceUpdateMarkdown(md); } catch (e) { /* ignore */ }
+          }
+        } catch (e) { /* ignore */ }
+
+        toggle();
+      }}
+      aria-pressed={isOpen}
+      title="Toggle Vivliostyle Preview"
+      data-vivlio-toggle="true"
+    >
+      Vivliostyle
+    </button>,
+    wrapperEl
+  );
+};
+
+export default ExternalToggle;

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Vivliostyle Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://unpkg.com/@vivliostyle/viewer@2.34.1/dist/vivliostyle-viewer.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/@vivliostyle/viewer@2.34.1/dist/viewer/vivliostyle-viewer.css">
+  <style>
+    html, body { height: 100%; margin: 0; padding: 0; }
+    #viewer { height: 100%; }
+  </style>
+</head>
+<body>
+  <div id="viewer"></div>
+  <script>
+    // URL fragment からソースURLを取得 (#x=URL形式)
+    const params = new URLSearchParams(location.hash.substr(1));
+    const sourceUrl = params.get('x');
+    
+    if (sourceUrl) {
+      console.log('[PLAN-B] Loading source:', sourceUrl);
+      
+      // 公式 Viewer API での標準的な初期化
+      window.addEventListener('DOMContentLoaded', () => {
+        const viewer = Vivliostyle.viewer.create(document.getElementById('viewer'));
+        
+        viewer.load({
+          source: sourceUrl,
+          // profile: 'vivliostyle/profiles/default.js' // 必要に応じて
+        }).then(() => {
+          console.log('[PLAN-B] Load successful');
+        }).catch(err => {
+          console.error('[PLAN-B] Load failed:', err);
+        });
+      });
+    } else {
+      document.body.innerHTML = '<p style="padding:20px;color:#666;">No source URL specified. Use #x=URL format.</p>';
+    }
+  </script>
+</body>
+</html>
