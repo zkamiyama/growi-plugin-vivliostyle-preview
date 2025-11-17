@@ -40,16 +40,42 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [showRaw, setShowRaw] = useState(false);
   const [timeSliceInfo, setTimeSliceInfo] = useState<{ count: number; lastTimestamp: number } | null>(null);
 
-  // Save current page before reset when markdown changes (lower layer preservation)
+  // Track stable page position (page that hasn't changed for 1 second)
+  const stablePageRef = useRef<number>(1);
+  const stablePageTimerRef = useRef<number | null>(null);
+
+  // Update stable page when page changes and stays for 1 second
+  useEffect(() => {
+    if (stablePageTimerRef.current !== null) {
+      window.clearTimeout(stablePageTimerRef.current);
+    }
+    
+    stablePageTimerRef.current = window.setTimeout(() => {
+      if (page !== stablePageRef.current) {
+        stablePageRef.current = page;
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][preserve][parent] stable page updated to', page);
+      }
+      stablePageTimerRef.current = null;
+    }, 1000); // Wait 1 second before considering page stable
+
+    return () => {
+      if (stablePageTimerRef.current !== null) {
+        window.clearTimeout(stablePageTimerRef.current);
+      }
+    };
+  }, [page]);
+
+  // Save STABLE page before reset when markdown changes (not the current page)
   const lastMarkdownRef = useRef<string>(markdown);
   useEffect(() => {
     if (markdown !== lastMarkdownRef.current) {
-      // Save page BEFORE any state changes
-      savedPageOnMarkdownChangeRef.current = page;
+      // Save the STABLE page (not current page which might be mid-navigation)
+      savedPageOnMarkdownChangeRef.current = stablePageRef.current;
       // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][preserve][parent] savedPageOnMarkdownChangeRef =', page);
+      console.debug('[VivlioDBG][preserve][parent] savedPageOnMarkdownChangeRef =', stablePageRef.current, '(stable, not current', page, ')');
       lastMarkdownRef.current = markdown;
-      // Now reset (which will use the saved page for restoration)
+      // Now reset (which will use the saved stable page for restoration)
       reset();
     }
   }, [markdown, reset, page]);
