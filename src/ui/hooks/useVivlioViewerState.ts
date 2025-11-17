@@ -12,6 +12,7 @@ export interface ViewerStateHandlers {
   handleRendererNavigation: (state: unknown) => void;
   reset: () => void;
   renderProgress: { page: number | null; pageCount: number | null; lastSource: 'load' | 'nav' | null };
+  pageSourceRef: React.MutableRefObject<'user' | 'renderer'>;
 }
 
 type RendererState = {
@@ -37,6 +38,7 @@ export function useVivlioViewerState(
   const [renderProgress, setRenderProgress] = useState<{ page: number | null; pageCount: number | null; lastSource: 'load' | 'nav' | null }>({ page: null, pageCount: null, lastSource: null });
   const pageCountRef = useRef<number | null>(null);
   const lastRendererPageRef = useRef<number | null>(null);
+  const pageSourceRef = useRef<'user' | 'renderer'>('renderer');
   const lastUserNavTsRef = useRef<number | null>(null);
   const pendingSpreadAlignRef = useRef<number | null>(null);
   const modeSwitchSuppressRef = useRef<number | null>(null);
@@ -156,6 +158,7 @@ export function useVivlioViewerState(
         pendingSpreadAlignRef.current = null;
       }
       lastRendererPageRef.current = normalized;
+      pageSourceRef.current = 'renderer';
       setRenderProgress({ page: normalized, pageCount: candidateCount ?? pageCountRef.current, lastSource: source });
       setPageState(normalized);
       return;
@@ -174,7 +177,9 @@ export function useVivlioViewerState(
   const gotoPage = useCallback((pageNumber: number) => {
     lastUserNavTsRef.current = Date.now();
     pendingSpreadAlignRef.current = null;
-    setPageState(() => normalizeForViewMode(pageNumber));
+    const target = normalizeForViewMode(pageNumber);
+    pageSourceRef.current = 'user';
+    setPageState(() => target);
   }, [normalizeForViewMode]);
 
   const nextPage = useCallback(() => {
@@ -189,6 +194,7 @@ export function useVivlioViewerState(
           console.debug('[VivlioDBG][preserve][hook] nextPage called', {
             from: current, to: next, userNavTs: lastUserNavTsRef.current, mode: 'SPREAD'
           });
+          pageSourceRef.current = 'user';
           return next;
         }
         // Normal case: advance by 2 pages
@@ -197,6 +203,7 @@ export function useVivlioViewerState(
         console.debug('[VivlioDBG][preserve][hook] nextPage called', {
           from: current, to: next, userNavTs: lastUserNavTsRef.current, mode: 'SPREAD'
         });
+        pageSourceRef.current = 'user';
         return next;
       }
       // Single page mode: advance by 1
@@ -205,6 +212,7 @@ export function useVivlioViewerState(
       console.debug('[VivlioDBG][preserve][hook] nextPage called', {
         from: current, to: next, userNavTs: lastUserNavTsRef.current, mode: 'SINGLE'
       });
+      pageSourceRef.current = 'user';
       return next;
     });
   }, [normalizeForViewMode, pageViewMode, readingDirection]);
@@ -220,6 +228,7 @@ export function useVivlioViewerState(
           console.debug('[VivlioDBG][preserve][hook] prevPage called', {
             from: current, to: 1, userNavTs: lastUserNavTsRef.current, mode: 'SPREAD'
           });
+          pageSourceRef.current = 'user';
           return 1;
         }
         // Normal case: go back by 2 pages
@@ -228,6 +237,7 @@ export function useVivlioViewerState(
         console.debug('[VivlioDBG][preserve][hook] prevPage called', {
           from: current, to: next, userNavTs: lastUserNavTsRef.current, mode: 'SPREAD'
         });
+        pageSourceRef.current = 'user';
         return next;
       }
       // Single page mode: go back by 1
@@ -236,6 +246,7 @@ export function useVivlioViewerState(
       console.debug('[VivlioDBG][preserve][hook] prevPage called', {
         from: current, to: next, userNavTs: lastUserNavTsRef.current, mode: 'SINGLE'
       });
+      pageSourceRef.current = 'user';
       return next;
     });
   }, [normalizeForViewMode, pageViewMode]);
@@ -278,6 +289,7 @@ export function useVivlioViewerState(
         // eslint-disable-next-line no-console
         console.debug('[VivlioDBG][preserve][hook] RAF: about to setPageState to', normalized, 'from savedPage =', savedPage, 'candidateCount =', candidateCount);
         setRenderProgress({ page: normalized, pageCount: candidateCount ?? pageCountRef.current, lastSource: 'load' });
+        pageSourceRef.current = 'renderer';
         setPageState(normalized);
         lastRendererPageRef.current = normalized;
         // eslint-disable-next-line no-console
@@ -296,6 +308,7 @@ export function useVivlioViewerState(
       const normalized = normalizeForViewMode(resolved, candidateCount);
       lastRendererPageRef.current = normalized;
       setRenderProgress({ page: normalized, pageCount: candidateCount ?? pageCountRef.current, lastSource: 'load' });
+      pageSourceRef.current = 'renderer';
       setPageState(normalized);
     }
   }, [normalizeForViewMode, savedPageOnMarkdownChangeRef, clampPage, applyPageCount]);
@@ -312,6 +325,7 @@ export function useVivlioViewerState(
     pendingSpreadAlignRef.current = null;
     lastUserNavTsRef.current = null;
     setRenderProgress({ page: null, pageCount: null, lastSource: null });
+    pageSourceRef.current = 'renderer';
   }, [applyPageCount]);
 
   // Removed useEffect([pageCountState, normalizeForViewMode, viewerReady]) that was
@@ -341,5 +355,6 @@ export function useVivlioViewerState(
     handleRendererNavigation,
     reset,
     renderProgress,
+    pageSourceRef,
   };
 }

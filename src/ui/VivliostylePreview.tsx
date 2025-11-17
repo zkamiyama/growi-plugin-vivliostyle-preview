@@ -34,6 +34,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     handleRendererNavigation,
     reset,
     renderProgress,
+    pageSourceRef,
   } = useVivlioViewerState(pageViewMode, readingDirection, savedPageOnMarkdownChangeRef);
 
   const [showInfo, setShowInfo] = useState(false);
@@ -52,15 +53,20 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const lastMarkdownRef = useRef<string>(markdown);
   useEffect(() => {
     if (markdown !== lastMarkdownRef.current) {
-      const pageToSave = isBuilding ? lastConfirmedPageRef.current : page;
+      const currentSource = pageSourceRef.current;
+      const pageToSave = isBuilding
+        ? lastConfirmedPageRef.current
+        : currentSource === 'user'
+          ? page
+          : (lastConfirmedPageRef.current ?? page);
       savedPageOnMarkdownChangeRef.current = pageToSave;
       // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][preserve][parent] savedPageOnMarkdownChangeRef =', pageToSave, '(page', page, 'viewerReady', viewerReady, 'isBuilding', isBuilding, ')');
+      console.debug('[VivlioDBG][preserve][parent] savedPageOnMarkdownChangeRef =', pageToSave, '(page', page, 'viewerReady', viewerReady, 'isBuilding', isBuilding, 'source', currentSource, ')');
       lastMarkdownRef.current = markdown;
       // Now reset (which will use the saved page for restoration after rendering)
       reset();
     }
-  }, [markdown, reset, page, isBuilding, viewerReady]);
+  }, [markdown, reset, page, isBuilding, viewerReady, pageSourceRef]);
 
   useEffect(() => {
     if (viewerReady) {
