@@ -40,25 +40,27 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [showRaw, setShowRaw] = useState(false);
   const [timeSliceInfo, setTimeSliceInfo] = useState<{ count: number; lastTimestamp: number } | null>(null);
 
-  // Save current page before reset when markdown changes
-  // BUT: Skip save if already building (to avoid saving temporary page during render)
+  // Track the last page confirmed by renderer (viewerReady + not building)
+  const lastConfirmedPageRef = useRef<number>(1);
+  useEffect(() => {
+    if (!isBuilding && viewerReady) {
+      lastConfirmedPageRef.current = page;
+    }
+  }, [isBuilding, viewerReady, page]);
+
+  // Save current page (or last confirmed page if build is running) before reset when markdown changes
   const lastMarkdownRef = useRef<string>(markdown);
   useEffect(() => {
     if (markdown !== lastMarkdownRef.current) {
-      // Only save if NOT currently building (avoid saving temporary page state)
-      if (!isBuilding) {
-        savedPageOnMarkdownChangeRef.current = page;
-        // eslint-disable-next-line no-console
-        console.debug('[VivlioDBG][preserve][parent] savedPageOnMarkdownChangeRef =', page, '(saved before reset)');
-      } else {
-        // eslint-disable-next-line no-console
-        console.debug('[VivlioDBG][preserve][parent] SKIP save during build, keeping savedPageOnMarkdownChangeRef =', savedPageOnMarkdownChangeRef.current);
-      }
+      const pageToSave = isBuilding ? lastConfirmedPageRef.current : page;
+      savedPageOnMarkdownChangeRef.current = pageToSave;
+      // eslint-disable-next-line no-console
+      console.debug('[VivlioDBG][preserve][parent] savedPageOnMarkdownChangeRef =', pageToSave, '(page', page, 'viewerReady', viewerReady, 'isBuilding', isBuilding, ')');
       lastMarkdownRef.current = markdown;
       // Now reset (which will use the saved page for restoration after rendering)
       reset();
     }
-  }, [markdown, reset, page, isBuilding]);
+  }, [markdown, reset, page, isBuilding, viewerReady]);
 
   useEffect(() => {
     if (viewerReady) {
