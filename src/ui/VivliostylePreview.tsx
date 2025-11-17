@@ -40,60 +40,25 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [showRaw, setShowRaw] = useState(false);
   const [timeSliceInfo, setTimeSliceInfo] = useState<{ count: number; lastTimestamp: number } | null>(null);
 
-  // Track stable page position (page that hasn't changed for 1 second)
-  const stablePageRef = useRef<number>(1);
-  const stablePageTimerRef = useRef<number | null>(null);
-
-  // Reset stability timer when building starts
-  useEffect(() => {
-    if (isBuilding && stablePageTimerRef.current !== null) {
-      window.clearTimeout(stablePageTimerRef.current);
-      stablePageTimerRef.current = null;
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][preserve][parent] stability timer reset due to build');
-    }
-  }, [isBuilding]);
-
-  // Update stable page when page changes and stays for 1 second (without build interruption)
-  useEffect(() => {
-    if (stablePageTimerRef.current !== null) {
-      window.clearTimeout(stablePageTimerRef.current);
-    }
-    
-    // Don't start timer if currently building
-    if (isBuilding) {
-      return;
-    }
-    
-    stablePageTimerRef.current = window.setTimeout(() => {
-      if (page !== stablePageRef.current) {
-        stablePageRef.current = page;
-        // eslint-disable-next-line no-console
-        console.debug('[VivlioDBG][preserve][parent] stable page updated to', page);
-      }
-      stablePageTimerRef.current = null;
-    }, 1000); // Wait 1 second before considering page stable
-
-    return () => {
-      if (stablePageTimerRef.current !== null) {
-        window.clearTimeout(stablePageTimerRef.current);
-      }
-    };
-  }, [page, isBuilding]);
-
-  // Save STABLE page before reset when markdown changes (not the current page)
+  // Save current page before reset when markdown changes
+  // BUT: Skip save if already building (to avoid saving temporary page during render)
   const lastMarkdownRef = useRef<string>(markdown);
   useEffect(() => {
     if (markdown !== lastMarkdownRef.current) {
-      // Save the STABLE page (not current page which might be mid-navigation)
-      savedPageOnMarkdownChangeRef.current = stablePageRef.current;
-      // eslint-disable-next-line no-console
-      console.debug('[VivlioDBG][preserve][parent] savedPageOnMarkdownChangeRef =', stablePageRef.current, '(stable, not current', page, ')');
+      // Only save if NOT currently building (avoid saving temporary page state)
+      if (!isBuilding) {
+        savedPageOnMarkdownChangeRef.current = page;
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][preserve][parent] savedPageOnMarkdownChangeRef =', page, '(saved before reset)');
+      } else {
+        // eslint-disable-next-line no-console
+        console.debug('[VivlioDBG][preserve][parent] SKIP save during build, keeping savedPageOnMarkdownChangeRef =', savedPageOnMarkdownChangeRef.current);
+      }
       lastMarkdownRef.current = markdown;
-      // Now reset (which will use the saved stable page for restoration)
+      // Now reset (which will use the saved page for restoration after rendering)
       reset();
     }
-  }, [markdown, reset, page]);
+  }, [markdown, reset, page, isBuilding]);
 
   useEffect(() => {
     if (viewerReady) {
