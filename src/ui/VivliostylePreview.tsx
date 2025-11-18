@@ -213,8 +213,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         autoPreviewEnabled={isAutoPreviewEnabled}
         autoPreviewStale={isPreviewStale}
         onToggleAutoPreview={handleToggleAutoPreview}
-        jsEnabled={isJsEnabled}
-        onToggleJs={handleToggleJs}
+        /* JS toggle moved to Info panel; keep state available for viewer */
         onManualRebuild={handleManualRebuild}
         onPrevPage={prevPage}
         onNextPage={nextPage}

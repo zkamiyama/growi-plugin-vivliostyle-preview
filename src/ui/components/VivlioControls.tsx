@@ -11,8 +11,7 @@ interface VivlioControlsProps {
   autoPreviewEnabled: boolean;
   autoPreviewStale?: boolean;
   onToggleAutoPreview: () => void;
-  jsEnabled: boolean;
-  onToggleJs: () => void;
+  // removed top JS toggle; JS is enabled from Info panel
   onManualRebuild: () => void;
   onPrevPage: () => void;
   onNextPage: () => void;
@@ -60,8 +59,7 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
   autoPreviewEnabled,
   autoPreviewStale,
   onToggleAutoPreview,
-  jsEnabled,
-  onToggleJs,
+  
   onManualRebuild,
   onPrevPage,
   onNextPage,
@@ -130,16 +128,7 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
         </span>
       </div>
       <div className="vivlio-header-center">
-        <button
-          onClick={onToggleJs}
-          title={jsEnabled ? "JavaScript is ON" : "JavaScript is OFF"}
-          aria-label="Toggle JavaScript in preview"
-          aria-pressed={jsEnabled}
-          style={{ ...tagButtonStyle, background: jsEnabled ? "rgba(58,58,70,0.95)" : tagButtonStyle.background }}
-          onMouseDown={(e) => { e.preventDefault(); addPressEffect(e); }}
-        >
-          {jsLabel}
-        </button>
+        {/* JS toggle migrated to Info panel */}
         <button
           onClick={onToggleAutoPreview}
           title={autoPreviewTitle}

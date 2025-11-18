@@ -172,19 +172,7 @@ export const VivlioInfoPanel: React.FC<VivlioInfoPanelProps> = ({
         >
           <pre className="vivlio-pre">{payload ? (payload.html || '(none)') : '(not built yet)'}</pre>
         </Section>
-        <Section
-          title="Inline Scripts"
-          collapsed={collapsed.inlineJs}
-          onToggle={() => setCollapsed((state) => ({ ...state, inlineJs: !state.inlineJs }))}
-          onCopy={() => handleCopy('inlineJs', inlineScriptPreview)}
-          copied={copiedKey === 'inlineJs'}
-        >
-          <pre className="vivlio-pre-small">
-            {payload
-              ? (inlineScriptPreview || '(empty)')
-              : '(not built yet)'}
-          </pre>
-        </Section>
+        {/* Inline Scripts are shown below the enable-button */}
         <div className="vivlio-info-footer" style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
           <div style={{ fontSize: 12, lineHeight: 1.5, color: 'rgba(255,255,255,0.85)', marginBottom: 8 }}>
             ⚠️ Enable only trusted scripts. Injected JavaScript runs with full access to the GROWI page.
@@ -212,6 +200,22 @@ export const VivlioInfoPanel: React.FC<VivlioInfoPanelProps> = ({
             {jsEnabled ? 'JavaScript is active' : 'Enable JavaScript preview'}
           </button>
         </div>
+        {/* Inline Scripts: show _after_ the enable button to make the control the primary focus */}
+        {payload && payload.inlineScripts && payload.inlineScripts.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <Section
+              title="Inline Scripts"
+              collapsed={collapsed.inlineJs}
+              onToggle={() => setCollapsed((state) => ({ ...state, inlineJs: !state.inlineJs }))}
+              onCopy={() => handleCopy('inlineJs', inlineScriptPreview)}
+              copied={copiedKey === 'inlineJs'}
+            >
+              <pre className="vivlio-pre-small">
+                {inlineScriptPreview || '(empty)'}
+              </pre>
+            </Section>
+          </div>
+        )}
       </div>
     </div>
   );
