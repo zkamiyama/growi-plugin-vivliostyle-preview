@@ -95,12 +95,6 @@ export function useRendererLoadWithScripts(...) {
     if (!iframeDocument) return;
 
     scripts.forEach((scriptCode, idx) => {
-      const validation = validateInlineScript(scriptCode);
-      if (!validation.allowed) {
-        console.warn('[VivlioSecurity] Blocked inline script', { index: idx, reason: validation.reason });
-        return;
-      }
-
       const scriptElement = iframeDocument.createElement('script');
       scriptElement.type = 'module';
       scriptElement.textContent = scriptCode;
@@ -150,7 +144,7 @@ const applyPayload = (next: VivlioPayload) => {
 
 **対策**:
 - スクリプトはiframeドキュメントに直接 `type="module"` として挿入し、自然にiframe側の`document`/`window`を参照する。
-- 挿入直前に `INLINE_SCRIPT_GUARD` で危険なAPI呼び出しを検査し、怪しいコードはブロックする。
+- VivliostyleプレビューではデフォルトでJavaScriptが無効なため、利用時に手動で有効化する（下記参照）。
 - ユーザースクリプトは「iframe内DOMのみ操作する」前提。
 
 ### 将来の改善案
@@ -159,16 +153,12 @@ const applyPayload = (next: VivlioPayload) => {
 1. `@vivliostyle/react`をForkして`data:` URLまたは`blob:` URL（異なるオリジン）を使用
 2. ユーザースクリプトを「安全なサブセット」に制限するサンドボックス機構を追加
 
-### 最低限のセキュリティガード（2025-11-18追加）
+### プレビューでJavaScriptを有効化する手順
 
-- プラグインでJavaScriptを有効化した場合でも、以下の危険なAPI呼び出しを検知すると警告を出して実行をスキップします。
-  - `parent.document` や `window.parent.document`
-  - `parent.location` / `parent.history` / `top.location` など、親・最上位ウィンドウのナビゲーション操作
-  - `parent.postMessage(...)` / `top.postMessage(...)`
-  - `document.cookie` へのアクセス
-  - `localStorage` / `sessionStorage`
-- 目的: 組版向けのDOM操作は許容しつつ、親ウィンドウ操作やネットワーク送信といった典型的なXSSベクトルを即座に遮断する。
-- ブロックされた場合はブラウザコンソールに `[VivlioSecurity] Blocked inline script` が表示されるので、必要であれば安全な別実装へ書き換えてください。
+- ヘッダーバーの `JS` ボタン、または Info パネル最下部の **Enable JavaScript preview** ボタンから手動で有効化します。
+- どちらのボタンも同じステートを共有しており、「一度有効化したら再ビルド」が自動で走ります。
+- Info パネル上には「信頼できるスクリプトのみ実行する」旨の警告を常に表示しています。
+- JavaScriptはGROWI親ウィンドウと同一オリジンで実行されるため、テスト済みの安全なコードのみ有効化してください。
 
 ## ユーザースクリプトの書き方ガイド
 
@@ -340,8 +330,12 @@ console.log('[UserScript] START', {
 
 ### 2025-01-30: ネイティブESM注入
 - iframeに直接 `type="module"` を挿入し、ラッパーを撤廃
-- `INLINE_SCRIPT_GUARD` を強化し、危険API利用時は即ブロック
 - Vivlioログを整理してトラブルシューティングを簡素化
+
+### 2025-11-18: 手動有効化フロー
+- インラインスクリプトガードを撤廃し、Infoパネルに「JavaScriptを有効にする」ボタンを追加
+- ヘッダーバーの `JS` トグルと連動し、明示操作時のみスクリプトを挿入
+- ドキュメントに注意喚起と手順を追記
 
 ### 制約の記録
 - `about:srcdoc`使用により完全分離は不可能

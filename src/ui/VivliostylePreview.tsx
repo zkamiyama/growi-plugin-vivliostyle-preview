@@ -66,6 +66,11 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
     setIsJsEnabled((prev) => !prev);
     handleManualRebuild();
   }, [handleManualRebuild]);
+  const handleEnableJsFromInfo = useCallback(() => {
+    if (isJsEnabled) return;
+    setIsJsEnabled(true);
+    handleManualRebuild();
+  }, [isJsEnabled, handleManualRebuild]);
   const isPreviewStale = !isAutoPreviewEnabled && previewMarkdown !== incomingMarkdown;
 
   // Track the last page confirmed by renderer (viewerReady + not building)
@@ -252,6 +257,8 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
             payload={payload}
             readingDirection={readingDirection}
             onRefreshDependencies={refreshDependencies}
+            jsEnabled={isJsEnabled}
+            onEnableJavaScript={handleEnableJsFromInfo}
           />
         )}
       </div>
