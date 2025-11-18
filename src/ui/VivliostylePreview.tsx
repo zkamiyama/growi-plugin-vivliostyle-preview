@@ -57,7 +57,10 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   }, []);
   const handleManualRebuild = useCallback(() => {
     setPreviewMarkdown(incomingMarkdown);
-  }, [incomingMarkdown]);
+    if (previewMarkdown === incomingMarkdown) {
+      retryBuild();
+    }
+  }, [incomingMarkdown, previewMarkdown, retryBuild]);
   const isPreviewStale = !isAutoPreviewEnabled && previewMarkdown !== incomingMarkdown;
 
   // Track the last page confirmed by renderer (viewerReady + not building)
