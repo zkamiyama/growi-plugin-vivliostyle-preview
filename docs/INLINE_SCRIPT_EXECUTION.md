@@ -165,6 +165,17 @@ const applyPayload = (next: VivlioPayload) => {
 1. `@vivliostyle/react`をForkして`data:` URLまたは`blob:` URL（異なるオリジン）を使用
 2. ユーザースクリプトを「安全なサブセット」に制限するサンドボックス機構を追加
 
+### 最低限のセキュリティガード（2025-11-18追加）
+
+- プラグインでJavaScriptを有効化した場合でも、以下のキーワードを含むスクリプトは警告を出して実行をスキップします。
+  - `parent` / `top` / `location`
+  - `document.cookie`
+  - `fetch` / `XMLHttpRequest` / `WebSocket`
+  - `localStorage` / `sessionStorage`
+  - `postMessage`
+- 目的: 組版向けのDOM操作は許容しつつ、親ウィンドウ操作やネットワーク送信といった典型的なXSSベクトルを即座に遮断する。
+- ブロックされた場合はブラウザコンソールに `[VivlioSecurity] Blocked inline script` が表示されるので、必要であれば安全な別実装へ書き換えてください。
+
 ## ユーザースクリプトの書き方ガイド
 
 ### CLIとプラグイン両対応のスクリプト

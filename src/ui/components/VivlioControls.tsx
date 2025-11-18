@@ -166,6 +166,7 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
             viewBox="0 0 24 24"
             style={{ display: "block" }}
           >
+            {/* Double-arrow refresh icon: two mirrored arcs with arrowheads */}
             <path
               d="M21 12a9 9 0 1 1-4.24-7.57"
               fill="none"
@@ -176,6 +177,22 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
             />
             <path
               d="M21 4v6h-6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M3 12a9 9 0 1 0 4.24 7.57"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M3 20v-6h6"
               fill="none"
               stroke="currentColor"
               strokeWidth="3"

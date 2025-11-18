@@ -2,6 +2,33 @@ import { useCallback } from 'react';
 import type { RefObject } from 'react';
 import type { VivlioPayload } from './useVivlioBuild';
 
+type InlineScriptViolation = {
+  reason: string;
+  pattern: RegExp;
+};
+
+// Minimal allowlist-inspired guard: block clear XSS vectors but keep benign layout scripts working.
+const INLINE_SCRIPT_GUARD: InlineScriptViolation[] = [
+  { reason: 'accessing parent window', pattern: /\b(parent|top)\b/gi },
+  { reason: 'navigating via location', pattern: /\blocation\b/gi },
+  { reason: 'reading cookies', pattern: /document\.cookie/gi },
+  { reason: 'network access (fetch)', pattern: /\bfetch\b/gi },
+  { reason: 'network access (XMLHttpRequest)', pattern: /XMLHttpRequest/gi },
+  { reason: 'network access (WebSocket)', pattern: /WebSocket/gi },
+  { reason: 'storage access', pattern: /localStorage|sessionStorage/gi },
+  { reason: 'messaging parent frame', pattern: /postMessage/gi },
+];
+
+function validateInlineScript(scriptCode: string): { allowed: boolean; reason?: string } {
+  for (const rule of INLINE_SCRIPT_GUARD) {
+    rule.pattern.lastIndex = 0; // ensure deterministic checks for /g regexes
+    if (rule.pattern.test(scriptCode)) {
+      return { allowed: false, reason: rule.reason };
+    }
+  }
+  return { allowed: true };
+}
+
 interface Params {
   payload: VivlioPayload | null;
   iframeRef: RefObject<HTMLIFrameElement | null>;
@@ -32,6 +59,15 @@ export function useRendererLoadWithScripts({ payload, iframeRef, onRendererLoad 
 
     scripts.forEach((scriptCode: string, idx: number) => {
       try {
+        const validation = validateInlineScript(scriptCode);
+        if (!validation.allowed) {
+          console.warn('[VivlioSecurity] Blocked inline script', {
+            index: idx,
+            reason: validation.reason,
+          });
+          return;
+        }
+
         const scriptElement = iframeDocument.createElement('script');
         scriptElement.type = 'module';
 
