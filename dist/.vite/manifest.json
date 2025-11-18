@@ -10,8 +10,8 @@
       "_pdf-vendor-BMuSt807.js"
     ]
   },
-  "_vivliostyle-vendor-8orPiVOF.js": {
-    "file": "assets/vivliostyle-vendor-8orPiVOF.js",
+  "_vivliostyle-vendor-BLOEt5NL.js": {
+    "file": "assets/vivliostyle-vendor-BLOEt5NL.js",
     "name": "vivliostyle-vendor",
     "imports": [
       "_pdf-vendor-BMuSt807.js",
@@ -19,13 +19,13 @@
     ]
   },
   "client-entry.tsx": {
-    "file": "assets/client-entry-CmeG1_S-.js",
+    "file": "assets/client-entry-BGhHvEZt.js",
     "name": "client-entry",
     "src": "client-entry.tsx",
     "isEntry": true,
     "imports": [
       "_react-vendor-ITi3kJGI.js",
-      "_vivliostyle-vendor-8orPiVOF.js",
+      "_vivliostyle-vendor-BLOEt5NL.js",
       "_pdf-vendor-BMuSt807.js"
     ],
     "css": [

@@ -144,7 +144,16 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
           onClick={() => onManualRebuild()}
           title="Force rebuild preview"
           aria-label="Force rebuild preview"
-          style={{ ...tagButtonStyle, marginLeft: 6 }}
+          style={{
+            ...tagButtonStyle,
+            marginLeft: 6,
+            // Highlight the button when preview is stale to avoid star-induced width changes
+            ...(autoPreviewStale ? {
+              background: 'linear-gradient(90deg, rgba(255,215,0,0.12), rgba(255,215,0,0.04))',
+              border: '1px solid rgba(255,215,0,0.8)',
+              boxShadow: '0 8px 18px rgba(255,215,0,0.06)'
+            } : {}),
+          }}
           onMouseDown={(e) => { e.preventDefault(); addPressEffect(e); }} // prevent focus shift
           className="vivlio-button"
         >
@@ -205,12 +214,7 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
               strokeLinejoin="round"
             />
           </svg>
-          {/* show a small "*" when the preview is stale (auto preview is off and there are updates) */}
-          {autoPreviewStale && (
-            <span style={{ marginLeft: 6, color: '#ffda00', fontWeight: 700, fontSize: 12 }} aria-hidden>
-              *
-            </span>
-          )}
+          {/* Visual highlight indicates stale state (no star) */}
         </button>
       </div>
       <div className="vivlio-header-right">
