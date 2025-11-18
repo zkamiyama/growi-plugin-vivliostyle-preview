@@ -44,7 +44,8 @@ const baseButton: React.CSSProperties = {
   fontSize: 12,
   lineHeight: 1,
   backdropFilter: "blur(6px)",
-  transition: "background 0.2s ease, transform 0.2s ease",
+  // Halved transition durations to make animations twice as fast
+  transition: "background 0.1s ease, transform 0.1s ease",
 };
 
 const navButtonStyle: React.CSSProperties = { ...baseButton, minWidth: 38 };
@@ -259,6 +260,7 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
           title="Toggle raw HTML"
           aria-label="Toggle raw HTML"
           style={{ ...tagButtonStyle, background: showRaw ? "rgba(58,58,70,0.95)" : tagButtonStyle.background }}
+          onMouseDown={addPressEffect}
         >
           HTML
         </button>
@@ -267,6 +269,7 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
           title="Toggle info"
           aria-label="Toggle info"
           style={{ ...tagButtonStyle, background: showInfo ? "rgba(58,58,70,0.95)" : tagButtonStyle.background }}
+          onMouseDown={addPressEffect}
         >
           INFO
         </button>

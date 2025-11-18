@@ -38,7 +38,8 @@
 }
 
 .vivlio-button {
-  transition: transform .08s ease, box-shadow .08s ease;
+  /* Half the previous duration to make the press animation quicker */
+  transition: transform .04s ease, box-shadow .04s ease;
 }
 
 .vivlio-button-pressed {
