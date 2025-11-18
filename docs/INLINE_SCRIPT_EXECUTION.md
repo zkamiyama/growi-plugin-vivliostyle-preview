@@ -79,47 +79,41 @@ export async function buildVfmPayloadAsync(...) {
 }
 ```
 
-#### 2. iframe内での手動実行 (`VivlioViewerFrame.tsx`)
+#### 2. iframe内での手動実行 (`useRendererLoadWithScripts.ts`)
 
 ```typescript
 // Renderer完了後にスクリプトを注入
-useEffect(() => {
-  if (!payload?.inlineScripts || payload.inlineScripts.length === 0) {
-    return;
-  }
-  
-  const shellIframe = iframeRef.current;
-  const iframeDocument = shellIframe.contentDocument;
-  const iframeWindow = iframeDocument.defaultView || shellIframe.contentWindow;
-  
-  payload.inlineScripts.forEach((scriptCode, idx) => {
-    // 一時グローバル変数にiframe contextを格納
-    const tempVarName = `__vivlio_script_ctx_${Date.now()}_${idx}`;
-    (window as any)[tempVarName] = { doc: iframeDocument, win: iframeWindow };
-    
-    // IIFEでラップして実行
-    const wrappedCode = `
-(function() {
-  const ctx = self.parent['${tempVarName}'];
-  delete self.parent['${tempVarName}'];
-  
-  const document = ctx.doc;
-  const window = ctx.win;
-  
-  try {
-    ${scriptCode}
-  } catch (err) {
-    console.error('[VivlioDBG] User script error:', err);
-  }
-})();
-`;
-    
-    const scriptElement = iframeDocument.createElement('script');
-    scriptElement.type = 'module';
-    scriptElement.textContent = wrappedCode;
-    iframeDocument.body.appendChild(scriptElement);
-  });
-}, [payload?.inlineScripts]);
+export function useRendererLoadWithScripts(...) {
+  return useCallback((state) => {
+    onRendererLoad(state);
+
+    const scripts = payload?.inlineScripts;
+    if (!scripts?.length) return;
+
+    const shellIframe = iframeRef.current;
+    const iframeDocument = shellIframe?.contentDocument || shellIframe?.contentWindow?.document;
+    if (!iframeDocument) return;
+
+    scripts.forEach((scriptCode, idx) => {
+      const validation = validateInlineScript(scriptCode);
+      if (!validation.allowed) {
+        console.warn('[VivlioSecurity] Blocked inline script', { index: idx, reason: validation.reason });
+        return;
+      }
+
+      const scriptElement = iframeDocument.createElement('script');
+      scriptElement.type = 'module';
+      scriptElement.textContent = scriptCode;
+      (iframeDocument.body || iframeDocument.documentElement).appendChild(scriptElement);
+
+      console.debug('[VivlioDBG] Script injected into iframe', {
+        index: idx,
+        total: scripts.length,
+        iframeTitle: iframeDocument.title,
+      });
+    });
+  }, [payload?.inlineScripts, iframeRef]);
+}
 ```
 
 #### 3. ビューワーへのHTML供給 (`useVivlioBuild.ts`)
@@ -155,9 +149,9 @@ const applyPayload = (next: VivlioPayload) => {
 - 完全な分離は**原理的に不可能**
 
 **対策**:
-- IIFEで`document`/`window`を明示的にiframe内のものに束縛
-- 一時グローバル変数経由でiframe contextを渡す
-- ユーザースクリプトは「iframe内DOMのみ操作する」前提
+- スクリプトはiframeドキュメントに直接 `type="module"` として挿入し、自然にiframe側の`document`/`window`を参照する。
+- 挿入直前に `INLINE_SCRIPT_GUARD` で危険なAPI呼び出しを検査し、怪しいコードはブロックする。
+- ユーザースクリプトは「iframe内DOMのみ操作する」前提。
 
 ### 将来の改善案
 
@@ -281,13 +275,13 @@ console.log('[UserScript] TreeWalker complete', { totalTextNodes });
 **症状**: プラグインプレビューで何も起きない
 
 **確認**:
-1. `[VivlioDBG] Executing N inline scripts` ログが出ているか
-2. `[VivlioDBG][wrapper] Script starting` ログが出ているか
+1. `[VivlioDBG] Executing inline script` ログが出ているか
+2. `[VivlioDBG] Script injected into iframe` ログが出ているか
 3. `[UserScript] START` ログが出ているか
 
 **対処**:
 - ログがない → スクリプトが抽出されていない（`<script type="module">`を確認）
-- wrapperログまで出る → ユーザースクリプト内のエラー（try-catchで捕捉）
+- Vivlioログまでは出る → ユーザースクリプト内のエラー（try-catchで捕捉）
 
 ### 親ウィンドウのUIが壊れる
 
@@ -343,6 +337,11 @@ console.log('[UserScript] START', {
 - payload.inlineScripts方式を導入
 - IIFE wrapper + 一時グローバル変数でiframe context渡し
 - html/htmlForIframe分離でCLI/PDF互換性維持
+
+### 2025-01-30: ネイティブESM注入
+- iframeに直接 `type="module"` を挿入し、ラッパーを撤廃
+- `INLINE_SCRIPT_GUARD` を強化し、危険API利用時は即ブロック
+- Vivlioログを整理してトラブルシューティングを簡素化
 
 ### 制約の記録
 - `about:srcdoc`使用により完全分離は不可能

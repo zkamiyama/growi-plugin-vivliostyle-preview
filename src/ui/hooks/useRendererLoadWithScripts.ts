@@ -68,37 +68,13 @@ export function useRendererLoadWithScripts({ payload, iframeRef, onRendererLoad 
         const scriptElement = iframeDocument.createElement('script');
         scriptElement.type = 'module';
 
-        const iframeWindow = iframeDocument.defaultView || shellIframe.contentWindow;
-        const tempVarName = `__vivlio_script_ctx_${Date.now()}_${idx}`;
-        (window as any)[tempVarName] = { doc: iframeDocument, win: iframeWindow };
-
-        console.debug(`[VivlioDBG] Executing inline script ${idx + 1}/${scripts.length}`, {
-          tempVar: tempVarName,
+        console.debug('[VivlioDBG] Executing inline script', {
+          index: idx,
+          total: scripts.length,
           iframeTitle: iframeDocument.title,
-          parentTitle: window.document.title,
         });
 
-        const wrappedCode = `
-(function() {
-  console.debug('[VivlioDBG][wrapper] Script starting, self.parent exists:', !!self.parent, 'tempVar:', '${tempVarName}');
-  const ctx = self.parent['${tempVarName}'];
-  if (!ctx) {
-    console.error('[VivlioDBG] Script context not found, tempVar=${tempVarName}');
-    return;
-  }
-  console.debug('[VivlioDBG][wrapper] Context retrieved, doc.title:', ctx.doc.title);
-  delete self.parent['${tempVarName}'];
-  const document = ctx.doc;
-  const window = ctx.win;
-  console.debug('[VivlioDBG][wrapper] Variables bound, document.title:', document.title, 'window === ctx.win:', window === ctx.win);
-  try {
-${scriptCode}
-  } catch (err) {
-    console.error('[VivlioDBG] User script error:', err);
-  }
-})();
-`;
-        scriptElement.textContent = wrappedCode;
+        scriptElement.textContent = scriptCode;
         (iframeDocument.body || iframeDocument.documentElement).appendChild(scriptElement);
 
         console.debug('[VivlioDBG] Script injected into iframe', {
