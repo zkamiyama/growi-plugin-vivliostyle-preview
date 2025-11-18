@@ -8,6 +8,9 @@ interface VivlioControlsProps {
   onToggleInfo: () => void;
   showRaw: boolean;
   onToggleRaw: () => void;
+  autoPreviewEnabled: boolean;
+  autoPreviewStale?: boolean;
+  onToggleAutoPreview: () => void;
   onPrevPage: () => void;
   onNextPage: () => void;
   viewerReady: boolean;
@@ -51,6 +54,9 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
   onToggleInfo,
   showRaw,
   onToggleRaw,
+  autoPreviewEnabled,
+  autoPreviewStale,
+  onToggleAutoPreview,
   onPrevPage,
   onNextPage,
   viewerReady,
@@ -73,6 +79,12 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
   // The button still toggles view but the label should remain a single glyph
   const viewModeLabel = "2";
   const viewModeTitle = pageViewMode === PageViewMode.SPREAD ? "Switch to single-page view" : "Switch to spread view";
+  const autoPreviewTitle = autoPreviewEnabled
+    ? "Auto preview is ON (click to pause automatic rebuilds)"
+    : (autoPreviewStale
+        ? "Auto preview is OFF and preview is stale (click to rebuild with latest content)"
+        : "Auto preview is OFF (click to resume automatic rebuilds)");
+  const autoPreviewLabel = autoPreviewStale ? "AUTO*" : "AUTO";
 
   const indicatorLabel = viewerReady
     ? (pageCount ? `${page} / ${pageCount}` : `${page} / ...`)
@@ -128,6 +140,15 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
           style={{ ...tagButtonStyle, background: pageViewMode === PageViewMode.SPREAD ? "rgba(58,58,70,0.95)" : tagButtonStyle.background }}
         >
           {viewModeLabel}
+        </button>
+        <button
+          onClick={onToggleAutoPreview}
+          title={autoPreviewTitle}
+          aria-label={autoPreviewTitle}
+          aria-pressed={autoPreviewEnabled}
+          style={{ ...tagButtonStyle, background: autoPreviewEnabled ? "rgba(58,58,70,0.95)" : tagButtonStyle.background }}
+        >
+          {autoPreviewLabel}
         </button>
         <button
           onClick={onToggleRaw}

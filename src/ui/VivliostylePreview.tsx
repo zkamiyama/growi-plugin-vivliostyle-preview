@@ -14,7 +14,19 @@ interface VivliostylePreviewProps {
 
 const GUTTER_COLOR = "#aaaaaa";
 
-export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown }) => {
+export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown: incomingMarkdown }) => {
+  const [previewMarkdown, setPreviewMarkdown] = useState(incomingMarkdown);
+  const [isAutoPreviewEnabled, setIsAutoPreviewEnabled] = useState(true);
+
+  // Keep preview markdown in sync with incoming markdown when auto mode is enabled
+  useEffect(() => {
+    if (isAutoPreviewEnabled) {
+      setPreviewMarkdown(incomingMarkdown);
+    }
+  }, [incomingMarkdown, isAutoPreviewEnabled]);
+
+  // Alias for existing logic that expects `markdown` to be the previewed content
+  const markdown = previewMarkdown;
   const { payload, sourceUrl, isBuilding, refreshDependencies, error, retryBuild, buildStage } = useVivlioBuild(markdown);
 
   const pageProgression = useMemo(() => detectPageProgressionDirection(payload?.finalCss, payload?.html), [payload?.finalCss, payload?.html]);
@@ -40,6 +52,10 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [showInfo, setShowInfo] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
   const [timeSliceInfo, setTimeSliceInfo] = useState<{ count: number; lastTimestamp: number } | null>(null);
+  const handleToggleAutoPreview = useCallback(() => {
+    setIsAutoPreviewEnabled((prev) => !prev);
+  }, []);
+  const isPreviewStale = !isAutoPreviewEnabled && previewMarkdown !== incomingMarkdown;
 
   // Track the last page confirmed by renderer (viewerReady + not building)
   const lastConfirmedPageRef = useRef<number>(1);
@@ -178,6 +194,9 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         onToggleInfo={() => setShowInfo((state) => !state)}
         showRaw={showRaw}
         onToggleRaw={() => setShowRaw((state) => !state)}
+        autoPreviewEnabled={isAutoPreviewEnabled}
+        autoPreviewStale={isPreviewStale}
+        onToggleAutoPreview={handleToggleAutoPreview}
         onPrevPage={prevPage}
         onNextPage={nextPage}
         viewerReady={viewerReady}
