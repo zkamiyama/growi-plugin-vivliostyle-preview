@@ -124,7 +124,8 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
           onClick={onTogglePageView}
           title={viewModeTitle}
           aria-label={viewModeTitle}
-          style={{ ...tagButtonStyle }}
+          aria-pressed={pageViewMode === PageViewMode.SPREAD}
+          style={{ ...tagButtonStyle, background: pageViewMode === PageViewMode.SPREAD ? "rgba(58,58,70,0.95)" : tagButtonStyle.background }}
         >
           {viewModeLabel}
         </button>
