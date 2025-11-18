@@ -69,7 +69,9 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
   const handleRightClick = isRtl ? onPrevPage : onNextPage;
   const leftTitle = isRtl ? "Next page" : "Previous page";
   const rightTitle = isRtl ? "Previous page" : "Next page";
-  const viewModeLabel = pageViewMode === PageViewMode.SPREAD ? "Single" : "Spread";
+  // Always display a single character indicating "2" (two-pages / spread)
+  // The button still toggles view but the label should remain a single glyph
+  const viewModeLabel = "2";
   const viewModeTitle = pageViewMode === PageViewMode.SPREAD ? "Switch to single-page view" : "Switch to spread view";
 
   const indicatorLabel = viewerReady
@@ -122,7 +124,7 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
           onClick={onTogglePageView}
           title={viewModeTitle}
           aria-label={viewModeTitle}
-          style={{ ...tagButtonStyle, background: pageViewMode === PageViewMode.SPREAD ? "rgba(58,58,70,0.95)" : tagButtonStyle.background }}
+          style={{ ...tagButtonStyle }}
         >
           {viewModeLabel}
         </button>
