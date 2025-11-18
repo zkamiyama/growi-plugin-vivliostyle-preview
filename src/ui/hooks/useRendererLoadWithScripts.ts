@@ -9,14 +9,11 @@ type InlineScriptViolation = {
 
 // Minimal allowlist-inspired guard: block clear XSS vectors but keep benign layout scripts working.
 const INLINE_SCRIPT_GUARD: InlineScriptViolation[] = [
-  { reason: 'accessing parent window', pattern: /\b(parent|top)\b/gi },
-  { reason: 'navigating via location', pattern: /\blocation\b/gi },
+  { reason: 'accessing parent document', pattern: /(?:window\.|self\.)?parent\.document/gi },
+  { reason: 'navigating parent/top window', pattern: /(?:window\.|self\.)?(?:parent|top)\.(?:location|history|open|close)/gi },
+  { reason: 'posting messages to parent', pattern: /(?:window\.|self\.)?(?:parent|top)\.postMessage/gi },
   { reason: 'reading cookies', pattern: /document\.cookie/gi },
-  { reason: 'network access (fetch)', pattern: /\bfetch\b/gi },
-  { reason: 'network access (XMLHttpRequest)', pattern: /XMLHttpRequest/gi },
-  { reason: 'network access (WebSocket)', pattern: /WebSocket/gi },
-  { reason: 'storage access', pattern: /localStorage|sessionStorage/gi },
-  { reason: 'messaging parent frame', pattern: /postMessage/gi },
+  { reason: 'persistent storage access', pattern: /(?:window\.)?(?:localStorage|sessionStorage)/gi },
 ];
 
 function validateInlineScript(scriptCode: string): { allowed: boolean; reason?: string } {

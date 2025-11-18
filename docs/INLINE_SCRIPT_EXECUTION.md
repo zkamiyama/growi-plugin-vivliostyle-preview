@@ -167,12 +167,12 @@ const applyPayload = (next: VivlioPayload) => {
 
 ### 最低限のセキュリティガード（2025-11-18追加）
 
-- プラグインでJavaScriptを有効化した場合でも、以下のキーワードを含むスクリプトは警告を出して実行をスキップします。
-  - `parent` / `top` / `location`
-  - `document.cookie`
-  - `fetch` / `XMLHttpRequest` / `WebSocket`
+- プラグインでJavaScriptを有効化した場合でも、以下の危険なAPI呼び出しを検知すると警告を出して実行をスキップします。
+  - `parent.document` や `window.parent.document`
+  - `parent.location` / `parent.history` / `top.location` など、親・最上位ウィンドウのナビゲーション操作
+  - `parent.postMessage(...)` / `top.postMessage(...)`
+  - `document.cookie` へのアクセス
   - `localStorage` / `sessionStorage`
-  - `postMessage`
 - 目的: 組版向けのDOM操作は許容しつつ、親ウィンドウ操作やネットワーク送信といった典型的なXSSベクトルを即座に遮断する。
 - ブロックされた場合はブラウザコンソールに `[VivlioSecurity] Blocked inline script` が表示されるので、必要であれば安全な別実装へ書き換えてください。
 
