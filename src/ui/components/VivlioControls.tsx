@@ -131,24 +131,24 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
       </div>
       <div className="vivlio-header-center">
         <button
-          onClick={onToggleAutoPreview}
-          title={autoPreviewTitle}
-          aria-label={autoPreviewTitle}
-          aria-pressed={autoPreviewEnabled}
-          style={{ ...tagButtonStyle, background: autoPreviewEnabled ? "rgba(58,58,70,0.95)" : tagButtonStyle.background }}
-          onMouseDown={addPressEffect}
-        >
-          {autoPreviewLabel}
-        </button>
-        <button
           onClick={onToggleJs}
           title={jsEnabled ? "JavaScript is ON" : "JavaScript is OFF"}
           aria-label="Toggle JavaScript in preview"
           aria-pressed={jsEnabled}
-          style={{ ...tagButtonStyle, marginLeft: 6, background: jsEnabled ? "rgba(58,58,70,0.95)" : tagButtonStyle.background }}
+          style={{ ...tagButtonStyle, background: jsEnabled ? "rgba(58,58,70,0.95)" : tagButtonStyle.background }}
           onMouseDown={(e) => { e.preventDefault(); addPressEffect(e); }}
         >
           {jsLabel}
+        </button>
+        <button
+          onClick={onToggleAutoPreview}
+          title={autoPreviewTitle}
+          aria-label={autoPreviewTitle}
+          aria-pressed={autoPreviewEnabled}
+          style={{ ...tagButtonStyle, marginLeft: 6, background: autoPreviewEnabled ? "rgba(58,58,70,0.95)" : tagButtonStyle.background }}
+          onMouseDown={addPressEffect}
+        >
+          {autoPreviewLabel}
         </button>
         <button
           onClick={() => onManualRebuild()}
@@ -170,7 +170,7 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
               d="M21 12a9 9 0 1 1-4.24-7.57"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="3"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
@@ -178,7 +178,7 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
               d="M21 4v6h-6"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="3"
               strokeLinecap="round"
               strokeLinejoin="round"
             />

@@ -53,18 +53,19 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const [showRaw, setShowRaw] = useState(false);
   const [isJsEnabled, setIsJsEnabled] = useState(false);
   const [timeSliceInfo, setTimeSliceInfo] = useState<{ count: number; lastTimestamp: number } | null>(null);
-  const handleToggleAutoPreview = useCallback(() => {
-    setIsAutoPreviewEnabled((prev) => !prev);
-  }, []);
-  const handleToggleJs = useCallback(() => {
-    setIsJsEnabled((prev) => !prev);
-  }, []);
   const handleManualRebuild = useCallback(() => {
     setPreviewMarkdown(incomingMarkdown);
     if (previewMarkdown === incomingMarkdown) {
       retryBuild();
     }
   }, [incomingMarkdown, previewMarkdown, retryBuild]);
+  const handleToggleAutoPreview = useCallback(() => {
+    setIsAutoPreviewEnabled((prev) => !prev);
+  }, []);
+  const handleToggleJs = useCallback(() => {
+    setIsJsEnabled((prev) => !prev);
+    handleManualRebuild();
+  }, [handleManualRebuild]);
   const isPreviewStale = !isAutoPreviewEnabled && previewMarkdown !== incomingMarkdown;
 
   // Track the last page confirmed by renderer (viewerReady + not building)
