@@ -11,6 +11,7 @@ interface VivlioControlsProps {
   autoPreviewEnabled: boolean;
   autoPreviewStale?: boolean;
   onToggleAutoPreview: () => void;
+  onManualRebuild: () => void;
   onPrevPage: () => void;
   onNextPage: () => void;
   viewerReady: boolean;
@@ -57,6 +58,7 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
   autoPreviewEnabled,
   autoPreviewStale,
   onToggleAutoPreview,
+  onManualRebuild,
   onPrevPage,
   onNextPage,
   viewerReady,
@@ -109,6 +111,26 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
         <span style={{ ...pageIndicatorStyle, opacity: viewerReady ? 1 : 0.7 }} title={indicatorTitle}>
           {indicatorLabel}
         </span>
+      </div>
+      <div className="vivlio-header-center">
+        <button
+          onClick={onToggleAutoPreview}
+          title={autoPreviewTitle}
+          aria-label={autoPreviewTitle}
+          aria-pressed={autoPreviewEnabled}
+          style={{ ...tagButtonStyle, background: autoPreviewEnabled ? "rgba(58,58,70,0.95)" : tagButtonStyle.background }}
+        >
+          {autoPreviewLabel}
+        </button>
+        <button
+          onClick={() => onManualRebuild()}
+          title="Force rebuild preview"
+          aria-label="Force rebuild preview"
+          style={{ ...tagButtonStyle, marginLeft: 6 }}
+          onMouseDown={(e) => e.preventDefault()} // prevent focus shift
+        >
+          ⟳
+        </button>
       </div>
       <div className="vivlio-header-right">
         <button

@@ -29,6 +29,14 @@
   align-items: center;
 }
 
+.vivlio-header-center {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
 .vivlio-content-area {
   position: relative;
   flex: 1 1 auto;

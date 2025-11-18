@@ -55,6 +55,9 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
   const handleToggleAutoPreview = useCallback(() => {
     setIsAutoPreviewEnabled((prev) => !prev);
   }, []);
+  const handleManualRebuild = useCallback(() => {
+    setPreviewMarkdown(incomingMarkdown);
+  }, [incomingMarkdown]);
   const isPreviewStale = !isAutoPreviewEnabled && previewMarkdown !== incomingMarkdown;
 
   // Track the last page confirmed by renderer (viewerReady + not building)
@@ -197,6 +200,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         autoPreviewEnabled={isAutoPreviewEnabled}
         autoPreviewStale={isPreviewStale}
         onToggleAutoPreview={handleToggleAutoPreview}
+        onManualRebuild={handleManualRebuild}
         onPrevPage={prevPage}
         onNextPage={nextPage}
         viewerReady={viewerReady}
