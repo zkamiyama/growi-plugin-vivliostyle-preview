@@ -51,7 +51,7 @@ export const VivlioInfoPanel: React.FC<VivlioInfoPanelProps> = ({
   jsEnabled = false,
   onEnableJavaScript,
 }) => {
-  const [collapsed, setCollapsed] = React.useState({ md: true, userCss: true, compCss: true, html: true, deps: false });
+  const [collapsed, setCollapsed] = React.useState({ md: true, userCss: true, compCss: true, html: true, inlineJs: true, deps: false });
   const [copiedKey, setCopiedKey] = React.useState<string | null>(null);
   const timerRef = React.useRef<number | null>(null);
 
@@ -69,6 +69,9 @@ export const VivlioInfoPanel: React.FC<VivlioInfoPanelProps> = ({
 
   // Use simple labels without arrow symbols: '右左' / '左右'
   const readingDirectionLabel = readingDirection === 'rtl' ? '右左 (rtl)' : '左右 (ltr)';
+  const inlineScriptPreview = payload?.inlineScripts?.length
+    ? payload.inlineScripts.map((code, idx) => `/* Script ${idx + 1} */\n${code}`).join('\n\n')
+    : '';
   const handleCopy = (key: string, value?: string) => {
     if (!value) return;
     try {
@@ -169,17 +172,29 @@ export const VivlioInfoPanel: React.FC<VivlioInfoPanelProps> = ({
         >
           <pre className="vivlio-pre">{payload ? (payload.html || '(none)') : '(not built yet)'}</pre>
         </Section>
+        <Section
+          title="Inline Scripts"
+          collapsed={collapsed.inlineJs}
+          onToggle={() => setCollapsed((state) => ({ ...state, inlineJs: !state.inlineJs }))}
+          onCopy={() => handleCopy('inlineJs', inlineScriptPreview)}
+          copied={copiedKey === 'inlineJs'}
+        >
+          <pre className="vivlio-pre-small">
+            {payload
+              ? (inlineScriptPreview || '(empty)')
+              : '(not built yet)'}
+          </pre>
+        </Section>
         <div className="vivlio-info-footer" style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
           <div style={{ fontSize: 12, lineHeight: 1.5, color: 'rgba(255,255,255,0.85)', marginBottom: 8 }}>
-            ⚠️ 信頼できるスクリプトのみ有効化してください。JavaScriptはGROWI全体に影響する場合があります。
+            ⚠️ Enable only trusted scripts. Injected JavaScript runs with full access to the GROWI page.
           </div>
           <button
             type="button"
             onClick={onEnableJavaScript}
             disabled={!onEnableJavaScript || jsEnabled}
             style={{
-              width: '100%',
-              padding: '8px 12px',
+              padding: '6px 12px',
               borderRadius: 8,
               border: '1px solid rgba(255,255,255,0.3)',
               background: jsEnabled ? 'rgba(80, 150, 100, 0.25)' : 'transparent',
@@ -187,6 +202,11 @@ export const VivlioInfoPanel: React.FC<VivlioInfoPanelProps> = ({
               fontWeight: 600,
               cursor: !onEnableJavaScript || jsEnabled ? 'not-allowed' : 'pointer',
               opacity: !onEnableJavaScript || jsEnabled ? 0.6 : 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: 160,
+              alignSelf: 'flex-start',
             }}
           >
             {jsEnabled ? 'JavaScript is active' : 'Enable JavaScript preview'}
