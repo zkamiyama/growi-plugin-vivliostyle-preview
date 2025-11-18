@@ -51,9 +51,13 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
 
   const [showInfo, setShowInfo] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
+  const [isJsEnabled, setIsJsEnabled] = useState(false);
   const [timeSliceInfo, setTimeSliceInfo] = useState<{ count: number; lastTimestamp: number } | null>(null);
   const handleToggleAutoPreview = useCallback(() => {
     setIsAutoPreviewEnabled((prev) => !prev);
+  }, []);
+  const handleToggleJs = useCallback(() => {
+    setIsJsEnabled((prev) => !prev);
   }, []);
   const handleManualRebuild = useCallback(() => {
     setPreviewMarkdown(incomingMarkdown);
@@ -203,6 +207,8 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
         autoPreviewEnabled={isAutoPreviewEnabled}
         autoPreviewStale={isPreviewStale}
         onToggleAutoPreview={handleToggleAutoPreview}
+        jsEnabled={isJsEnabled}
+        onToggleJs={handleToggleJs}
         onManualRebuild={handleManualRebuild}
         onPrevPage={prevPage}
         onNextPage={nextPage}
@@ -226,6 +232,7 @@ export const VivliostylePreview: React.FC<VivliostylePreviewProps> = ({ markdown
           gutterColor={GUTTER_COLOR}
           page={page}
           onRendererLoad={handleRendererLoad}
+          runInlineScripts={isJsEnabled}
           onRendererNavigation={handleRendererNavigation}
           onReset={reset}
           viewerReady={viewerReady}

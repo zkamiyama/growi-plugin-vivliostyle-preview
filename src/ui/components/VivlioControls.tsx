@@ -11,6 +11,8 @@ interface VivlioControlsProps {
   autoPreviewEnabled: boolean;
   autoPreviewStale?: boolean;
   onToggleAutoPreview: () => void;
+  jsEnabled: boolean;
+  onToggleJs: () => void;
   onManualRebuild: () => void;
   onPrevPage: () => void;
   onNextPage: () => void;
@@ -58,6 +60,8 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
   autoPreviewEnabled,
   autoPreviewStale,
   onToggleAutoPreview,
+  jsEnabled,
+  onToggleJs,
   onManualRebuild,
   onPrevPage,
   onNextPage,
@@ -87,6 +91,7 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
         ? "Auto preview is OFF and preview is stale (click to rebuild with latest content)"
         : "Auto preview is OFF (click to resume automatic rebuilds)");
   const autoPreviewLabel = autoPreviewStale ? "AUTO*" : "AUTO";
+  const jsLabel = "JS";
 
   const indicatorLabel = viewerReady
     ? (pageCount ? `${page} / ${pageCount}` : `${page} / ...`)
@@ -99,13 +104,25 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
         ? 'Rendering pages... counts are approximate until the viewer finishes'
         : 'Preparing preview...');
 
+  const addPressEffect = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const el = e.currentTarget as HTMLButtonElement;
+    el.classList.add('vivlio-button-pressed');
+    const remove = () => {
+      el.classList.remove('vivlio-button-pressed');
+      el.removeEventListener('mouseup', remove);
+      el.removeEventListener('mouseleave', remove);
+    };
+    el.addEventListener('mouseup', remove);
+    el.addEventListener('mouseleave', remove);
+  };
+
   return (
     <header className="vivlio-header-bar" data-reading-direction={readingDirection}>
       <div className="vivlio-header-left">
-        <button onClick={handleLeftClick} title={leftTitle} aria-label={leftTitle} style={navButtonStyle} disabled={!viewerReady}>
+        <button onClick={handleLeftClick} title={leftTitle} aria-label={leftTitle} style={navButtonStyle} disabled={!viewerReady} onMouseDown={addPressEffect}>
           {"<"}
         </button>
-        <button onClick={handleRightClick} title={rightTitle} aria-label={rightTitle} style={navButtonStyle} disabled={!viewerReady}>
+        <button onClick={handleRightClick} title={rightTitle} aria-label={rightTitle} style={navButtonStyle} disabled={!viewerReady} onMouseDown={addPressEffect}>
           {">"}
         </button>
         <span style={{ ...pageIndicatorStyle, opacity: viewerReady ? 1 : 0.7 }} title={indicatorTitle}>
@@ -119,15 +136,27 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
           aria-label={autoPreviewTitle}
           aria-pressed={autoPreviewEnabled}
           style={{ ...tagButtonStyle, background: autoPreviewEnabled ? "rgba(58,58,70,0.95)" : tagButtonStyle.background }}
+          onMouseDown={addPressEffect}
         >
           {autoPreviewLabel}
+        </button>
+        <button
+          onClick={onToggleJs}
+          title={jsEnabled ? "JavaScript is ON" : "JavaScript is OFF"}
+          aria-label="Toggle JavaScript in preview"
+          aria-pressed={jsEnabled}
+          style={{ ...tagButtonStyle, marginLeft: 6, background: jsEnabled ? "rgba(58,58,70,0.95)" : tagButtonStyle.background }}
+          onMouseDown={(e) => { e.preventDefault(); addPressEffect(e); }}
+        >
+          {jsLabel}
         </button>
         <button
           onClick={() => onManualRebuild()}
           title="Force rebuild preview"
           aria-label="Force rebuild preview"
           style={{ ...tagButtonStyle, marginLeft: 6 }}
-          onMouseDown={(e) => e.preventDefault()} // prevent focus shift
+          onMouseDown={(e) => { e.preventDefault(); addPressEffect(e); }} // prevent focus shift
+          className="vivlio-button"
         >
           <svg
             aria-hidden="true"
@@ -163,6 +192,8 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
           aria-label="Zoom out"
           style={tagButtonStyle}
           disabled={!viewerReady}
+          className="vivlio-button"
+          onMouseDown={addPressEffect}
         >
           -
         </button>
@@ -175,6 +206,8 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
           aria-label="Zoom in"
           style={tagButtonStyle}
           disabled={!viewerReady}
+          className="vivlio-button"
+          onMouseDown={addPressEffect}
         >
           +
         </button>
@@ -184,6 +217,8 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
           aria-label={viewModeTitle}
           aria-pressed={pageViewMode === PageViewMode.SPREAD}
           style={{ ...tagButtonStyle, background: pageViewMode === PageViewMode.SPREAD ? "rgba(58,58,70,0.95)" : tagButtonStyle.background }}
+          className="vivlio-button"
+          onMouseDown={addPressEffect}
         >
           {viewModeLabel}
         </button>

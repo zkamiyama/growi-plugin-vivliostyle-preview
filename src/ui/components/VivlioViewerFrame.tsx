@@ -29,6 +29,7 @@ interface VivlioViewerFrameProps {
   onZoomChange: (newZoom: number) => void;
   error?: BuildErrorInfo | null;
   onRetry?: () => void;
+  runInlineScripts?: boolean;
 }
 
 const MIN_SCALE = 0.05;
@@ -50,6 +51,7 @@ export const VivlioViewerFrame: React.FC<VivlioViewerFrameProps> = ({
   onZoomChange,
   error,
   onRetry,
+  runInlineScripts = true,
 }) => {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -81,7 +83,8 @@ export const VivlioViewerFrame: React.FC<VivlioViewerFrameProps> = ({
     }
   }, [onReset]);
 
-  const rendererLoadHandler = useRendererLoadWithScripts({ payload, iframeRef, onRendererLoad });
+  const rendererLoadHandlerWithScripts = useRendererLoadWithScripts({ payload, iframeRef, onRendererLoad });
+  const rendererLoadHandler = runInlineScripts ? rendererLoadHandlerWithScripts : onRendererLoad;
 
   useWheelZoom({ wrapperRef, iframeRef, zoom, onZoomChange, showRaw });
   useScaledIframeLayout({
@@ -161,7 +164,7 @@ export const VivlioViewerFrame: React.FC<VivlioViewerFrameProps> = ({
           <iframe
             className="vivlio-raw-frame"
             key={(payload.html || '') + '_' + readingDirection + '_' + pageViewMode + '_raw'}
-            srcDoc={payload.html || ''}
+            srcDoc={runInlineScripts ? (payload.html || '') : (payload.htmlForIframe || payload.html || '')}
             title="Vivliostyle Raw HTML (with scripts)"
           />
         </div>
