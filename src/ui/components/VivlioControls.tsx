@@ -88,7 +88,8 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
     : (autoPreviewStale
         ? "Auto preview is OFF and preview is stale (click to rebuild with latest content)"
         : "Auto preview is OFF (click to resume automatic rebuilds)");
-  const autoPreviewLabel = autoPreviewStale ? "AUTO*" : "AUTO";
+  // Keep AUTO label clean; display the "stale" marker on the manual rebuild button
+  const autoPreviewLabel = "AUTO";
   const jsLabel = "JS";
 
   const indicatorLabel = viewerReady
@@ -204,6 +205,12 @@ export const VivlioControls: React.FC<VivlioControlsProps> = ({
               strokeLinejoin="round"
             />
           </svg>
+          {/* show a small "*" when the preview is stale (auto preview is off and there are updates) */}
+          {autoPreviewStale && (
+            <span style={{ marginLeft: 6, color: '#ffda00', fontWeight: 700, fontSize: 12 }} aria-hidden>
+              *
+            </span>
+          )}
         </button>
       </div>
       <div className="vivlio-header-right">
