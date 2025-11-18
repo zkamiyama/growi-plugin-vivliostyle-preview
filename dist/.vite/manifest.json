@@ -19,7 +19,7 @@
     ]
   },
   "client-entry.tsx": {
-    "file": "assets/client-entry-6o7u4oa3.js",
+    "file": "assets/client-entry-gJFMn9gD.js",
     "name": "client-entry",
     "src": "client-entry.tsx",
     "isEntry": true,
@@ -29,7 +29,7 @@
       "_pdf-vendor-BMuSt807.js"
     ],
     "css": [
-      "assets/client-entry-DEoYNLEb.css"
+      "assets/client-entry-DR8OM_dC.css"
     ]
   }
 }

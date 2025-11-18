@@ -37,19 +37,6 @@
   justify-content: center;
 }
 
-.vivlio-rebuild-button {
-  background: rgba(0, 0, 0, 0.95) !important;
-  color: #f7f7f7 !important;
-  text-shadow: 0 0 6px rgba(0, 0, 0, 0.65);
-  filter: grayscale(1) contrast(1.4);
-  border-color: rgba(255, 255, 255, 0.55) !important;
-}
-
-.vivlio-rebuild-button:hover {
-  background: rgba(20, 20, 20, 0.98) !important;
-  border-color: rgba(255, 255, 255, 0.8) !important;
-}
-
 .vivlio-content-area {
   position: relative;
   flex: 1 1 auto;
